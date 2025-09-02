@@ -37,10 +37,21 @@ class MailHandlerScheduler
   def self.schedule_mail_import
     settings = Setting.plugin_redmine_mail_handler
     interval = (settings['import_interval'] || '5').to_i
+    interval_unit = settings['import_interval_unit'] || 'minutes'
     
     return unless settings['auto_import_enabled'] == '1'
     
-    @@scheduler.every "#{interval}m" do
+    # Bestimme das Intervall-Format für rufus-scheduler
+    interval_format = case interval_unit
+                     when 'seconds'
+                       "#{interval}s"
+                     when 'minutes'
+                       "#{interval}m"
+                     else
+                       "#{interval}m" # Fallback auf Minuten
+                     end
+    
+    @@scheduler.every interval_format do
       begin
         @@logger.info("Starting scheduled mail import")
         service = MailHandlerService.new
@@ -50,7 +61,8 @@ class MailHandlerScheduler
       end
     end
     
-    @@logger.info("Scheduled mail import every #{interval} minutes")
+    unit_text = interval_unit == 'seconds' ? 'Sekunden' : 'Minuten'
+    @@logger.info("Scheduled mail import every #{interval} #{unit_text}")
   end
 
   def self.schedule_daily_reminders

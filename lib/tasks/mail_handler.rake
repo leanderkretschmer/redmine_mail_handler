@@ -149,7 +149,8 @@ namespace :redmine do
       puts "=" * 40
       puts "Scheduler: #{MailHandlerScheduler.running? ? '✅ Running' : '❌ Stopped'}"
       puts "Auto Import: #{settings['auto_import_enabled'] == '1' ? '✅ Enabled' : '❌ Disabled'}"
-      puts "Import Interval: #{settings['import_interval']} minutes"
+      interval_unit = settings['import_interval_unit'] == 'seconds' ? 'Sekunden' : 'Minuten'
+      puts "Import Interval: #{settings['import_interval']} #{interval_unit}"
       puts "Reminders: #{settings['reminder_enabled'] == '1' ? "✅ Enabled (#{settings['reminder_time']})" : '❌ Disabled'}"
       puts "IMAP Host: #{settings['imap_host'].present? ? settings['imap_host'] : '❌ Not configured'}"
       puts "Log Level: #{settings['log_level']}"

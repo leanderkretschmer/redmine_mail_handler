@@ -119,8 +119,13 @@ function toggleSmtpFields(useSameAsImap) {
   </p>
   
   <p>
-    <label for="settings_import_interval">Import-Intervall (Minuten):</label>
+    <label for="settings_import_interval">Import-Intervall:</label>
     <%= text_field_tag 'settings[import_interval]', @settings['import_interval'], :size => 10, :placeholder => '5' %>
+    <%= select_tag 'settings[import_interval_unit]', 
+                   options_for_select([
+                     ['Minuten', 'minutes'],
+                     ['Sekunden', 'seconds']
+                   ], @settings['import_interval_unit'] || 'minutes') %>
     <em class="info">Wie oft sollen E-Mails automatisch importiert werden</em>
   </p>
 </div>

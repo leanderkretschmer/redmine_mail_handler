@@ -36,7 +36,11 @@ de:
   
   label_import_settings: "Import-Einstellungen"
   label_auto_import_enabled: "Automatischer Import aktiviert"
-  label_import_interval: "Import-Intervall (Minuten)"
+  label_import_interval: "Import-Intervall"
+  label_import_interval_info: "Wie oft sollen E-Mails automatisch importiert werden"
+  label_import_interval_unit: "Einheit"
+  label_minutes: "Minuten"
+  label_seconds: "Sekunden"
   
   label_logging_settings: "Logging-Einstellungen"
   label_log_level: "Log-Level"

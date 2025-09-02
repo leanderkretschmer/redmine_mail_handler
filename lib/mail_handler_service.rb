@@ -474,4 +474,7 @@ class MailHandlerService
       return Setting.mail_from
     end
   end
+
+  # Alias für Rückwärtskompatibilität
+  alias_method :get_smtp_settings, :get_smtp_configuration
 end
