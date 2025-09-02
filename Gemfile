@@ -13,7 +13,7 @@ gem 'mime-types', '~> 3.4.0'
 gem 'logging', '~> 2.3.0'
 
 # HTML-Parsing für Mail-Inhalte
-gem 'nokogiri', '>= 1.13.0'
+# nokogiri wird bereits von Redmine bereitgestellt
 
 # Encoding-Unterstützung
 gem 'charlock_holmes', '~> 0.7.7'
