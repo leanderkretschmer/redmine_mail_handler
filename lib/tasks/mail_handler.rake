@@ -69,10 +69,10 @@ namespace :redmine do
       result = service.test_connection
       
       if result[:success]
-        puts "✅ IMAP connection successful!"
+        puts "IMAP connection successful!"
         puts "Available folders: #{result[:folders].join(', ')}"
       else
-        puts "❌ IMAP connection failed: #{result[:error]}"
+        puts "IMAP connection failed: #{result[:error]}"
         exit 1
       end
     end
@@ -89,9 +89,9 @@ namespace :redmine do
       puts "Sending test reminder to #{email}..."
       
       if MailHandlerScheduler.send_test_reminder(email)
-        puts "✅ Test reminder sent successfully."
+        puts "Test reminder sent successfully."
       else
-        puts "❌ Failed to send test reminder."
+        puts "Failed to send test reminder."
         exit 1
       end
     end
