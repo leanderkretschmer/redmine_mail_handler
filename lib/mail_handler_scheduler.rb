@@ -83,13 +83,13 @@ class MailHandlerScheduler
     issues_by_user = overdue_issues.group_by(&:assigned_to)
     
     issues_by_user.each do |user, issues|
-      next unless user && user.mail.present?
+      next unless user && user.email_address.present?
       
       begin
         send_reminder_to_user(user, issues)
-        @@logger.info("Sent reminder to #{user.mail} for #{issues.count} issues")
+        @@logger.info("Sent reminder to #{user.email_address} for #{issues.count} issues")
       rescue => e
-        @@logger.error("Failed to send reminder to #{user.mail}: #{e.message}")
+        @@logger.error("Failed to send reminder to #{user.email_address}: #{e.message}")
       end
     end
     
@@ -98,7 +98,7 @@ class MailHandlerScheduler
 
   def self.send_reminder_to_user(user, issues)
     # Validiere Benutzer-E-Mail
-    if user.mail.blank?
+    if user.email_address.blank?
       @@logger.error("Benutzer #{user.firstname} #{user.lastname} hat keine E-Mail-Adresse")
       return false
     end
@@ -111,7 +111,7 @@ class MailHandlerScheduler
     
     mail = Mail.new do
       from     Setting.mail_from
-      to       user.mail
+      to       user.email_address
       subject  "Redmine: Tägliche Erinnerung - #{issues.count} offene Tickets"
       
       body_text = "Hallo #{user.firstname},\n\n"
@@ -133,31 +133,23 @@ class MailHandlerScheduler
       body body_text
     end
 
-    # Verwende Redmine's SMTP-Konfiguration
-    smtp_settings = ActionMailer::Base.smtp_settings
-    if smtp_settings.present? && smtp_settings[:address].present?
-      @@logger.debug("Using ActionMailer SMTP settings for reminder: #{smtp_settings[:address]}:#{smtp_settings[:port]}")
-      mail.delivery_method :smtp, smtp_settings
-    elsif Setting.email_delivery.present? && Setting.email_delivery['smtp_settings'].present?
-      # Fallback auf Redmine's Standard-Konfiguration
-      smtp_config = Setting.email_delivery['smtp_settings']
-      if smtp_config['address'].present?
-        @@logger.debug("Using Redmine email_delivery settings for reminder: #{smtp_config['address']}:#{smtp_config['port']}")
-        mail.delivery_method :smtp, {
-          address: smtp_config['address'],
-          port: smtp_config['port'] || 587,
-          domain: smtp_config['domain'],
-          user_name: smtp_config['user_name'],
-          password: smtp_config['password'],
-          authentication: smtp_config['authentication'] || :plain,
-          enable_starttls_auto: smtp_config['enable_starttls_auto'] != false
-        }
+    # Verwende Plugin-SMTP-Konfiguration
+    begin
+      require_relative 'mail_handler_service'
+      service = MailHandlerService.new
+      smtp_config = service.send(:get_smtp_settings)
+      
+      if smtp_config && smtp_config[:address].present?
+        @@logger.debug("Using plugin SMTP settings for reminder: #{smtp_config[:address]}:#{smtp_config[:port]}")
+        @@logger.debug("SSL: #{smtp_config[:ssl]}, STARTTLS: #{smtp_config[:enable_starttls_auto]}")
+        
+        mail.delivery_method :smtp, smtp_config
       else
-        @@logger.error("SMTP-Server-Adresse ist nicht konfiguriert für Reminder-E-Mails")
+        @@logger.error("Plugin-SMTP-Konfiguration ist nicht verfügbar für Reminder-E-Mails")
         return false
       end
-    else
-      @@logger.error("Keine SMTP-Konfiguration gefunden für Reminder-E-Mails")
+    rescue => e
+      @@logger.error("Fehler beim Laden der Plugin-SMTP-Konfiguration: #{e.message}")
       return false
     end
 
@@ -186,7 +178,7 @@ class MailHandlerScheduler
         )
       ]
       
-      user = OpenStruct.new(firstname: 'Test', mail: to_email)
+      user = OpenStruct.new(firstname: 'Test', email_address: to_email)
       send_reminder_to_user(user, test_issues)
       
       @@logger.info("Test reminder sent to #{to_email}")

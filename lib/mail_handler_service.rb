@@ -213,13 +213,13 @@ class MailHandlerService
   # Finde oder erstelle Benutzer
   def find_or_create_user(email)
     # Suche existierenden Benutzer
-    user = User.find_by(mail: email.downcase)
+    user = User.find_by(email_address: email.downcase)
     return user if user
     
     # Erstelle neuen Benutzer (deaktiviert)
     begin
       user = User.new(
-        mail: email.downcase,
+        email_address: email.downcase,
         firstname: email.split('@').first,
         lastname: 'Auto-created',
         login: email.downcase.gsub(/[^a-zA-Z0-9]/, '_'),

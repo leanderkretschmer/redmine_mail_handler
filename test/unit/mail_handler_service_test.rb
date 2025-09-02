@@ -39,7 +39,7 @@ class MailHandlerServiceTest < ActiveSupport::TestCase
 
   def test_find_existing_user
     user = User.find(1)
-    found_user = @service.send(:find_or_create_user, user.mail)
+    found_user = @service.send(:find_or_create_user, user.email_address)
     assert_equal user, found_user
   end
 
@@ -51,7 +51,7 @@ class MailHandlerServiceTest < ActiveSupport::TestCase
     
     user = @service.send(:find_or_create_user, email)
     assert_not_nil user
-    assert_equal email.downcase, user.mail
+    assert_equal email.downcase, user.email_address
     assert_equal User::STATUS_LOCKED, user.status
     assert_equal 'none', user.mail_notification
   end

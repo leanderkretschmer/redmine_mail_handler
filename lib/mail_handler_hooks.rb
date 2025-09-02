@@ -47,7 +47,7 @@ class MailHandlerModelHooks < Redmine::Hook::Listener
     # Prüfe ob Benutzer durch Mail Handler erstellt wurde
     if user.status == User::STATUS_LOCKED && user.lastname == 'Auto-created'
       logger = MailHandlerLogger.new
-      logger.info("Auto-created user for mail processing: #{user.mail}")
+      logger.info("Auto-created user for mail processing: #{user.email_address}")
     end
   end
 end
