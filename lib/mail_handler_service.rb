@@ -198,7 +198,19 @@ class MailHandlerService
     end
     
     # Mail als gelesen markieren und archivieren
-    imap.store(msg_id, '+FLAGS', [:Seen])
+    # Wichtig: Erst markieren, dann archivieren, da move() die Message-ID ungültig macht
+    begin
+      imap.store(msg_id, '+FLAGS', [:Seen])
+    rescue Net::IMAP::BadResponseError => e
+      if e.message.include?('Invalid messageset')
+        @logger.debug("Message #{msg_id} already processed or invalid, skipping mark as seen")
+      else
+        @logger.warn("Failed to mark message #{msg_id} as seen: #{e.message}")
+      end
+    rescue => e
+      @logger.warn("Failed to mark message #{msg_id} as seen: #{e.message}")
+    end
+    
     archive_message(imap, msg_id)
   end
 
@@ -212,20 +224,27 @@ class MailHandlerService
 
   # Finde oder erstelle Benutzer
   def find_or_create_user(email)
-    # Suche existierenden Benutzer
-    user = User.find_by(email_address: email.downcase)
+    # Suche existierenden Benutzer über EmailAddress-Objekt
+    email_address_obj = EmailAddress.find_by(address: email.downcase)
+    user = email_address_obj&.user
     return user if user
     
     # Erstelle neuen Benutzer (deaktiviert)
     begin
       user = User.new(
-        email_address: email.downcase,
         firstname: email.split('@').first,
         lastname: 'Auto-created',
         login: email.downcase.gsub(/[^a-zA-Z0-9]/, '_'),
         status: User::STATUS_LOCKED,
         mail_notification: 'none'
       )
+      
+      # Erstelle EmailAddress-Objekt für Redmine 6.x
+      email_address = EmailAddress.new(
+        address: email.downcase,
+        is_default: true
+      )
+      user.email_addresses = [email_address]
       
       if user.save
         @logger.info("Created new user for #{email} (locked)")
@@ -244,7 +263,9 @@ class MailHandlerService
   def add_mail_to_ticket(mail, ticket_id, user)
     ticket = Issue.find_by(id: ticket_id)
     unless ticket
-      @logger.warn("Ticket ##{ticket_id} not found")
+      @logger.warn("Ticket ##{ticket_id} not found, forwarding to inbox ticket")
+      # Fallback: Leite E-Mail an Posteingang-Ticket weiter
+      add_mail_to_inbox_ticket(mail, user)
       return
     end
     
@@ -264,7 +285,10 @@ class MailHandlerService
   # Füge Mail zu Posteingang-Ticket hinzu
   def add_mail_to_inbox_ticket(mail, user)
     inbox_ticket_id = @settings['inbox_ticket_id'].to_i
-    return unless inbox_ticket_id > 0
+    unless inbox_ticket_id > 0
+      @logger.warn("No inbox ticket ID configured, cannot process mail from #{mail.from.first}")
+      return
+    end
     
     add_mail_to_ticket(mail, inbox_ticket_id, user)
   end
@@ -308,8 +332,16 @@ class MailHandlerService
     return unless @settings['archive_folder'].present?
     
     begin
+      # Prüfe ob die Message-ID noch gültig ist
+      imap.fetch(msg_id, 'UID')
       imap.move(msg_id, @settings['archive_folder'])
       @logger.debug("Moved message #{msg_id} to archive")
+    rescue Net::IMAP::BadResponseError => e
+      if e.message.include?('Invalid messageset')
+        @logger.debug("Message #{msg_id} already moved or invalid, skipping archive")
+      else
+        @logger.warn("Failed to archive message #{msg_id}: #{e.message}")
+      end
     rescue => e
       @logger.warn("Failed to archive message #{msg_id}: #{e.message}")
     end
