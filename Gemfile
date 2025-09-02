@@ -7,7 +7,7 @@ source 'https://rubygems.org'
 gem 'mime-types', '~> 3.4.0'
 
 # Scheduling
-gem 'rufus-scheduler', '~> 3.8.0'
+# rufus-scheduler wird bereits von Redmine bereitgestellt
 
 # Logging
 gem 'logging', '~> 2.3.0'
