@@ -32,7 +32,9 @@ class MailHandlerService
       @logger.info("Found #{message_ids.count} unread messages")
       
       processed_count = 0
-      message_ids.each do |msg_id|
+      # Verarbeite Nachrichten in umgekehrter Reihenfolge, da das Archivieren
+      # die Message-IDs der nachfolgenden Nachrichten ungültig macht
+      message_ids.reverse.each do |msg_id|
         begin
           process_message(imap, msg_id)
           processed_count += 1
@@ -161,6 +163,18 @@ class MailHandlerService
 
   # Verarbeite einzelne Nachricht
   def process_message(imap, msg_id)
+    # Prüfe ob die Message-ID noch gültig ist
+    begin
+      imap.fetch(msg_id, 'UID')
+    rescue Net::IMAP::BadResponseError => e
+      if e.message.include?('Invalid messageset')
+        @logger.debug("Message #{msg_id} is invalid or already processed, skipping")
+        return
+      else
+        raise e
+      end
+    end
+    
     # Hole Mail-Daten
     msg_data = imap.fetch(msg_id, 'RFC822')[0].attr['RFC822']
     mail = Mail.read_from_string(msg_data)
