@@ -19,6 +19,14 @@ de:
   label_inbox_folder: "Posteingang-Ordner"
   label_archive_folder: "Archiv-Ordner"
   
+  label_smtp_settings: "SMTP-Einstellungen"
+  label_smtp_same_as_imap: "SMTP = IMAP verwenden"
+  label_smtp_host: "SMTP-Server"
+  label_smtp_port: "Port"
+  label_smtp_ssl: "SSL/TLS verwenden"
+  label_smtp_username: "Benutzername"
+  label_smtp_password: "Passwort"
+  
   label_ticket_settings: "Ticket-Einstellungen"
   label_inbox_ticket_id: "Posteingang-Ticket-ID"
   
@@ -79,6 +87,8 @@ de:
   help_auto_import: "Automatischer Import im angegebenen Intervall. Deaktivieren für manuellen Import."
   help_reminder_time: "Format: HH:MM (24-Stunden-Format)"
   help_import_interval: "Wie oft sollen E-Mails automatisch importiert werden"
+  help_smtp_settings: "Konfigurieren Sie hier die SMTP-Einstellungen für den E-Mail-Versand."
+  help_smtp_same_as_imap: "Wenn aktiviert, werden die IMAP-Einstellungen auch für SMTP verwendet (imap.example.com wird zu smtp.example.com)."
   
   # Tabellen-Header
   field_timestamp: "Zeitstempel"

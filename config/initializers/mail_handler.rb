@@ -17,6 +17,33 @@ Rails.application.config.after_initialize do
     Redmine::Hook.add_listener(MailHandlerModelHooks)
   end
   
+  # Initialisiere Standard-SMTP-Einstellungen falls nicht vorhanden
+  if Setting.plugin_redmine_mail_handler.present?
+    settings = Setting.plugin_redmine_mail_handler
+    default_smtp_settings = {
+      'smtp_same_as_imap' => '1',
+      'smtp_host' => '',
+      'smtp_port' => '587',
+      'smtp_ssl' => '0',
+      'smtp_username' => '',
+      'smtp_password' => ''
+    }
+    
+    # Füge fehlende SMTP-Einstellungen hinzu
+    updated = false
+    default_smtp_settings.each do |key, value|
+      unless settings.key?(key)
+        settings[key] = value
+        updated = true
+      end
+    end
+    
+    if updated
+      Setting.plugin_redmine_mail_handler = settings
+      Rails.logger.info "[MailHandler] Added default SMTP settings"
+    end
+  end
+  
   # Starte Scheduler wenn Auto-Import aktiviert ist
   if defined?(MailHandlerScheduler) && Setting.plugin_redmine_mail_handler.present?
     settings = Setting.plugin_redmine_mail_handler

@@ -38,6 +38,54 @@
 </div>
 
 <div class="box tabular settings">
+  <h3>SMTP-Einstellungen</h3>
+  
+  <p>
+    <label for="settings_smtp_same_as_imap">SMTP = IMAP verwenden:</label>
+    <%= check_box_tag 'settings[smtp_same_as_imap]', '1', @settings['smtp_same_as_imap'] == '1', :onchange => 'toggleSmtpFields(this.checked)' %>
+    <em class="info">Wenn aktiviert, werden die IMAP-Einstellungen auch für SMTP verwendet</em>
+  </p>
+  
+  <div id="smtp_fields" style="<%= @settings['smtp_same_as_imap'] == '1' ? 'display: none;' : '' %>">
+    <p>
+      <label for="settings_smtp_host">SMTP-Server:</label>
+      <%= text_field_tag 'settings[smtp_host]', @settings['smtp_host'], :size => 30, :placeholder => 'smtp.example.com' %>
+    </p>
+    
+    <p>
+      <label for="settings_smtp_port">Port:</label>
+      <%= text_field_tag 'settings[smtp_port]', @settings['smtp_port'], :size => 10, :placeholder => '587' %>
+    </p>
+    
+    <p>
+      <label for="settings_smtp_ssl">SSL/TLS verwenden:</label>
+      <%= check_box_tag 'settings[smtp_ssl]', '1', @settings['smtp_ssl'] == '1' %>
+    </p>
+    
+    <p>
+      <label for="settings_smtp_username">Benutzername:</label>
+      <%= text_field_tag 'settings[smtp_username]', @settings['smtp_username'], :size => 30 %>
+    </p>
+    
+    <p>
+      <label for="settings_smtp_password">Passwort:</label>
+      <%= password_field_tag 'settings[smtp_password]', @settings['smtp_password'], :size => 30 %>
+    </p>
+  </div>
+</div>
+
+<script>
+function toggleSmtpFields(useSameAsImap) {
+  var smtpFields = document.getElementById('smtp_fields');
+  if (useSameAsImap) {
+    smtpFields.style.display = 'none';
+  } else {
+    smtpFields.style.display = 'block';
+  }
+}
+</script>
+
+<div class="box tabular settings">
   <h3>Ticket-Einstellungen</h3>
   
   <p>
@@ -96,6 +144,9 @@
   <h3>Hilfe</h3>
   <p>
     <strong>IMAP-Einstellungen:</strong> Konfigurieren Sie hier die Verbindung zu Ihrem E-Mail-Server.
+  </p>
+  <p>
+    <strong>SMTP-Einstellungen:</strong> Konfigurieren Sie hier die SMTP-Einstellungen für den E-Mail-Versand. Wenn "SMTP = IMAP verwenden" aktiviert ist, werden die IMAP-Einstellungen automatisch für SMTP verwendet (z.B. imap.example.com wird zu smtp.example.com).
   </p>
   <p>
     <strong>Posteingang-Ticket-ID:</strong> Geben Sie die ID eines existierenden Tickets an, an das alle E-Mails von bekannten Absendern ohne Ticket-ID angehängt werden sollen.

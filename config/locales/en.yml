@@ -19,6 +19,14 @@ en:
   label_inbox_folder: "Inbox Folder"
   label_archive_folder: "Archive Folder"
   
+  label_smtp_settings: "SMTP Settings"
+  label_smtp_same_as_imap: "Use SMTP = IMAP"
+  label_smtp_host: "SMTP Server"
+  label_smtp_port: "Port"
+  label_smtp_ssl: "Use SSL/TLS"
+  label_smtp_username: "Username"
+  label_smtp_password: "Password"
+  
   label_ticket_settings: "Ticket Settings"
   label_inbox_ticket_id: "Inbox Ticket ID"
   

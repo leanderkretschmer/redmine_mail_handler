@@ -77,44 +77,27 @@ class MailHandlerService
         return false
       end
       
-      # Validiere Absender-Adresse
-      if Setting.mail_from.blank?
-        @logger.error("Absender-E-Mail-Adresse ist nicht in Redmine konfiguriert. Bitte konfigurieren Sie die E-Mail-Einstellungen.")
+      # Bestimme Absender-Adresse
+      from_address = get_smtp_from_address
+      if from_address.blank?
+        @logger.error("Absender-E-Mail-Adresse ist nicht konfiguriert. Bitte konfigurieren Sie die E-Mail-Einstellungen.")
         return false
       end
       
       mail = Mail.new do
-        from     Setting.mail_from
+        from     from_address
         to       to_address
         subject  subject
         body     "Dies ist eine Test-E-Mail vom Redmine Mail Handler Plugin.\n\nZeit: #{Time.current.in_time_zone('Europe/Berlin').strftime('%d.%m.%Y %H:%M:%S')}"
       end
 
-      # Verwende Redmine's SMTP-Konfiguration
-      smtp_settings = ActionMailer::Base.smtp_settings
-      if smtp_settings.present? && smtp_settings[:address].present?
-        @logger.debug("Using ActionMailer SMTP settings: #{smtp_settings[:address]}:#{smtp_settings[:port]}")
-        mail.delivery_method :smtp, smtp_settings
-      elsif Setting.email_delivery.present? && Setting.email_delivery['smtp_settings'].present?
-        # Fallback auf Redmine's Standard-Konfiguration
-        smtp_config = Setting.email_delivery['smtp_settings']
-        if smtp_config['address'].present?
-          @logger.debug("Using Redmine email_delivery settings: #{smtp_config['address']}:#{smtp_config['port']}")
-          mail.delivery_method :smtp, {
-            address: smtp_config['address'],
-            port: smtp_config['port'] || 587,
-            domain: smtp_config['domain'],
-            user_name: smtp_config['user_name'],
-            password: smtp_config['password'],
-            authentication: smtp_config['authentication'] || :plain,
-            enable_starttls_auto: smtp_config['enable_starttls_auto'] != false
-          }
-        else
-          @logger.error("SMTP-Server-Adresse ist nicht konfiguriert. Bitte konfigurieren Sie die E-Mail-Einstellungen in Redmine.")
-          return false
-        end
+      # Konfiguriere SMTP-Einstellungen
+      smtp_config = get_smtp_configuration
+      if smtp_config
+        @logger.debug("Using SMTP settings: #{smtp_config[:address]}:#{smtp_config[:port]}")
+        mail.delivery_method :smtp, smtp_config
       else
-        @logger.error("Keine SMTP-Konfiguration gefunden. Bitte konfigurieren Sie die E-Mail-Einstellungen in Redmine.")
+        @logger.error("Keine SMTP-Konfiguration gefunden. Bitte konfigurieren Sie die E-Mail-Einstellungen.")
         return false
       end
 
@@ -316,6 +299,95 @@ class MailHandlerService
       @logger.debug("Moved message #{msg_id} to archive")
     rescue => e
       @logger.warn("Failed to archive message #{msg_id}: #{e.message}")
+    end
+  end
+
+  # Hole SMTP-Konfiguration
+  def get_smtp_configuration
+    # Prüfe ob Plugin-eigene SMTP-Einstellungen verwendet werden sollen
+    if @settings['smtp_same_as_imap'] == '1'
+      # Verwende IMAP-Einstellungen für SMTP
+      return get_smtp_from_imap_settings
+    elsif @settings['smtp_host'].present?
+      # Verwende Plugin-eigene SMTP-Einstellungen
+      return get_plugin_smtp_settings
+    else
+      # Fallback auf Redmine's SMTP-Konfiguration
+      return get_redmine_smtp_settings
+    end
+  end
+
+  # SMTP-Einstellungen aus IMAP-Konfiguration ableiten
+  def get_smtp_from_imap_settings
+    return nil if @settings['imap_host'].blank?
+    
+    # Konvertiere IMAP-Host zu SMTP-Host (häufige Konventionen)
+    smtp_host = @settings['imap_host'].gsub(/^imap\./, 'smtp.')
+    smtp_port = @settings['imap_ssl'] == '1' ? 465 : 587
+    
+    {
+      address: smtp_host,
+      port: smtp_port,
+      domain: smtp_host.split('.')[1..-1].join('.'),
+      user_name: @settings['imap_username'],
+      password: @settings['imap_password'],
+      authentication: :plain,
+      enable_starttls_auto: @settings['imap_ssl'] != '1',
+      ssl: @settings['imap_ssl'] == '1'
+    }
+  end
+
+  # Plugin-eigene SMTP-Einstellungen
+  def get_plugin_smtp_settings
+    {
+      address: @settings['smtp_host'],
+      port: @settings['smtp_port'].present? ? @settings['smtp_port'].to_i : 587,
+      domain: @settings['smtp_host'].split('.')[1..-1].join('.'),
+      user_name: @settings['smtp_username'],
+      password: @settings['smtp_password'],
+      authentication: :plain,
+      enable_starttls_auto: @settings['smtp_ssl'] != '1',
+      ssl: @settings['smtp_ssl'] == '1'
+    }
+  end
+
+  # Redmine's SMTP-Einstellungen
+  def get_redmine_smtp_settings
+    # Versuche ActionMailer-Einstellungen
+    smtp_settings = ActionMailer::Base.smtp_settings
+    if smtp_settings.present? && smtp_settings[:address].present?
+      return smtp_settings
+    end
+    
+    # Fallback auf Redmine's email_delivery Einstellungen
+    if Setting.email_delivery.present? && Setting.email_delivery['smtp_settings'].present?
+      smtp_config = Setting.email_delivery['smtp_settings']
+      if smtp_config['address'].present?
+        return {
+          address: smtp_config['address'],
+          port: smtp_config['port'] || 587,
+          domain: smtp_config['domain'],
+          user_name: smtp_config['user_name'],
+          password: smtp_config['password'],
+          authentication: smtp_config['authentication'] || :plain,
+          enable_starttls_auto: smtp_config['enable_starttls_auto'] != false
+        }
+      end
+    end
+    
+    nil
+  end
+
+  # Bestimme Absender-Adresse
+  def get_smtp_from_address
+    # Verwende Plugin-Einstellungen falls verfügbar
+    if @settings['smtp_same_as_imap'] == '1' && @settings['imap_username'].present?
+      return @settings['imap_username']
+    elsif @settings['smtp_username'].present?
+      return @settings['smtp_username']
+    else
+      # Fallback auf Redmine's Standard-Absender
+      return Setting.mail_from
     end
   end
 end
