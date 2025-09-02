@@ -1,7 +1,7 @@
 source 'https://rubygems.org'
 
 # Mail-Verarbeitung
-gem 'net-imap', '>= 0.3.0'
+# net-imap wird bereits von Redmine bereitgestellt
 gem 'mail', '~> 2.8.0'
 
 # MIME-Decoding
