@@ -1,0 +1,39 @@
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag 'mail_handler', :plugin => 'redmine_mail_handler' %>
+<% end %>
+
+<div class="contextual">
+  <%= link_to 'Zurück zu Logs', { :action => 'index' }, :class => 'icon icon-back' %>
+</div>
+
+<h2>Log-Eintrag Details</h2>
+
+<div class="box">
+  <table class="attributes">
+    <tr>
+      <th style="width: 150px;">Zeitstempel:</th>
+      <td><%= @log.formatted_time %></td>
+    </tr>
+    <tr>
+      <th>Level:</th>
+      <td>
+        <span class="<%= @log.level_icon %>" style="color: <%= @log.level_color %>"></span>
+        <%= @log.level.upcase %>
+      </td>
+    </tr>
+    <tr>
+      <th>Nachricht:</th>
+      <td class="log-message-detail">
+        <%= simple_format(h(@log.message)) %>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div class="box">
+  <h3>Aktionen</h3>
+  <p>
+    <%= link_to 'Zurück zu Logs', { :action => 'index' }, :class => 'icon icon-back' %>
+    <%= link_to 'Alle Logs dieses Levels', { :action => 'index', :level => @log.level }, :class => 'icon icon-list' %>
+  </p>
+</div>

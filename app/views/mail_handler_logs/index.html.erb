@@ -1,0 +1,124 @@
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag 'mail_handler', :plugin => 'redmine_mail_handler' %>
+<% end %>
+
+<div class="contextual">
+  <%= link_to 'Zurück zur Administration', { :controller => 'mail_handler_admin', :action => 'index' }, :class => 'icon icon-back' %>
+  <%= link_to 'CSV Export', { :action => 'export', :level => @selected_level, :format => 'csv' }, :class => 'icon icon-save' %>
+</div>
+
+<h2>Mail Handler Logs</h2>
+
+<div class="box">
+  <h3>Statistiken</h3>
+  <table class="list">
+    <tr>
+      <td><strong>Gesamt:</strong></td>
+      <td><%= @stats[:total] %> Einträge</td>
+      <td><strong>Heute:</strong></td>
+      <td><%= @stats[:today] %> Einträge</td>
+      <td><strong>Diese Woche:</strong></td>
+      <td><%= @stats[:this_week] %> Einträge</td>
+    </tr>
+  </table>
+  
+  <h4>Nach Level:</h4>
+  <table class="list">
+    <tr>
+      <% @stats[:by_level].each do |level, count| %>
+        <td><strong><%= level.upcase %>:</strong></td>
+        <td><%= count %></td>
+      <% end %>
+    </tr>
+  </table>
+</div>
+
+<div class="box">
+  <h3>Filter</h3>
+  <%= form_tag({ :action => 'index' }, :method => :get, :local => true) do %>
+    <p>
+      <label for="level">Log-Level:</label>
+      <%= select_tag 'level', 
+                     options_for_select([['Alle', '']] + @levels.map { |l| [l.upcase, l] }, @selected_level),
+                     :onchange => 'this.form.submit();' %>
+      <%= submit_tag 'Filtern', :class => 'small' %>
+    </p>
+  <% end %>
+</div>
+
+<% if @logs.any? %>
+<div class="autoscroll">
+  <table class="list logs">
+    <thead>
+      <tr>
+        <th style="width: 150px;">Zeit</th>
+        <th style="width: 80px;">Level</th>
+        <th>Nachricht</th>
+        <th style="width: 60px;">Aktionen</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @logs.each do |log| %>
+        <tr class="log-<%= log.level %> <%= cycle('odd', 'even') %>">
+          <td class="log-time"><%= log.formatted_time %></td>
+          <td class="log-level">
+            <span class="<%= log.level_icon %>" style="color: <%= log.level_color %>"></span>
+            <%= log.level.upcase %>
+          </td>
+          <td class="log-message">
+            <% if log.message.length > 200 %>
+              <div class="log-message-short">
+                <%= truncate(log.message, length: 200) %>
+                <a href="#" class="toggle-full-message" data-log-id="<%= log.id %>">Mehr anzeigen</a>
+              </div>
+              <div class="log-message-full" id="log-full-<%= log.id %>" style="display: none;">
+                <%= simple_format(h(log.message)) %>
+                <a href="#" class="toggle-short-message" data-log-id="<%= log.id %>">Weniger anzeigen</a>
+              </div>
+            <% else %>
+              <%= simple_format(h(log.message)) %>
+            <% end %>
+          </td>
+          <td class="buttons">
+            <%= link_to 'Details', { :action => 'show', :id => log.id }, :class => 'icon icon-zoom-in' %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<%= paginate @logs if respond_to?(:paginate) %>
+
+<% else %>
+<p class="nodata">Keine Log-Einträge gefunden.</p>
+<% end %>
+
+<script type="text/javascript">
+  document.addEventListener('DOMContentLoaded', function() {
+    // Toggle für lange Log-Nachrichten
+    document.querySelectorAll('.toggle-full-message').forEach(function(link) {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        var logId = this.getAttribute('data-log-id');
+        var shortDiv = this.closest('.log-message-short');
+        var fullDiv = document.getElementById('log-full-' + logId);
+        
+        shortDiv.style.display = 'none';
+        fullDiv.style.display = 'block';
+      });
+    });
+    
+    document.querySelectorAll('.toggle-short-message').forEach(function(link) {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        var logId = this.getAttribute('data-log-id');
+        var shortDiv = this.closest('.log-message-full').previousElementSibling;
+        var fullDiv = this.closest('.log-message-full');
+        
+        fullDiv.style.display = 'none';
+        shortDiv.style.display = 'block';
+      });
+    });
+  });
+</script>

@@ -1,0 +1,126 @@
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag 'mail_handler', :plugin => 'redmine_mail_handler' %>
+<% end %>
+
+<div class="contextual">
+  <%= link_to 'Logs anzeigen', { :controller => 'mail_handler_logs', :action => 'index' }, :class => 'icon icon-list' %>
+</div>
+
+<h2>Mail Handler Administration</h2>
+
+<div class="box">
+  <h3>System-Status</h3>
+  <table class="list">
+    <tr>
+      <td><strong>Scheduler-Status:</strong></td>
+      <td>
+        <% if @scheduler_running %>
+          <span class="status-running">🟢 Läuft</span>
+          <%= link_to 'Stoppen', { :action => 'toggle_scheduler' }, :method => :post, :class => 'icon icon-del' %>
+          <%= link_to 'Neu starten', { :action => 'restart_scheduler' }, :method => :post, :class => 'icon icon-reload' %>
+        <% else %>
+          <span class="status-stopped">🔴 Gestoppt</span>
+          <%= link_to 'Starten', { :action => 'toggle_scheduler' }, :method => :post, :class => 'icon icon-play' %>
+        <% end %>
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Automatischer Import:</strong></td>
+      <td><%= @settings['auto_import_enabled'] == '1' ? '✅ Aktiviert' : '❌ Deaktiviert' %></td>
+    </tr>
+    <tr>
+      <td><strong>Import-Intervall:</strong></td>
+      <td><%= @settings['import_interval'] %> Minuten</td>
+    </tr>
+    <tr>
+      <td><strong>Tägliche Reminder:</strong></td>
+      <td><%= @settings['reminder_enabled'] == '1' ? "✅ Aktiviert (#{@settings['reminder_time']})" : '❌ Deaktiviert' %></td>
+    </tr>
+  </table>
+</div>
+
+<div class="box">
+  <h3>IMAP-Verbindung testen</h3>
+  <p>Testen Sie die Verbindung zu Ihrem IMAP-Server:</p>
+  <%= link_to 'IMAP-Verbindung testen', { :action => 'test_connection' }, :method => :post, :class => 'icon icon-test' %>
+</div>
+
+<div class="box">
+  <h3>Test-E-Mail senden</h3>
+  <%= form_tag({ :action => 'test_mail' }, :method => :post) do %>
+    <p>
+      <label for="test_email">E-Mail-Adresse:</label>
+      <%= text_field_tag 'test_email', '', :size => 30, :placeholder => 'test@example.com' %>
+      <%= submit_tag 'Test-E-Mail senden', :class => 'icon icon-email' %>
+    </p>
+  <% end %>
+</div>
+
+<div class="box">
+  <h3>Test-Reminder senden</h3>
+  <%= form_tag({ :action => 'test_reminder' }, :method => :post) do %>
+    <p>
+      <label for="reminder_email">E-Mail-Adresse:</label>
+      <%= text_field_tag 'reminder_email', '', :size => 30, :placeholder => 'test@example.com' %>
+      <%= submit_tag 'Test-Reminder senden', :class => 'icon icon-email' %>
+    </p>
+  <% end %>
+</div>
+
+<div class="box">
+  <h3>Manueller E-Mail-Import</h3>
+  <p>Für Entwicklung und Tests können Sie E-Mails manuell importieren:</p>
+  <%= form_tag({ :action => 'manual_import' }, :method => :post) do %>
+    <p>
+      <label for="import_limit">Anzahl E-Mails (leer = alle):</label>
+      <%= text_field_tag 'import_limit', '', :size => 10, :placeholder => '10' %>
+      <%= submit_tag 'Manuellen Import starten', :class => 'icon icon-import', :confirm => 'Sind Sie sicher, dass Sie den manuellen Import starten möchten?' %>
+    </p>
+  <% end %>
+</div>
+
+<div class="box">
+  <h3>Log-Verwaltung</h3>
+  <p>Verwalten Sie die Plugin-Logs:</p>
+  <p>
+    <%= link_to 'Alle Logs anzeigen', { :controller => 'mail_handler_logs', :action => 'index' }, :class => 'icon icon-list' %>
+    <%= link_to 'Alte Logs löschen (>30 Tage)', { :action => 'cleanup_old_logs' }, :method => :post, :class => 'icon icon-del', :confirm => 'Sind Sie sicher?' %>
+    <%= link_to 'Alle Logs löschen', { :action => 'clear_logs' }, :method => :post, :class => 'icon icon-del', :confirm => 'Sind Sie sicher, dass Sie alle Logs löschen möchten?' %>
+  </p>
+</div>
+
+<% if @recent_logs.any? %>
+<div class="box">
+  <h3>Aktuelle Logs (letzte 10 Einträge)</h3>
+  <table class="list logs">
+    <thead>
+      <tr>
+        <th>Zeit</th>
+        <th>Level</th>
+        <th>Nachricht</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @recent_logs.each do |log| %>
+        <tr class="log-<%= log.level %>">
+          <td class="log-time"><%= log.formatted_time %></td>
+          <td class="log-level">
+            <span class="<%= log.level_icon %>" style="color: <%= log.level_color %>"></span>
+            <%= log.level.upcase %>
+          </td>
+          <td class="log-message"><%= truncate(log.message, length: 100) %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+  <p class="pagination">
+    <%= link_to 'Alle Logs anzeigen →', { :controller => 'mail_handler_logs', :action => 'index' } %>
+  </p>
+</div>
+<% end %>
+
+<div class="box">
+  <h3>Konfiguration</h3>
+  <p>Ändern Sie die Plugin-Einstellungen unter:</p>
+  <p><%= link_to 'Administration → Plugins → Redmine Mail Handler → Konfiguration', { :controller => 'settings', :action => 'plugin', :id => 'redmine_mail_handler' }, :class => 'icon icon-settings' %></p>
+</div>

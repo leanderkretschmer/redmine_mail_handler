@@ -1,0 +1,117 @@
+de:
+  # Plugin-Name und Beschreibung
+  plugin_redmine_mail_handler:
+    name: "Redmine Mail Handler"
+    description: "Erweiterte Mail-Verarbeitung für Redmine mit IMAP-Support"
+  
+  # Menü-Einträge
+  label_mail_handler: "Mail Handler"
+  label_mail_handler_admin: "Mail Handler Administration"
+  label_mail_handler_logs: "Mail Handler Logs"
+  
+  # Einstellungen
+  label_imap_settings: "IMAP-Einstellungen"
+  label_imap_host: "IMAP-Server"
+  label_imap_port: "Port"
+  label_imap_ssl: "SSL verwenden"
+  label_imap_username: "Benutzername"
+  label_imap_password: "Passwort"
+  label_inbox_folder: "Posteingang-Ordner"
+  label_archive_folder: "Archiv-Ordner"
+  
+  label_ticket_settings: "Ticket-Einstellungen"
+  label_inbox_ticket_id: "Posteingang-Ticket-ID"
+  
+  label_reminder_settings: "Reminder-Einstellungen"
+  label_reminder_enabled: "Tägliche Reminder aktiviert"
+  label_reminder_time: "Reminder-Zeit"
+  
+  label_import_settings: "Import-Einstellungen"
+  label_auto_import_enabled: "Automatischer Import aktiviert"
+  label_import_interval: "Import-Intervall (Minuten)"
+  
+  label_logging_settings: "Logging-Einstellungen"
+  label_log_level: "Log-Level"
+  
+  # Aktionen
+  button_test_connection: "IMAP-Verbindung testen"
+  button_send_test_mail: "Test-E-Mail senden"
+  button_send_test_reminder: "Test-Reminder senden"
+  button_manual_import: "Manuellen Import starten"
+  button_start_scheduler: "Scheduler starten"
+  button_stop_scheduler: "Scheduler stoppen"
+  button_restart_scheduler: "Scheduler neu starten"
+  button_clear_logs: "Alle Logs löschen"
+  button_cleanup_old_logs: "Alte Logs löschen"
+  button_export_logs: "Logs exportieren"
+  
+  # Status-Meldungen
+  notice_connection_successful: "IMAP-Verbindung erfolgreich!"
+  notice_connection_failed: "IMAP-Verbindung fehlgeschlagen"
+  notice_test_mail_sent: "Test-E-Mail wurde erfolgreich gesendet"
+  notice_test_mail_failed: "Fehler beim Senden der Test-E-Mail"
+  notice_test_reminder_sent: "Test-Reminder wurde erfolgreich gesendet"
+  notice_test_reminder_failed: "Fehler beim Senden des Test-Reminders"
+  notice_import_successful: "E-Mails wurden erfolgreich importiert"
+  notice_import_failed: "Fehler beim E-Mail-Import"
+  notice_scheduler_started: "Scheduler wurde gestartet"
+  notice_scheduler_stopped: "Scheduler wurde gestoppt"
+  notice_scheduler_restarted: "Scheduler wurde neu gestartet"
+  notice_logs_cleared: "Logs wurden gelöscht"
+  notice_old_logs_cleaned: "Alte Logs wurden gelöscht"
+  
+  # Fehlermeldungen
+  error_email_required: "Bitte geben Sie eine E-Mail-Adresse ein"
+  error_imap_connection: "Fehler bei der IMAP-Verbindung"
+  error_mail_sending: "Fehler beim E-Mail-Versand"
+  error_import_failed: "E-Mail-Import fehlgeschlagen"
+  
+  # Log-Level
+  log_level_debug: "Debug"
+  log_level_info: "Info"
+  log_level_warn: "Warnung"
+  log_level_error: "Fehler"
+  
+  # Hilfe-Texte
+  help_imap_settings: "Konfigurieren Sie hier die Verbindung zu Ihrem E-Mail-Server."
+  help_inbox_ticket_id: "ID eines existierenden Tickets für E-Mails von bekannten Absendern ohne Ticket-ID."
+  help_archive_folder: "E-Mails werden nach der Verarbeitung in diesen Ordner verschoben."
+  help_auto_import: "Automatischer Import im angegebenen Intervall. Deaktivieren für manuellen Import."
+  help_reminder_time: "Format: HH:MM (24-Stunden-Format)"
+  help_import_interval: "Wie oft sollen E-Mails automatisch importiert werden"
+  
+  # Tabellen-Header
+  field_timestamp: "Zeitstempel"
+  field_level: "Level"
+  field_message: "Nachricht"
+  field_actions: "Aktionen"
+  
+  # Statistiken
+  label_statistics: "Statistiken"
+  label_total_logs: "Gesamt"
+  label_logs_today: "Heute"
+  label_logs_this_week: "Diese Woche"
+  label_logs_by_level: "Nach Level"
+  
+  # Verschiedenes
+  label_system_status: "System-Status"
+  label_scheduler_status: "Scheduler-Status"
+  label_running: "Läuft"
+  label_stopped: "Gestoppt"
+  label_enabled: "Aktiviert"
+  label_disabled: "Deaktiviert"
+  label_no_data: "Keine Daten verfügbar"
+  label_recent_logs: "Aktuelle Logs"
+  label_show_more: "Mehr anzeigen"
+  label_show_less: "Weniger anzeigen"
+  label_back_to_admin: "Zurück zur Administration"
+  label_back_to_logs: "Zurück zu Logs"
+  label_all_levels: "Alle Level"
+  label_filter: "Filter"
+  label_details: "Details"
+  
+  # Bestätigungen
+  text_are_you_sure: "Sind Sie sicher?"
+  text_confirm_manual_import: "Sind Sie sicher, dass Sie den manuellen Import starten möchten?"
+  text_confirm_clear_logs: "Sind Sie sicher, dass Sie alle Logs löschen möchten?"
+  text_confirm_cleanup_logs: "Sind Sie sicher, dass Sie alte Logs löschen möchten?"

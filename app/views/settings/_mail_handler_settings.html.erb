@@ -1,0 +1,109 @@
+<div class="box tabular settings">
+  <h3>IMAP-Einstellungen</h3>
+  
+  <p>
+    <label for="settings_imap_host">IMAP-Server:</label>
+    <%= text_field_tag 'settings[imap_host]', @settings['imap_host'], :size => 30, :placeholder => 'imap.example.com' %>
+  </p>
+  
+  <p>
+    <label for="settings_imap_port">Port:</label>
+    <%= text_field_tag 'settings[imap_port]', @settings['imap_port'], :size => 10, :placeholder => '993' %>
+  </p>
+  
+  <p>
+    <label for="settings_imap_ssl">SSL verwenden:</label>
+    <%= check_box_tag 'settings[imap_ssl]', '1', @settings['imap_ssl'] == '1' %>
+  </p>
+  
+  <p>
+    <label for="settings_imap_username">Benutzername:</label>
+    <%= text_field_tag 'settings[imap_username]', @settings['imap_username'], :size => 30 %>
+  </p>
+  
+  <p>
+    <label for="settings_imap_password">Passwort:</label>
+    <%= password_field_tag 'settings[imap_password]', @settings['imap_password'], :size => 30 %>
+  </p>
+  
+  <p>
+    <label for="settings_inbox_folder">Posteingang-Ordner:</label>
+    <%= text_field_tag 'settings[inbox_folder]', @settings['inbox_folder'], :size => 20, :placeholder => 'INBOX' %>
+  </p>
+  
+  <p>
+    <label for="settings_archive_folder">Archiv-Ordner:</label>
+    <%= text_field_tag 'settings[archive_folder]', @settings['archive_folder'], :size => 20, :placeholder => 'Archive' %>
+  </p>
+</div>
+
+<div class="box tabular settings">
+  <h3>Ticket-Einstellungen</h3>
+  
+  <p>
+    <label for="settings_inbox_ticket_id">Posteingang-Ticket-ID:</label>
+    <%= text_field_tag 'settings[inbox_ticket_id]', @settings['inbox_ticket_id'], :size => 10, :placeholder => '1' %>
+    <em class="info">ID des Tickets, an das E-Mails von bekannten Absendern ohne Ticket-ID angehängt werden</em>
+  </p>
+</div>
+
+<div class="box tabular settings">
+  <h3>Reminder-Einstellungen</h3>
+  
+  <p>
+    <label for="settings_reminder_enabled">Tägliche Reminder aktiviert:</label>
+    <%= check_box_tag 'settings[reminder_enabled]', '1', @settings['reminder_enabled'] == '1' %>
+  </p>
+  
+  <p>
+    <label for="settings_reminder_time">Reminder-Zeit:</label>
+    <%= text_field_tag 'settings[reminder_time]', @settings['reminder_time'], :size => 10, :placeholder => '09:00' %>
+    <em class="info">Format: HH:MM (24-Stunden-Format)</em>
+  </p>
+</div>
+
+<div class="box tabular settings">
+  <h3>Import-Einstellungen</h3>
+  
+  <p>
+    <label for="settings_auto_import_enabled">Automatischer Import aktiviert:</label>
+    <%= check_box_tag 'settings[auto_import_enabled]', '1', @settings['auto_import_enabled'] == '1' %>
+  </p>
+  
+  <p>
+    <label for="settings_import_interval">Import-Intervall (Minuten):</label>
+    <%= text_field_tag 'settings[import_interval]', @settings['import_interval'], :size => 10, :placeholder => '5' %>
+    <em class="info">Wie oft sollen E-Mails automatisch importiert werden</em>
+  </p>
+</div>
+
+<div class="box tabular settings">
+  <h3>Logging-Einstellungen</h3>
+  
+  <p>
+    <label for="settings_log_level">Log-Level:</label>
+    <%= select_tag 'settings[log_level]', 
+                   options_for_select([
+                     ['Debug', 'debug'],
+                     ['Info', 'info'],
+                     ['Warning', 'warn'],
+                     ['Error', 'error']
+                   ], @settings['log_level']) %>
+  </p>
+</div>
+
+<div class="box">
+  <h3>Hilfe</h3>
+  <p>
+    <strong>IMAP-Einstellungen:</strong> Konfigurieren Sie hier die Verbindung zu Ihrem E-Mail-Server.
+  </p>
+  <p>
+    <strong>Posteingang-Ticket-ID:</strong> Geben Sie die ID eines existierenden Tickets an, an das alle E-Mails von bekannten Absendern ohne Ticket-ID angehängt werden sollen.
+  </p>
+  <p>
+    <strong>Archiv-Ordner:</strong> E-Mails werden nach der Verarbeitung in diesen Ordner verschoben. Lassen Sie das Feld leer, um die Archivierung zu deaktivieren.
+  </p>
+  <p>
+    <strong>Automatischer Import:</strong> Wenn aktiviert, werden E-Mails automatisch im angegebenen Intervall importiert. Deaktivieren Sie dies für manuellen Import in der Entwicklung.
+  </p>
+</div>

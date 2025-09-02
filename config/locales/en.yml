@@ -1,0 +1,117 @@
+en:
+  # Plugin name and description
+  plugin_redmine_mail_handler:
+    name: "Redmine Mail Handler"
+    description: "Advanced mail processing for Redmine with IMAP support"
+  
+  # Menu entries
+  label_mail_handler: "Mail Handler"
+  label_mail_handler_admin: "Mail Handler Administration"
+  label_mail_handler_logs: "Mail Handler Logs"
+  
+  # Settings
+  label_imap_settings: "IMAP Settings"
+  label_imap_host: "IMAP Server"
+  label_imap_port: "Port"
+  label_imap_ssl: "Use SSL"
+  label_imap_username: "Username"
+  label_imap_password: "Password"
+  label_inbox_folder: "Inbox Folder"
+  label_archive_folder: "Archive Folder"
+  
+  label_ticket_settings: "Ticket Settings"
+  label_inbox_ticket_id: "Inbox Ticket ID"
+  
+  label_reminder_settings: "Reminder Settings"
+  label_reminder_enabled: "Daily Reminders Enabled"
+  label_reminder_time: "Reminder Time"
+  
+  label_import_settings: "Import Settings"
+  label_auto_import_enabled: "Automatic Import Enabled"
+  label_import_interval: "Import Interval (minutes)"
+  
+  label_logging_settings: "Logging Settings"
+  label_log_level: "Log Level"
+  
+  # Actions
+  button_test_connection: "Test IMAP Connection"
+  button_send_test_mail: "Send Test Mail"
+  button_send_test_reminder: "Send Test Reminder"
+  button_manual_import: "Start Manual Import"
+  button_start_scheduler: "Start Scheduler"
+  button_stop_scheduler: "Stop Scheduler"
+  button_restart_scheduler: "Restart Scheduler"
+  button_clear_logs: "Clear All Logs"
+  button_cleanup_old_logs: "Cleanup Old Logs"
+  button_export_logs: "Export Logs"
+  
+  # Status messages
+  notice_connection_successful: "IMAP connection successful!"
+  notice_connection_failed: "IMAP connection failed"
+  notice_test_mail_sent: "Test mail sent successfully"
+  notice_test_mail_failed: "Failed to send test mail"
+  notice_test_reminder_sent: "Test reminder sent successfully"
+  notice_test_reminder_failed: "Failed to send test reminder"
+  notice_import_successful: "Mails imported successfully"
+  notice_import_failed: "Mail import failed"
+  notice_scheduler_started: "Scheduler started"
+  notice_scheduler_stopped: "Scheduler stopped"
+  notice_scheduler_restarted: "Scheduler restarted"
+  notice_logs_cleared: "Logs cleared"
+  notice_old_logs_cleaned: "Old logs cleaned up"
+  
+  # Error messages
+  error_email_required: "Please enter an email address"
+  error_imap_connection: "IMAP connection error"
+  error_mail_sending: "Mail sending error"
+  error_import_failed: "Mail import failed"
+  
+  # Log levels
+  log_level_debug: "Debug"
+  log_level_info: "Info"
+  log_level_warn: "Warning"
+  log_level_error: "Error"
+  
+  # Help texts
+  help_imap_settings: "Configure the connection to your email server here."
+  help_inbox_ticket_id: "ID of an existing ticket for mails from known senders without ticket ID."
+  help_archive_folder: "Mails will be moved to this folder after processing."
+  help_auto_import: "Automatic import at specified interval. Disable for manual import."
+  help_reminder_time: "Format: HH:MM (24-hour format)"
+  help_import_interval: "How often should mails be imported automatically"
+  
+  # Table headers
+  field_timestamp: "Timestamp"
+  field_level: "Level"
+  field_message: "Message"
+  field_actions: "Actions"
+  
+  # Statistics
+  label_statistics: "Statistics"
+  label_total_logs: "Total"
+  label_logs_today: "Today"
+  label_logs_this_week: "This Week"
+  label_logs_by_level: "By Level"
+  
+  # Miscellaneous
+  label_system_status: "System Status"
+  label_scheduler_status: "Scheduler Status"
+  label_running: "Running"
+  label_stopped: "Stopped"
+  label_enabled: "Enabled"
+  label_disabled: "Disabled"
+  label_no_data: "No data available"
+  label_recent_logs: "Recent Logs"
+  label_show_more: "Show more"
+  label_show_less: "Show less"
+  label_back_to_admin: "Back to Administration"
+  label_back_to_logs: "Back to Logs"
+  label_all_levels: "All Levels"
+  label_filter: "Filter"
+  label_details: "Details"
+  
+  # Confirmations
+  text_are_you_sure: "Are you sure?"
+  text_confirm_manual_import: "Are you sure you want to start the manual import?"
+  text_confirm_clear_logs: "Are you sure you want to clear all logs?"
+  text_confirm_cleanup_logs: "Are you sure you want to cleanup old logs?"

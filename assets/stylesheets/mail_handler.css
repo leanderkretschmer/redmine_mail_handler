@@ -1,0 +1,267 @@
+/* Mail Handler Plugin Styles */
+
+/* Status-Anzeigen */
+.status-running {
+  color: #28a745;
+  font-weight: bold;
+}
+
+.status-stopped {
+  color: #dc3545;
+  font-weight: bold;
+}
+
+/* Log-Tabellen */
+.logs {
+  width: 100%;
+}
+
+.logs th {
+  background-color: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
+  padding: 8px;
+  text-align: left;
+}
+
+.logs td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #dee2e6;
+  vertical-align: top;
+}
+
+/* Log-Level Farben */
+.log-debug {
+  background-color: #f8f9fa;
+}
+
+.log-info {
+  background-color: #d1ecf1;
+}
+
+.log-warn {
+  background-color: #fff3cd;
+}
+
+.log-error {
+  background-color: #f8d7da;
+}
+
+/* Log-Spalten */
+.log-time {
+  font-family: monospace;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+.log-level {
+  text-align: center;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.log-message {
+  word-break: break-word;
+  max-width: 600px;
+}
+
+.log-message-detail {
+  font-family: monospace;
+  background-color: #f8f9fa;
+  padding: 10px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Toggle-Links für lange Nachrichten */
+.toggle-full-message,
+.toggle-short-message {
+  color: #007bff;
+  text-decoration: none;
+  font-size: 0.9em;
+  margin-left: 10px;
+}
+
+.toggle-full-message:hover,
+.toggle-short-message:hover {
+  text-decoration: underline;
+}
+
+/* Statistik-Boxen */
+.stats-box {
+  display: inline-block;
+  margin: 10px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  text-align: center;
+  min-width: 120px;
+}
+
+.stats-number {
+  font-size: 2em;
+  font-weight: bold;
+  color: #007bff;
+}
+
+.stats-label {
+  font-size: 0.9em;
+  color: #6c757d;
+  margin-top: 5px;
+}
+
+/* Formular-Styling */
+.mail-handler-form {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 4px;
+  margin: 10px 0;
+}
+
+.mail-handler-form label {
+  display: inline-block;
+  width: 150px;
+  font-weight: bold;
+}
+
+.mail-handler-form input[type="text"],
+.mail-handler-form input[type="email"],
+.mail-handler-form input[type="number"] {
+  padding: 5px;
+  border: 1px solid #ced4da;
+  border-radius: 3px;
+}
+
+/* Button-Styling */
+.btn-test {
+  background-color: #17a2b8;
+  color: white;
+  padding: 8px 15px;
+  border: none;
+  border-radius: 4px;
+  text-decoration: none;
+  display: inline-block;
+  margin: 5px;
+}
+
+.btn-test:hover {
+  background-color: #138496;
+  color: white;
+}
+
+.btn-danger {
+  background-color: #dc3545;
+  color: white;
+  padding: 8px 15px;
+  border: none;
+  border-radius: 4px;
+  text-decoration: none;
+  display: inline-block;
+  margin: 5px;
+}
+
+.btn-danger:hover {
+  background-color: #c82333;
+  color: white;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .logs th,
+  .logs td {
+    padding: 4px;
+    font-size: 0.9em;
+  }
+  
+  .log-time {
+    font-size: 0.8em;
+  }
+  
+  .mail-handler-form label {
+    width: 100%;
+    display: block;
+    margin-bottom: 5px;
+  }
+}
+
+/* Icons */
+.icon-email:before {
+  content: "📧";
+  margin-right: 5px;
+}
+
+.icon-import:before {
+  content: "📥";
+  margin-right: 5px;
+}
+
+.icon-test:before {
+  content: "🧪";
+  margin-right: 5px;
+}
+
+.icon-play:before {
+  content: "▶️";
+  margin-right: 5px;
+}
+
+.icon-reload:before {
+  content: "🔄";
+  margin-right: 5px;
+}
+
+/* Hilfe-Texte */
+.help-text {
+  font-size: 0.9em;
+  color: #6c757d;
+  font-style: italic;
+  margin-top: 5px;
+}
+
+/* Erfolgs- und Fehlermeldungen */
+.flash.notice {
+  background-color: #d4edda;
+  border-color: #c3e6cb;
+  color: #155724;
+}
+
+.flash.error {
+  background-color: #f8d7da;
+  border-color: #f5c6cb;
+  color: #721c24;
+}
+
+/* Tabellen-Verbesserungen */
+.list.logs tr:hover {
+  background-color: #f5f5f5;
+}
+
+.list.logs .buttons {
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Pagination */
+.pagination {
+  text-align: center;
+  margin: 20px 0;
+}
+
+.pagination a {
+  display: inline-block;
+  padding: 8px 12px;
+  margin: 0 2px;
+  text-decoration: none;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+}
+
+.pagination a:hover {
+  background-color: #e9ecef;
+}
+
+.pagination .current {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
