@@ -45,9 +45,9 @@ if Rails.env.development?
 end
 
 # Lade Plugin-spezifische Klassen
-require_dependency 'mail_handler_service'
-require_dependency 'mail_handler_scheduler'
-require_dependency 'mail_handler_logger'
+require File.expand_path('../lib/mail_handler_service', __FILE__)
+require File.expand_path('../lib/mail_handler_scheduler', __FILE__)
+require File.expand_path('../lib/mail_handler_logger', __FILE__)
 
 # Initialisiere Scheduler nach Plugin-Load
 Rails.application.config.after_initialize do
