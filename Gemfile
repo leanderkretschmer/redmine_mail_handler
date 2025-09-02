@@ -1,7 +1,7 @@
 source 'https://rubygems.org'
 
 # Mail-Verarbeitung
-gem 'net-imap', '~> 0.3.0'
+gem 'net-imap', '>= 0.3.0'
 gem 'mail', '~> 2.8.0'
 
 # MIME-Decoding
@@ -14,7 +14,7 @@ gem 'rufus-scheduler', '~> 3.8.0'
 gem 'logging', '~> 2.3.0'
 
 # HTML-Parsing für Mail-Inhalte
-gem 'nokogiri', '~> 1.13.0'
+gem 'nokogiri', '>= 1.13.0'
 
 # Encoding-Unterstützung
 gem 'charlock_holmes', '~> 0.7.7'
