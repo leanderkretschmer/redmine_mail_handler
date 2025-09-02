@@ -25,7 +25,13 @@ Redmine::Plugin.register :redmine_mail_handler do
     'reminder_enabled' => '1',
     'auto_import_enabled' => '1',
     'import_interval' => '5',
-    'log_level' => 'info'
+    'log_level' => 'info',
+    'smtp_same_as_imap' => '1',
+    'smtp_host' => '',
+    'smtp_port' => '465',
+    'smtp_ssl' => '1',
+    'smtp_username' => '',
+    'smtp_password' => ''
   }, :partial => 'settings/mail_handler_settings'
 
   # Menü-Einträge hinzufügen

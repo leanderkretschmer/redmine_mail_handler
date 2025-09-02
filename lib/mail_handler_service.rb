@@ -94,7 +94,7 @@ class MailHandlerService
       # Konfiguriere SMTP-Einstellungen
       smtp_config = get_smtp_configuration
       if smtp_config
-        @logger.debug("Using SMTP settings: #{smtp_config[:address]}:#{smtp_config[:port]}")
+        @logger.debug("Using SMTP settings: #{smtp_config[:address]}:#{smtp_config[:port]} (SSL: #{smtp_config[:ssl]}, STARTTLS: #{smtp_config[:enable_starttls_auto]})")
         mail.delivery_method :smtp, smtp_config
       else
         @logger.error("Keine SMTP-Konfiguration gefunden. Bitte konfigurieren Sie die E-Mail-Einstellungen.")
@@ -104,6 +104,19 @@ class MailHandlerService
       mail.deliver!
       @logger.info("Test mail sent successfully to #{to_address}")
       true
+    rescue Net::SMTPAuthenticationError => e
+      @logger.error("SMTP Authentication failed: #{e.message}. Bitte überprüfen Sie Benutzername und Passwort.")
+      false
+    rescue OpenSSL::SSL::SSLError => e
+      if e.message.include?('wrong version number')
+        @logger.error("SSL-Konfigurationsfehler: #{e.message}. Möglicherweise wird SSL auf einem STARTTLS-Port verwendet. Versuchen Sie Port 587 mit STARTTLS oder Port 465 mit SSL.")
+      else
+        @logger.error("SSL-Fehler: #{e.message}")
+      end
+      false
+    rescue Errno::ECONNREFUSED => e
+      @logger.error("Verbindung zum SMTP-Server verweigert: #{e.message}. Bitte überprüfen Sie Host und Port.")
+      false
     rescue => e
       @logger.error("Failed to send test mail: #{e.message}")
       false
@@ -323,7 +336,19 @@ class MailHandlerService
     
     # Konvertiere IMAP-Host zu SMTP-Host (häufige Konventionen)
     smtp_host = @settings['imap_host'].gsub(/^imap\./, 'smtp.')
-    smtp_port = @settings['imap_ssl'] == '1' ? 465 : 587
+    
+    # Bestimme Port und SSL-Einstellungen basierend auf IMAP-SSL
+    if @settings['imap_ssl'] == '1'
+      # IMAP SSL -> SMTP SSL (Port 465)
+      smtp_port = 465
+      use_ssl = true
+      use_starttls = false
+    else
+      # IMAP ohne SSL -> SMTP mit STARTTLS (Port 587)
+      smtp_port = 587
+      use_ssl = false
+      use_starttls = true
+    end
     
     {
       address: smtp_host,
@@ -332,22 +357,35 @@ class MailHandlerService
       user_name: @settings['imap_username'],
       password: @settings['imap_password'],
       authentication: :plain,
-      enable_starttls_auto: @settings['imap_ssl'] != '1',
-      ssl: @settings['imap_ssl'] == '1'
+      enable_starttls_auto: use_starttls,
+      ssl: use_ssl
     }
   end
 
   # Plugin-eigene SMTP-Einstellungen
   def get_plugin_smtp_settings
+    smtp_port = @settings['smtp_port'].present? ? @settings['smtp_port'].to_i : 587
+    
+    # Bestimme SSL-Einstellungen basierend auf Port und SSL-Flag
+    if @settings['smtp_ssl'] == '1' || smtp_port == 465
+      # SSL-Verbindung (normalerweise Port 465)
+      use_ssl = true
+      use_starttls = false
+    else
+      # STARTTLS-Verbindung (normalerweise Port 587 oder 25)
+      use_ssl = false
+      use_starttls = true
+    end
+    
     {
       address: @settings['smtp_host'],
-      port: @settings['smtp_port'].present? ? @settings['smtp_port'].to_i : 587,
+      port: smtp_port,
       domain: @settings['smtp_host'].split('.')[1..-1].join('.'),
       user_name: @settings['smtp_username'],
       password: @settings['smtp_password'],
       authentication: :plain,
-      enable_starttls_auto: @settings['smtp_ssl'] != '1',
-      ssl: @settings['smtp_ssl'] == '1'
+      enable_starttls_auto: use_starttls,
+      ssl: use_ssl
     }
   end
 

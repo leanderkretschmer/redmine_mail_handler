@@ -23,8 +23,8 @@ Rails.application.config.after_initialize do
     default_smtp_settings = {
       'smtp_same_as_imap' => '1',
       'smtp_host' => '',
-      'smtp_port' => '587',
-      'smtp_ssl' => '0',
+      'smtp_port' => '465',
+      'smtp_ssl' => '1',
       'smtp_username' => '',
       'smtp_password' => ''
     }
