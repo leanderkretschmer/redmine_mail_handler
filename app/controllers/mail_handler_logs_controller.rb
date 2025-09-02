@@ -5,8 +5,7 @@ class MailHandlerLogsController < ApplicationController
     @logs = MailHandlerLog.includes([])
                          .by_level(params[:level])
                          .recent
-                         .page(params[:page])
-                         .per(50)
+                         .limit(50)
     
     @levels = MailHandlerLog.levels
     @selected_level = params[:level]
