@@ -51,7 +51,7 @@
     <p>
       <label for="test_email">E-Mail-Adresse:</label>
       <%= text_field_tag 'test_email', '', :size => 30, :placeholder => 'test@example.com' %>
-      <%= submit_tag 'Test-E-Mail senden', :class => 'icon icon-email' %>
+      <%= submit_tag 'Test-E-Mail senden' %>
     </p>
   <% end %>
 </div>
@@ -62,7 +62,7 @@
     <p>
       <label for="reminder_email">E-Mail-Adresse:</label>
       <%= text_field_tag 'reminder_email', '', :size => 30, :placeholder => 'test@example.com' %>
-      <%= submit_tag 'Test-Reminder senden', :class => 'icon icon-email' %>
+      <%= submit_tag 'Test-Reminder senden' %>
     </p>
   <% end %>
 </div>
@@ -74,7 +74,7 @@
     <p>
       <label for="import_limit">Anzahl E-Mails (leer = alle):</label>
       <%= text_field_tag 'import_limit', '', :size => 10, :placeholder => '10' %>
-      <%= submit_tag 'Manuellen Import starten', :class => 'icon icon-import', :confirm => 'Sind Sie sicher, dass Sie den manuellen Import starten möchten?' %>
+      <%= submit_tag 'Manuellen Import starten', :confirm => 'Sind Sie sicher, dass Sie den manuellen Import starten möchten?' %>
     </p>
   <% end %>
 </div>
