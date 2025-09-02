@@ -71,22 +71,52 @@ class MailHandlerService
   # Sende Test-Mail
   def send_test_mail(to_address, subject = 'Test Mail from Redmine Mail Handler')
     begin
+      # Validiere E-Mail-Adresse
+      if to_address.blank? || !to_address.match?(/\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i)
+        @logger.error("Ungültige E-Mail-Adresse: #{to_address}")
+        return false
+      end
+      
+      # Validiere Absender-Adresse
+      if Setting.mail_from.blank?
+        @logger.error("Absender-E-Mail-Adresse ist nicht in Redmine konfiguriert. Bitte konfigurieren Sie die E-Mail-Einstellungen.")
+        return false
+      end
+      
       mail = Mail.new do
         from     Setting.mail_from
         to       to_address
         subject  subject
-        body     "Dies ist eine Test-E-Mail vom Redmine Mail Handler Plugin.\n\nZeit: #{Time.current}"
+        body     "Dies ist eine Test-E-Mail vom Redmine Mail Handler Plugin.\n\nZeit: #{Time.current.in_time_zone('Europe/Berlin').strftime('%d.%m.%Y %H:%M:%S')}"
       end
 
-      mail.delivery_method :smtp, {
-        address: Setting.smtp_address,
-        port: Setting.smtp_port,
-        domain: Setting.smtp_domain,
-        user_name: Setting.smtp_user_name,
-        password: Setting.smtp_password,
-        authentication: Setting.smtp_authentication,
-        enable_starttls_auto: Setting.smtp_enable_starttls_auto
-      }
+      # Verwende Redmine's SMTP-Konfiguration
+      smtp_settings = ActionMailer::Base.smtp_settings
+      if smtp_settings.present? && smtp_settings[:address].present?
+        @logger.debug("Using ActionMailer SMTP settings: #{smtp_settings[:address]}:#{smtp_settings[:port]}")
+        mail.delivery_method :smtp, smtp_settings
+      elsif Setting.email_delivery.present? && Setting.email_delivery['smtp_settings'].present?
+        # Fallback auf Redmine's Standard-Konfiguration
+        smtp_config = Setting.email_delivery['smtp_settings']
+        if smtp_config['address'].present?
+          @logger.debug("Using Redmine email_delivery settings: #{smtp_config['address']}:#{smtp_config['port']}")
+          mail.delivery_method :smtp, {
+            address: smtp_config['address'],
+            port: smtp_config['port'] || 587,
+            domain: smtp_config['domain'],
+            user_name: smtp_config['user_name'],
+            password: smtp_config['password'],
+            authentication: smtp_config['authentication'] || :plain,
+            enable_starttls_auto: smtp_config['enable_starttls_auto'] != false
+          }
+        else
+          @logger.error("SMTP-Server-Adresse ist nicht konfiguriert. Bitte konfigurieren Sie die E-Mail-Einstellungen in Redmine.")
+          return false
+        end
+      else
+        @logger.error("Keine SMTP-Konfiguration gefunden. Bitte konfigurieren Sie die E-Mail-Einstellungen in Redmine.")
+        return false
+      end
 
       mail.deliver!
       @logger.info("Test mail sent successfully to #{to_address}")
@@ -102,17 +132,33 @@ class MailHandlerService
   # Verbinde zu IMAP-Server
   def connect_to_imap
     begin
+      # Validiere IMAP-Einstellungen
+      if @settings['imap_host'].blank?
+        @logger.error("IMAP-Host ist nicht konfiguriert. Bitte konfigurieren Sie die IMAP-Einstellungen in der Plugin-Konfiguration.")
+        return nil
+      end
+      
+      if @settings['imap_username'].blank? || @settings['imap_password'].blank?
+        @logger.error("IMAP-Benutzername oder -Passwort ist nicht konfiguriert.")
+        return nil
+      end
+      
+      port = @settings['imap_port'].present? ? @settings['imap_port'].to_i : 993
+      use_ssl = @settings['imap_ssl'] == '1'
+      
+      @logger.debug("Connecting to IMAP server #{@settings['imap_host']}:#{port} (SSL: #{use_ssl})")
+      
       imap = Net::IMAP.new(
         @settings['imap_host'],
-        port: @settings['imap_port'].to_i,
-        ssl: @settings['imap_ssl'] == '1'
+        port: port,
+        ssl: use_ssl
       )
       
       imap.login(@settings['imap_username'], @settings['imap_password'])
-      @logger.debug("Connected to IMAP server #{@settings['imap_host']}")
+      @logger.debug("Successfully connected to IMAP server #{@settings['imap_host']}")
       imap
     rescue => e
-      @logger.error("Failed to connect to IMAP: #{e.message}")
+      @logger.error("Failed to connect to IMAP server #{@settings['imap_host'] || 'nicht konfiguriert'}: #{e.message}")
       nil
     end
   end

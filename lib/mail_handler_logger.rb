@@ -49,7 +49,7 @@ class MailHandlerLogger
       MailHandlerLog.create!(
         level: level,
         message: message,
-        created_at: Time.current
+        created_at: Time.current.in_time_zone('Europe/Berlin')
       )
     rescue => e
       Rails.logger.error "Failed to write mail handler log: #{e.message}"

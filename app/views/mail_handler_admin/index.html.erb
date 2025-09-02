@@ -15,18 +15,18 @@
       <td><strong>Scheduler-Status:</strong></td>
       <td>
         <% if @scheduler_running %>
-          <span class="status-running">🟢 Läuft</span>
+          <span class="status-running">Läuft</span>
           <%= link_to 'Stoppen', { :action => 'toggle_scheduler' }, :method => :post, :class => 'icon icon-del' %>
           <%= link_to 'Neu starten', { :action => 'restart_scheduler' }, :method => :post, :class => 'icon icon-reload' %>
         <% else %>
-          <span class="status-stopped">🔴 Gestoppt</span>
+          <span class="status-stopped">Gestoppt</span>
           <%= link_to 'Starten', { :action => 'toggle_scheduler' }, :method => :post, :class => 'icon icon-play' %>
         <% end %>
       </td>
     </tr>
     <tr>
       <td><strong>Automatischer Import:</strong></td>
-      <td><%= @settings['auto_import_enabled'] == '1' ? '✅ Aktiviert' : '❌ Deaktiviert' %></td>
+      <td><%= @settings['auto_import_enabled'] == '1' ? 'Aktiviert' : 'Deaktiviert' %></td>
     </tr>
     <tr>
       <td><strong>Import-Intervall:</strong></td>
@@ -34,7 +34,7 @@
     </tr>
     <tr>
       <td><strong>Tägliche Reminder:</strong></td>
-      <td><%= @settings['reminder_enabled'] == '1' ? "✅ Aktiviert (#{@settings['reminder_time']})" : '❌ Deaktiviert' %></td>
+      <td><%= @settings['reminder_enabled'] == '1' ? "Aktiviert (#{@settings['reminder_time']})" : 'Deaktiviert' %></td>
     </tr>
   </table>
 </div>

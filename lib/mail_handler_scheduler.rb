@@ -97,6 +97,18 @@ class MailHandlerScheduler
   end
 
   def self.send_reminder_to_user(user, issues)
+    # Validiere Benutzer-E-Mail
+    if user.mail.blank?
+      @@logger.error("Benutzer #{user.firstname} #{user.lastname} hat keine E-Mail-Adresse")
+      return false
+    end
+    
+    # Validiere Absender-Adresse
+    if Setting.mail_from.blank?
+      @@logger.error("Absender-E-Mail-Adresse ist nicht in Redmine konfiguriert")
+      return false
+    end
+    
     mail = Mail.new do
       from     Setting.mail_from
       to       user.mail
@@ -109,28 +121,48 @@ class MailHandlerScheduler
         body_text += "• ##{issue.id}: #{issue.subject}\n"
         body_text += "  Projekt: #{issue.project.name}\n"
         body_text += "  Status: #{issue.status.name}\n"
-        body_text += "  Erstellt: #{issue.created_on.strftime('%d.%m.%Y')}\n"
+        body_text += "  Erstellt: #{issue.created_on.in_time_zone('Europe/Berlin').strftime('%d.%m.%Y %H:%M')}\n"
         body_text += "  URL: #{Setting.protocol}://#{Setting.host_name}/issues/#{issue.id}\n\n"
       end
       
       body_text += "Bitte überprüfen Sie diese Tickets und aktualisieren Sie den Status entsprechend.\n\n"
       body_text += "Mit freundlichen Grüßen,\n"
-      body_text += "Ihr Redmine System"
+      body_text += "Ihr Redmine System\n\n"
+      body_text += "Gesendet am: #{Time.current.in_time_zone('Europe/Berlin').strftime('%d.%m.%Y %H:%M:%S')}"
       
       body body_text
     end
 
-    mail.delivery_method :smtp, {
-      address: Setting.smtp_address,
-      port: Setting.smtp_port,
-      domain: Setting.smtp_domain,
-      user_name: Setting.smtp_user_name,
-      password: Setting.smtp_password,
-      authentication: Setting.smtp_authentication,
-      enable_starttls_auto: Setting.smtp_enable_starttls_auto
-    }
+    # Verwende Redmine's SMTP-Konfiguration
+    smtp_settings = ActionMailer::Base.smtp_settings
+    if smtp_settings.present? && smtp_settings[:address].present?
+      @@logger.debug("Using ActionMailer SMTP settings for reminder: #{smtp_settings[:address]}:#{smtp_settings[:port]}")
+      mail.delivery_method :smtp, smtp_settings
+    elsif Setting.email_delivery.present? && Setting.email_delivery['smtp_settings'].present?
+      # Fallback auf Redmine's Standard-Konfiguration
+      smtp_config = Setting.email_delivery['smtp_settings']
+      if smtp_config['address'].present?
+        @@logger.debug("Using Redmine email_delivery settings for reminder: #{smtp_config['address']}:#{smtp_config['port']}")
+        mail.delivery_method :smtp, {
+          address: smtp_config['address'],
+          port: smtp_config['port'] || 587,
+          domain: smtp_config['domain'],
+          user_name: smtp_config['user_name'],
+          password: smtp_config['password'],
+          authentication: smtp_config['authentication'] || :plain,
+          enable_starttls_auto: smtp_config['enable_starttls_auto'] != false
+        }
+      else
+        @@logger.error("SMTP-Server-Adresse ist nicht konfiguriert für Reminder-E-Mails")
+        return false
+      end
+    else
+      @@logger.error("Keine SMTP-Konfiguration gefunden für Reminder-E-Mails")
+      return false
+    end
 
     mail.deliver!
+    true
   end
 
   # Sende Test-Reminder
