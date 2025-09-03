@@ -440,15 +440,24 @@ class MailHandlerService
         mail_notification: 'none'
       )
       
-      # Erstelle EmailAddress-Objekt für Redmine 6.x
-      email_address = EmailAddress.new(
-        address: normalized_email,
-        is_default: true
-      )
-      user.email_addresses = [email_address]
+      # Setze E-Mail-Adresse direkt über mail Attribut für Kompatibilität
+      user.mail = normalized_email
       
       if user.save
         @logger.info("Created new user for #{normalized_email} (locked) - ticket ID present")
+        
+        # Erstelle EmailAddress-Objekt nach dem Speichern des Users
+        begin
+          email_address = EmailAddress.create!(
+            user: user,
+            address: normalized_email,
+            is_default: true
+          )
+          @logger.debug("Created EmailAddress for user #{user.id}")
+        rescue => email_error
+          @logger.warn("Failed to create EmailAddress for user #{user.id}: #{email_error.message}")
+        end
+        
         user
       else
         @logger.error("Failed to create user for #{normalized_email}: #{user.errors.full_messages.join(', ')}")
