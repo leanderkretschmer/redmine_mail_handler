@@ -6,11 +6,13 @@ class MailHandlerLogger
     'error' => 3
   }.freeze
 
+  @@last_message = nil
+  @@repeat_count = 0
+  @@last_log_id = nil
+  @@mutex = Mutex.new
+
   def initialize
     @settings = Setting.plugin_redmine_mail_handler
-    @last_message = nil
-    @repeat_count = 0
-    @last_log_id = nil
     ensure_log_table_exists
   end
 
@@ -48,41 +50,42 @@ class MailHandlerLogger
   def log(level, message)
     return unless should_log?(level)
     
-    # Prüfe auf wiederholte Nachrichten
-    if @last_message == message
-      @repeat_count += 1
+    @@mutex.synchronize do
+      # Prüfe auf wiederholte Nachrichten
+      if @@last_message == message
+        @@repeat_count += 1
+        
+        # Aktualisiere die letzte Log-Nachricht mit Zähler
+        update_last_log_with_count(level, message)
+        return
+      else
+        # Neue Nachricht - setze Zähler zurück
+        @@last_message = message
+        @@repeat_count = 0
+        @@last_log_id = nil
+      end
+      # Immer in Rails-Log schreiben
+      Rails.logger.send(level, "[MailHandler] #{message}")
       
-      # Aktualisiere die letzte Log-Nachricht mit Zähler
-      update_last_log_with_count(level, message)
-      return
-    else
-      # Neue Nachricht - setze Zähler zurück
-      @last_message = message
-      @repeat_count = 0
-      @last_log_id = nil
-    end
-    
-    # Immer in Rails-Log schreiben
-    Rails.logger.send(level, "[MailHandler] #{message}")
-    
-    # Versuche in DB zu schreiben, aber nur wenn Verbindung verfügbar
-    begin
-      return unless ActiveRecord::Base.connection_pool.connected?
-      
-      log_entry = MailHandlerLog.create!(
-        level: level,
-        message: message,
-        created_at: Time.current.in_time_zone('Europe/Berlin')
-      )
-      
-      @last_log_id = log_entry.id
-      
-    rescue ActiveRecord::ConnectionTimeoutError => e
-      # Keine weitere Aktion bei Connection Timeout - Rails.logger wurde bereits verwendet
-    rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::NoDatabaseError => e
-      # DB nicht verfügbar - nur Rails.logger verwenden
-    rescue => e
-      Rails.logger.error "Failed to write mail handler log: #{e.message}"
+      # Versuche in DB zu schreiben, aber nur wenn Verbindung verfügbar
+      begin
+        return unless ActiveRecord::Base.connection_pool.connected?
+        
+        log_entry = MailHandlerLog.create!(
+          level: level,
+          message: message,
+          created_at: Time.current.in_time_zone('Europe/Berlin')
+        )
+        
+        @@last_log_id = log_entry.id
+        
+      rescue ActiveRecord::ConnectionTimeoutError => e
+        # Keine weitere Aktion bei Connection Timeout - Rails.logger wurde bereits verwendet
+      rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::NoDatabaseError => e
+        # DB nicht verfügbar - nur Rails.logger verwenden
+      rescue => e
+        Rails.logger.error "Failed to write mail handler log: #{e.message}"
+      end
     end
   end
 
@@ -94,17 +97,17 @@ class MailHandlerLogger
   end
 
   def update_last_log_with_count(level, message)
-    return unless @last_log_id
+    return unless @@last_log_id
     
     begin
       return unless ActiveRecord::Base.connection_pool.connected?
       
       # Finde den letzten Log-Eintrag
-      last_log = MailHandlerLog.find_by(id: @last_log_id)
+      last_log = MailHandlerLog.find_by(id: @@last_log_id)
       return unless last_log
       
       # Aktualisiere die Nachricht mit Zähler
-      count_suffix = " (#{@repeat_count + 1}x)"
+      count_suffix = " (#{@@repeat_count + 1}x)"
       updated_message = message + count_suffix
       
       last_log.update!(
