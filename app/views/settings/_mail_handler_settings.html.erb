@@ -28,12 +28,20 @@
   
   <p>
     <label for="settings_inbox_folder">Posteingang-Ordner:</label>
-    <%= text_field_tag 'settings[inbox_folder]', @settings['inbox_folder'], :size => 20, :placeholder => 'INBOX' %>
+    <select name="settings[inbox_folder]" id="settings_inbox_folder">
+      <option value="<%= @settings['inbox_folder'] %>"><%= @settings['inbox_folder'].present? ? @settings['inbox_folder'] : 'INBOX' %></option>
+    </select>
+    <button type="button" id="load_inbox_folders" class="small-button">Ordner laden</button>
+    <span id="inbox_loading" style="display: none;">Lade...</span>
   </p>
   
   <p>
     <label for="settings_archive_folder">Archiv-Ordner:</label>
-    <%= text_field_tag 'settings[archive_folder]', @settings['archive_folder'], :size => 20, :placeholder => 'Archive' %>
+    <select name="settings[archive_folder]" id="settings_archive_folder">
+      <option value="<%= @settings['archive_folder'] %>"><%= @settings['archive_folder'].present? ? @settings['archive_folder'] : 'Archive' %></option>
+    </select>
+    <button type="button" id="load_archive_folders" class="small-button">Ordner laden</button>
+    <span id="archive_loading" style="display: none;">Lade...</span>
   </p>
 </div>
 
@@ -71,18 +79,91 @@
       <label for="settings_smtp_password">Passwort:</label>
       <%= password_field_tag 'settings[smtp_password]', @settings['smtp_password'], :size => 30 %>
     </p>
-  </div>
 </div>
 
 <script>
-function toggleSmtpFields(useSameAsImap) {
+function toggleSmtpFields(useImapSettings) {
   var smtpFields = document.getElementById('smtp_fields');
-  if (useSameAsImap) {
+  if (useImapSettings) {
     smtpFields.style.display = 'none';
   } else {
     smtpFields.style.display = 'block';
   }
 }
+
+function loadImapFolders(targetSelectId, loadingSpanId) {
+  var loadingSpan = document.getElementById(loadingSpanId);
+  var targetSelect = document.getElementById(targetSelectId);
+  
+  // Zeige Loading-Indikator
+  loadingSpan.style.display = 'inline';
+  
+  // Sammle IMAP-Einstellungen
+  var imapSettings = {
+    imap_host: document.getElementById('settings_imap_host').value,
+    imap_port: document.getElementById('settings_imap_port').value,
+    imap_ssl: document.getElementById('settings_imap_ssl').checked ? '1' : '0',
+    imap_username: document.getElementById('settings_imap_username').value,
+    imap_password: document.getElementById('settings_imap_password').value
+  };
+  
+  // Validiere Eingaben
+  if (!imapSettings.imap_host || !imapSettings.imap_username || !imapSettings.imap_password) {
+    alert('Bitte füllen Sie zuerst alle IMAP-Einstellungen aus.');
+    loadingSpan.style.display = 'none';
+    return;
+  }
+  
+  // AJAX-Request
+  fetch('/admin/mail_handler_admin/get_imap_folders', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+    },
+    body: JSON.stringify(imapSettings)
+  })
+  .then(response => response.json())
+  .then(data => {
+    loadingSpan.style.display = 'none';
+    
+    if (data.success && data.folders) {
+      // Leere das Select und füge neue Optionen hinzu
+      targetSelect.innerHTML = '';
+      
+      data.folders.forEach(function(folder) {
+        var option = document.createElement('option');
+        option.value = folder;
+        option.textContent = folder;
+        targetSelect.appendChild(option);
+      });
+      
+      if (data.folders.length === 0) {
+        var option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'Keine Ordner gefunden';
+        targetSelect.appendChild(option);
+      }
+    } else {
+      alert('Fehler beim Laden der Ordner: ' + (data.error || 'Unbekannter Fehler'));
+    }
+  })
+  .catch(error => {
+    loadingSpan.style.display = 'none';
+    alert('Fehler beim Laden der Ordner: ' + error.message);
+  });
+}
+
+// Event Listener für die Buttons
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('load_inbox_folders').addEventListener('click', function() {
+    loadImapFolders('settings_inbox_folder', 'inbox_loading');
+  });
+  
+  document.getElementById('load_archive_folders').addEventListener('click', function() {
+    loadImapFolders('settings_archive_folder', 'archive_loading');
+  });
+});
 </script>
 
 <div class="box tabular settings">

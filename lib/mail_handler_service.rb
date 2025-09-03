@@ -125,6 +125,26 @@ class MailHandlerService
     end
   end
 
+  # Liste verfügbare IMAP-Ordner auf (für Debugging)
+  def list_imap_folders
+    begin
+      imap = connect_to_imap
+      return [] unless imap
+      
+      folders = imap.list('', '*')
+      folder_names = folders.map(&:name)
+      
+      @logger.info("Available IMAP folders: #{folder_names.join(', ')}")
+      @logger.info("Configured archive folder: '#{@settings['archive_folder']}'")
+      
+      imap.disconnect
+      folder_names
+    rescue => e
+      @logger.error("Failed to list IMAP folders: #{e.message}")
+      []
+    end
+  end
+
   private
 
   # Verbinde zu IMAP-Server
@@ -400,26 +420,6 @@ class MailHandlerService
       @logger.info("Created archive folder '#{@settings['archive_folder']}'")
     rescue => e
       @logger.error("Failed to create archive folder '#{@settings['archive_folder']}': #{e.message}")
-    end
-  end
-
-  # Liste verfügbare IMAP-Ordner auf (für Debugging)
-  def list_imap_folders
-    begin
-      imap = connect_to_imap
-      return [] unless imap
-      
-      folders = imap.list('', '*')
-      folder_names = folders.map(&:name)
-      
-      @logger.info("Available IMAP folders: #{folder_names.join(', ')}")
-      @logger.info("Configured archive folder: '#{@settings['archive_folder']}'")
-      
-      imap.disconnect
-      folder_names
-    rescue => e
-      @logger.error("Failed to list IMAP folders: #{e.message}")
-      []
     end
   end
 

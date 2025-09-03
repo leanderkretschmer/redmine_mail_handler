@@ -48,6 +48,24 @@ class MailHandlerAdminController < ApplicationController
     redirect_to action: :index
   end
 
+  def get_imap_folders
+    # Erstelle temporären Service mit aktuellen Parametern
+    temp_settings = {
+      'imap_host' => params[:imap_host],
+      'imap_port' => params[:imap_port],
+      'imap_ssl' => params[:imap_ssl],
+      'imap_username' => params[:imap_username],
+      'imap_password' => params[:imap_password]
+    }
+    
+    temp_service = MailHandlerService.new(temp_settings)
+    folders = temp_service.list_imap_folders
+    
+    render json: { success: true, folders: folders }
+  rescue => e
+    render json: { success: false, error: e.message }
+  end
+
   def manual_import
     limit = params[:import_limit].to_i
     limit = nil if limit <= 0
