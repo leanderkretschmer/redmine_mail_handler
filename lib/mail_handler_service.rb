@@ -2,6 +2,8 @@ require 'net/imap'
 require 'mail'
 require 'mime/types'
 require 'nokogiri'
+require 'timeout'
+require 'openssl'
 
 class MailHandlerService
   include Redmine::I18n
@@ -147,38 +149,103 @@ class MailHandlerService
 
   private
 
-  # Verbinde zu IMAP-Server
-  def connect_to_imap
+  # Verbinde zu IMAP-Server mit Retry-Logik
+  def connect_to_imap(max_retries = 3)
+    # Validiere IMAP-Einstellungen
+    if @settings['imap_host'].blank?
+      @logger.error("IMAP-Host ist nicht konfiguriert. Bitte konfigurieren Sie die IMAP-Einstellungen in der Plugin-Konfiguration.")
+      return nil
+    end
+    
+    if @settings['imap_username'].blank? || @settings['imap_password'].blank?
+      @logger.error("IMAP-Benutzername oder -Passwort ist nicht konfiguriert.")
+      return nil
+    end
+    
+    port = @settings['imap_port'].present? ? @settings['imap_port'].to_i : 993
+    use_ssl = @settings['imap_ssl'] == '1'
+    
+    retry_count = 0
+    
     begin
-      # Validiere IMAP-Einstellungen
-      if @settings['imap_host'].blank?
-        @logger.error("IMAP-Host ist nicht konfiguriert. Bitte konfigurieren Sie die IMAP-Einstellungen in der Plugin-Konfiguration.")
-        return nil
-      end
+      @logger.debug("Connecting to IMAP server #{@settings['imap_host']}:#{port} (SSL: #{use_ssl}) - Attempt #{retry_count + 1}/#{max_retries + 1}")
       
-      if @settings['imap_username'].blank? || @settings['imap_password'].blank?
-        @logger.error("IMAP-Benutzername oder -Passwort ist nicht konfiguriert.")
-        return nil
-      end
-      
-      port = @settings['imap_port'].present? ? @settings['imap_port'].to_i : 993
-      use_ssl = @settings['imap_ssl'] == '1'
-      
-      @logger.debug("Connecting to IMAP server #{@settings['imap_host']}:#{port} (SSL: #{use_ssl})")
-      
-      imap = Net::IMAP.new(
-        @settings['imap_host'],
+      # Erstelle IMAP-Verbindung mit erweiterten Optionen
+      imap_options = {
         port: port,
         ssl: use_ssl
-      )
+      }
       
-      imap.login(@settings['imap_username'], @settings['imap_password'])
-      @logger.debug("Successfully connected to IMAP server #{@settings['imap_host']}")
-      imap
+      # Füge SSL-Verifikationsoptionen hinzu wenn SSL verwendet wird
+      if use_ssl
+        imap_options[:ssl] = {
+          verify_mode: OpenSSL::SSL::VERIFY_PEER,
+          ca_file: nil,
+          ca_path: nil,
+          cert_store: nil
+        }
+      end
+      
+      # Timeout für Verbindungsaufbau setzen
+      Timeout::timeout(30) do
+        imap = Net::IMAP.new(@settings['imap_host'], **imap_options)
+        
+        # Login mit Timeout
+        Timeout::timeout(15) do
+          imap.login(@settings['imap_username'], @settings['imap_password'])
+        end
+        
+        @logger.debug("Successfully connected to IMAP server #{@settings['imap_host']}")
+        return imap
+      end
+      
+    rescue Timeout::Error => e
+      @logger.warn("IMAP connection timeout on attempt #{retry_count + 1}: #{e.message}")
+      retry_count += 1
+      
+    rescue Net::IMAP::NoResponseError => e
+      @logger.warn("IMAP server returned no response on attempt #{retry_count + 1}: #{e.message}")
+      retry_count += 1
+      
+    rescue Net::IMAP::BadResponseError => e
+      @logger.warn("IMAP server bad response on attempt #{retry_count + 1}: #{e.message}")
+      retry_count += 1
+      
+    rescue Errno::ECONNREFUSED => e
+      @logger.warn("IMAP connection refused on attempt #{retry_count + 1}: #{e.message}")
+      retry_count += 1
+      
+    rescue Errno::EHOSTUNREACH => e
+      @logger.warn("IMAP host unreachable on attempt #{retry_count + 1}: #{e.message}")
+      retry_count += 1
+      
+    rescue Errno::ETIMEDOUT => e
+      @logger.warn("IMAP connection timed out on attempt #{retry_count + 1}: #{e.message}")
+      retry_count += 1
+      
+    rescue SocketError => e
+      @logger.warn("IMAP socket error on attempt #{retry_count + 1}: #{e.message}")
+      retry_count += 1
+      
+    rescue OpenSSL::SSL::SSLError => e
+      @logger.warn("IMAP SSL error on attempt #{retry_count + 1}: #{e.message}")
+      retry_count += 1
+      
     rescue => e
-      @logger.error("Failed to connect to IMAP server #{@settings['imap_host'] || 'nicht konfiguriert'}: #{e.message}")
-      nil
+      @logger.warn("IMAP connection error on attempt #{retry_count + 1}: #{e.class.name} - #{e.message}")
+      retry_count += 1
     end
+    
+    # Retry-Logik
+    if retry_count <= max_retries
+      wait_time = [2 ** retry_count, 30].min  # Exponential backoff, max 30 Sekunden
+      @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
+      sleep(wait_time)
+      retry
+    end
+    
+    @logger.error("Failed to connect to IMAP server #{@settings['imap_host']} after #{max_retries + 1} attempts")
+    nil
   end
 
   # Verarbeite einzelne Nachricht

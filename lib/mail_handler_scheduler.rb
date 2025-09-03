@@ -36,10 +36,27 @@ class MailHandlerScheduler
 
   def self.schedule_mail_import
     settings = Setting.plugin_redmine_mail_handler
-    interval = (settings['import_interval'] || '5').to_i
+    interval = (settings['import_interval'] || '15').to_i
     interval_unit = settings['import_interval_unit'] || 'minutes'
     
     return unless settings['auto_import_enabled'] == '1'
+    
+    # Validiere Mindest-Intervall um DB-Überlastung zu vermeiden
+    min_interval_seconds = case interval_unit
+                          when 'seconds'
+                            interval
+                          when 'minutes'
+                            interval * 60
+                          else
+                            interval * 60
+                          end
+    
+    # Mindestens 2 Minuten (120 Sekunden) zwischen Imports
+    if min_interval_seconds < 120
+      @@logger&.warn("Import interval too short (#{interval} #{interval_unit}), using minimum of 2 minutes")
+      interval = 2
+      interval_unit = 'minutes'
+    end
     
     # Bestimme das Intervall-Format für rufus-scheduler
     interval_format = case interval_unit
@@ -54,10 +71,17 @@ class MailHandlerScheduler
     @@scheduler.every interval_format do
       begin
         @@logger.info("Starting scheduled mail import")
-        service = MailHandlerService.new
-        service.import_mails
+        
+        # Verwende ActiveRecord::Base.connection_pool.with_connection für saubere DB-Verbindungen
+        ActiveRecord::Base.connection_pool.with_connection do
+          service = MailHandlerService.new
+          service.import_mails
+        end
       rescue => e
         @@logger.error("Scheduled mail import failed: #{e.message}")
+      ensure
+        # Stelle sicher, dass Verbindungen freigegeben werden
+        ActiveRecord::Base.clear_active_connections!
       end
     end
     
@@ -74,9 +98,16 @@ class MailHandlerScheduler
     @@scheduler.cron "0 #{reminder_time.split(':')[1]} #{reminder_time.split(':')[0]} * * *" do
       begin
         @@logger.info("Starting daily reminder process")
-        send_daily_reminders
+        
+        # Verwende ActiveRecord::Base.connection_pool.with_connection für saubere DB-Verbindungen
+        ActiveRecord::Base.connection_pool.with_connection do
+          send_daily_reminders
+        end
       rescue => e
         @@logger.error("Daily reminder process failed: #{e.message}")
+      ensure
+        # Stelle sicher, dass Verbindungen freigegeben werden
+        ActiveRecord::Base.clear_active_connections!
       end
     end
     

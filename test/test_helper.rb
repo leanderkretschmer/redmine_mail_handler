@@ -37,7 +37,8 @@ class ActiveSupport::TestCase
       'reminder_time' => '09:00',
       'reminder_enabled' => '1',
       'auto_import_enabled' => '1',
-      'import_interval' => '5',
+      'import_interval' => '15',
+      'import_interval_unit' => 'minutes',
       'log_level' => 'debug'
     }
     

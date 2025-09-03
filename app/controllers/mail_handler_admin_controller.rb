@@ -48,6 +48,86 @@ class MailHandlerAdminController < ApplicationController
     redirect_to action: :index
   end
 
+  def test_imap_connection
+    # Temporär die Plugin-Einstellungen mit den übergebenen Parametern überschreiben
+    original_settings = Setting.plugin_redmine_mail_handler.dup
+    
+    temp_settings = original_settings.merge({
+      'imap_host' => params[:imap_host],
+      'imap_port' => params[:imap_port],
+      'imap_ssl' => params[:imap_ssl],
+      'imap_username' => params[:imap_username],
+      'imap_password' => params[:imap_password]
+    })
+    
+    # Temporär die Einstellungen setzen
+    Setting.plugin_redmine_mail_handler = temp_settings
+    
+    # Service erstellen und Verbindung testen
+    service = MailHandlerService.new
+    result = service.test_connection
+    
+    # Ursprüngliche Einstellungen wiederherstellen
+    Setting.plugin_redmine_mail_handler = original_settings
+    
+    if result[:success]
+      render json: { success: true, message: 'IMAP-Verbindung erfolgreich!' }
+    else
+      render json: { success: false, error: result[:error] }
+    end
+  rescue => e
+    # Sicherstellen, dass die ursprünglichen Einstellungen wiederhergestellt werden
+    Setting.plugin_redmine_mail_handler = original_settings if original_settings
+    render json: { success: false, error: e.message }
+  end
+
+  def test_smtp_connection
+    # Temporär die Plugin-Einstellungen mit den übergebenen Parametern überschreiben
+    original_settings = Setting.plugin_redmine_mail_handler.dup
+    
+    temp_settings = original_settings.merge({
+      'smtp_host' => params[:smtp_host],
+      'smtp_port' => params[:smtp_port],
+      'smtp_ssl' => params[:smtp_ssl],
+      'smtp_username' => params[:smtp_username],
+      'smtp_password' => params[:smtp_password]
+    })
+    
+    # Temporär die Einstellungen setzen
+    Setting.plugin_redmine_mail_handler = temp_settings
+    
+    begin
+      # SMTP-Verbindung testen
+      require 'net/smtp'
+      
+      host = params[:smtp_host]
+      port = params[:smtp_port].to_i
+      ssl = params[:smtp_ssl] == '1'
+      username = params[:smtp_username]
+      password = params[:smtp_password]
+      
+      # Validierung
+      if host.blank? || username.blank? || password.blank?
+        raise 'Bitte füllen Sie alle SMTP-Felder aus'
+      end
+      
+      # SMTP-Verbindung aufbauen
+      smtp = Net::SMTP.new(host, port)
+      smtp.enable_ssl if ssl
+      smtp.start(host, username, password, :login)
+      smtp.finish
+      
+      # Ursprüngliche Einstellungen wiederherstellen
+      Setting.plugin_redmine_mail_handler = original_settings
+      
+      render json: { success: true, message: 'SMTP-Verbindung erfolgreich!' }
+    rescue => e
+      # Ursprüngliche Einstellungen wiederherstellen
+      Setting.plugin_redmine_mail_handler = original_settings if original_settings
+      render json: { success: false, error: e.message }
+    end
+  end
+
   def get_imap_folders
     # Temporär die Plugin-Einstellungen mit den übergebenen Parametern überschreiben
     original_settings = Setting.plugin_redmine_mail_handler.dup

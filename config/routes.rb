@@ -7,6 +7,8 @@ RedmineApp::Application.routes.draw do
     resources :mail_handler_admin, :only => [:index] do
       collection do
         post :test_connection
+        post :test_imap_connection
+        post :test_smtp_connection
         post :test_mail
         post :test_reminder
         post :manual_import

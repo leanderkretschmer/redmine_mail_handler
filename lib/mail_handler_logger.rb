@@ -45,18 +45,25 @@ class MailHandlerLogger
   def log(level, message)
     return unless should_log?(level)
     
+    # Immer in Rails-Log schreiben
+    Rails.logger.send(level, "[MailHandler] #{message}")
+    
+    # Versuche in DB zu schreiben, aber nur wenn Verbindung verfügbar
     begin
+      return unless ActiveRecord::Base.connection_pool.connected?
+      
       MailHandlerLog.create!(
         level: level,
         message: message,
         created_at: Time.current.in_time_zone('Europe/Berlin')
       )
+    rescue ActiveRecord::ConnectionTimeoutError => e
+      # Keine weitere Aktion bei Connection Timeout - Rails.logger wurde bereits verwendet
+    rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::NoDatabaseError => e
+      # DB nicht verfügbar - nur Rails.logger verwenden
     rescue => e
       Rails.logger.error "Failed to write mail handler log: #{e.message}"
     end
-    
-    # Auch in Rails-Log schreiben
-    Rails.logger.send(level, "[MailHandler] #{message}")
   end
 
   def should_log?(level)
@@ -67,8 +74,17 @@ class MailHandlerLogger
   end
 
   def ensure_log_table_exists
-    unless ActiveRecord::Base.connection.table_exists?('mail_handler_logs')
-      Rails.logger.warn "Mail handler logs table does not exist. Please run migrations."
+    begin
+      # Überprüfe ob eine DB-Verbindung verfügbar ist
+      return unless ActiveRecord::Base.connection_pool.connected?
+      
+      unless ActiveRecord::Base.connection.table_exists?('mail_handler_logs')
+        Rails.logger.warn "Mail handler logs table does not exist. Please run migrations."
+      end
+    rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::NoDatabaseError => e
+      Rails.logger.warn "Database connection not available for mail handler logs: #{e.message}"
+    rescue => e
+      Rails.logger.error "Error checking mail handler logs table: #{e.message}"
     end
   end
 end
