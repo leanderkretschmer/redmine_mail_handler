@@ -51,11 +51,11 @@ class MailHandlerScheduler
                             interval * 60
                           end
     
-    # Mindestens 2 Minuten (120 Sekunden) zwischen Imports
-    if min_interval_seconds < 120
-      @@logger&.warn("Import interval too short (#{interval} #{interval_unit}), using minimum of 2 minutes")
-      interval = 2
-      interval_unit = 'minutes'
+    # Mindestens 30 Sekunden zwischen Imports um DB-Überlastung zu vermeiden
+    if min_interval_seconds < 30
+      @@logger&.warn("Import interval too short (#{interval} #{interval_unit}), using minimum of 30 seconds")
+      interval = 30
+      interval_unit = 'seconds'
     end
     
     # Bestimme das Intervall-Format für rufus-scheduler
