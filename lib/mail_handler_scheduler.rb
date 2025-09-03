@@ -234,7 +234,7 @@ class MailHandlerScheduler
       issues = Issue.joins(:assigned_to)
                    .where(assigned_to: user)
                    .where(status: IssueStatus.where(is_closed: false))
-                   .where('updated_on < ?', 30.days.ago)
+                   .where('#{Issue.table_name}.updated_on < ?', 30.days.ago)
                    .limit(10)
       
       if issues.empty?
@@ -320,7 +320,7 @@ class MailHandlerScheduler
         issues = Issue.joins(:assigned_to)
                      .where(assigned_to: user)
                      .where(status: IssueStatus.where(is_closed: false))
-                     .where('updated_on < ?', 30.days.ago)
+                     .where('#{Issue.table_name}.updated_on < ?', 30.days.ago)
                      .limit(10)
         
         if issues.any?
