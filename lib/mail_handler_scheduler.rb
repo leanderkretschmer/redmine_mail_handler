@@ -97,11 +97,11 @@ class MailHandlerScheduler
     
     @@scheduler.cron "0 #{reminder_time.split(':')[1]} #{reminder_time.split(':')[0]} * * *" do
       begin
-        @@logger.info("Starting daily reminder process")
+        @@logger.info("Starting daily reminder process using Redmine's built-in functionality")
         
-        # Verwende ActiveRecord::Base.connection_pool.with_connection für saubere DB-Verbindungen
+        # Verwende Redmines eingebaute Reminder-Funktionalität
         ActiveRecord::Base.connection_pool.with_connection do
-          send_daily_reminders
+          send_redmine_reminders
         end
       rescue => e
         @@logger.error("Daily reminder process failed: #{e.message}")
@@ -111,126 +111,95 @@ class MailHandlerScheduler
       end
     end
     
-    @@logger.info("Scheduled daily reminders at #{reminder_time}")
+    @@logger.info("Scheduled daily reminders at #{reminder_time} using Redmine's built-in system")
   end
 
-  def self.send_daily_reminders
-    # Finde alle offenen Tickets, die älter als 1 Tag sind und heute noch nicht aktualisiert wurden
-    overdue_issues = Issue.joins(:status)
-                         .where(issue_statuses: { is_closed: false })
-                         .where('issues.created_on < ?', 1.day.ago)
-                         .where('issues.updated_on < ?', 1.day.ago)
-                         .includes(:assigned_to, :project)
+  def self.send_redmine_reminders
+    # Verwende Redmines eingebaute Reminder-Funktionalität
+    # Standardmäßig werden Reminder für Issues gesendet, die überfällig sind oder in den nächsten 7 Tagen fällig werden
+    days = 7
     
-    # Gruppiere nach zugewiesenem Benutzer
-    issues_by_user = overdue_issues.group_by(&:assigned_to)
-    
-    issues_by_user.each do |assignee, issues|
-      # Überspringe Groups - nur User-Objekte verarbeiten
-      next unless assignee && assignee.is_a?(User)
-      next unless assignee.email_address.present?
-      
-      begin
-        send_reminder_to_user(assignee, issues)
-        @@logger.info("Sent reminder to #{assignee.email_address} for #{issues.count} issues")
-      rescue => e
-        @@logger.error("Failed to send reminder to #{assignee.email_address}: #{e.message}")
-      end
-    end
-    
-    @@logger.info("Daily reminder process completed")
-  end
-
-  def self.send_reminder_to_user(user, issues)
-    # Validiere Benutzer-E-Mail
-    if user.email_address.blank?
-      @@logger.error("Benutzer #{user.firstname} #{user.lastname} hat keine E-Mail-Adresse")
-      return false
-    end
-    
-    # Validiere Absender-Adresse
-    if Setting.mail_from.blank?
-      @@logger.error("Absender-E-Mail-Adresse ist nicht in Redmine konfiguriert")
-      return false
-    end
-    
-    mail = Mail.new do
-      from     Setting.mail_from
-      to       user.email_address
-      subject  "Redmine: Tägliche Erinnerung - #{issues.count} offene Tickets"
-      
-      body_text = "Hallo #{user.firstname},\n\n"
-      body_text += "Sie haben #{issues.count} offene Tickets, die Ihre Aufmerksamkeit benötigen:\n\n"
-      
-      issues.each do |issue|
-        body_text += "• ##{issue.id}: #{issue.subject}\n"
-        body_text += "  Projekt: #{issue.project.name}\n"
-        body_text += "  Status: #{issue.status.name}\n"
-        body_text += "  Erstellt: #{issue.created_on.in_time_zone('Europe/Berlin').strftime('%d.%m.%Y %H:%M')}\n"
-        body_text += "  URL: #{Setting.protocol}://#{Setting.host_name}/issues/#{issue.id}\n\n"
-      end
-      
-      body_text += "Bitte überprüfen Sie diese Tickets und aktualisieren Sie den Status entsprechend.\n\n"
-      body_text += "Mit freundlichen Grüßen,\n"
-      body_text += "Ihr Redmine System\n\n"
-      body_text += "Gesendet am: #{Time.current.in_time_zone('Europe/Berlin').strftime('%d.%m.%Y %H:%M:%S')}"
-      
-      body body_text
-    end
-
-    # Verwende Plugin-SMTP-Konfiguration
     begin
-      require_relative 'mail_handler_service'
-      service = MailHandlerService.new
-      smtp_config = service.send(:get_smtp_settings)
+      @@logger.info("Executing Redmine's built-in reminder task for #{days} days")
       
-      if smtp_config && smtp_config[:address].present?
-        @@logger.debug("Using plugin SMTP settings for reminder: #{smtp_config[:address]}:#{smtp_config[:port]}")
-        @@logger.debug("SSL: #{smtp_config[:ssl]}, STARTTLS: #{smtp_config[:enable_starttls_auto]}")
-        
-        mail.delivery_method :smtp, smtp_config
+      # Führe Redmines Reminder-Task aus
+      # Dies entspricht: bundle exec rake redmine:send_reminders days=7 RAILS_ENV="production"
+      require 'rake'
+      
+      # Lade Redmine's Reminder-Task
+      Rake.application.load_rakefile unless Rake.application.tasks.any?
+      
+      # Setze Umgebungsvariable für days Parameter
+      ENV['days'] = days.to_s
+      
+      # Führe den Reminder-Task aus
+      if Rake::Task.task_defined?('redmine:send_reminders')
+        Rake::Task['redmine:send_reminders'].invoke
+        @@logger.info("Successfully executed Redmine's reminder task")
       else
-        @@logger.error("Plugin-SMTP-Konfiguration ist nicht verfügbar für Reminder-E-Mails")
-        return false
+        @@logger.error("Redmine's send_reminders task not found")
       end
+      
     rescue => e
-      @@logger.error("Fehler beim Laden der Plugin-SMTP-Konfiguration: #{e.message}")
-      return false
+      @@logger.error("Failed to execute Redmine's reminder task: #{e.message}")
+      @@logger.error("Backtrace: #{e.backtrace.join("\n")}")
+    ensure
+      # Bereinige Umgebungsvariable
+      ENV.delete('days')
     end
-
-    mail.deliver!
-    true
+    
+    @@logger.info("Redmine reminder process completed")
   end
 
-  # Sende Test-Reminder
+  # DEPRECATED: Diese Methode wird nicht mehr verwendet.
+  # Das Plugin nutzt jetzt Redmines eingebaute Reminder-Funktionalität.
+  def self.send_reminder_to_user(user, issues)
+    @@logger.warn("DEPRECATED: send_reminder_to_user is no longer used. Plugin now uses Redmine's built-in reminder functionality.")
+    return false
+  end
+
+  # Sende Test-Reminder mit Redmines eingebauter Funktionalität
   def self.send_test_reminder(to_email)
     begin
-      # Erstelle Test-Issues für Demo
-      test_issues = [
-        OpenStruct.new(
-          id: 1234,
-          subject: 'Test Ticket 1 - Beispiel Issue',
-          project: OpenStruct.new(name: 'Test Projekt'),
-          status: OpenStruct.new(name: 'Neu'),
-          created_on: 3.days.ago
-        ),
-        OpenStruct.new(
-          id: 5678,
-          subject: 'Test Ticket 2 - Weiteres Beispiel',
-          project: OpenStruct.new(name: 'Demo Projekt'),
-          status: OpenStruct.new(name: 'In Bearbeitung'),
-          created_on: 1.week.ago
-        )
-      ]
+      @@logger.info("Testing Redmine's built-in reminder functionality for #{to_email}")
       
-      user = OpenStruct.new(firstname: 'Test', email_address: to_email)
-      send_reminder_to_user(user, test_issues)
+      # Finde einen Benutzer mit der angegebenen E-Mail-Adresse
+      user = User.find_by(mail: to_email)
       
-      @@logger.info("Test reminder sent to #{to_email}")
-      true
+      if user.nil?
+        @@logger.error("No user found with email address: #{to_email}")
+        return false
+      end
+      
+      # Führe Redmines Reminder-Task für diesen spezifischen Benutzer aus
+      require 'rake'
+      
+      # Lade Redmine's Reminder-Task
+      Rake.application.load_rakefile unless Rake.application.tasks.any?
+      
+      # Setze Umgebungsvariablen für Test-Reminder
+      ENV['days'] = '30'  # Erweitere Zeitraum für Test
+      ENV['users'] = user.id.to_s  # Nur für diesen Benutzer
+      
+      # Führe den Reminder-Task aus
+      if Rake::Task.task_defined?('redmine:send_reminders')
+        Rake::Task['redmine:send_reminders'].reenable  # Erlaube mehrfache Ausführung
+        Rake::Task['redmine:send_reminders'].invoke
+        @@logger.info("Test reminder sent to #{to_email} using Redmine's built-in functionality")
+        true
+      else
+        @@logger.error("Redmine's send_reminders task not found")
+        false
+      end
+      
     rescue => e
       @@logger.error("Failed to send test reminder: #{e.message}")
+      @@logger.error("Backtrace: #{e.backtrace.join("\n")}")
       false
+    ensure
+      # Bereinige Umgebungsvariablen
+      ENV.delete('days')
+      ENV.delete('users')
     end
   end
 end
