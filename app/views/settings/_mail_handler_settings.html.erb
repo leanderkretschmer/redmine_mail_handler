@@ -363,6 +363,16 @@ document.addEventListener('DOMContentLoaded', function() {
     <%= text_field_tag 'settings[reminder_time]', @settings['reminder_time'], :size => 10, :placeholder => '09:00' %>
     <em class="info">Format: HH:MM (24-Stunden-Format)</em>
   </p>
+  
+  <p>
+    <label for="settings_reminder_type">Reminder-Typ:</label>
+    <%= select_tag 'settings[reminder_type]', 
+                   options_for_select([
+                     ['Redmine Standard-Reminder', 'redmine'],
+                     ['Plugin Custom-Reminder', 'custom']
+                   ], @settings['reminder_type'] || 'redmine') %>
+    <em class="info">Redmine Standard nutzt eingebaute Funktionalität, Custom nutzt Plugin-eigene Implementierung</em>
+  </p>
 </div>
 
 <div class="box tabular settings">
