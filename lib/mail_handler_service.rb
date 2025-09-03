@@ -321,36 +321,41 @@ class MailHandlerService
     msg_data = imap.fetch(msg_id, 'RFC822')[0].attr['RFC822']
     mail = Mail.read_from_string(msg_data)
     
-    @logger.debug("Processing mail from #{mail.from.first} with subject: #{mail.subject}")
+    # Validiere From-Adresse
+    from_address = mail.from&.first
+    if from_address.blank?
+      @logger.error("Mail has no valid from address, skipping message #{msg_id}")
+      return
+    end
+    
+    @logger.debug("Processing mail from #{from_address} with subject: #{mail.subject}")
     
     # Extrahiere Ticket-ID aus Betreff
     ticket_id = extract_ticket_id(mail.subject)
     
-    # Finde oder erstelle Benutzer
-    user = find_or_create_user(mail.from.first)
+    # Prüfe ob Benutzer bereits existiert
+    existing_user = find_existing_user(from_address)
     
-    # Verarbeite basierend auf Benutzer-Status und Ticket-ID
-    if user && user.active?
-      # Bekannter Benutzer
+    if existing_user
+      # Bekannter Benutzer - kann immer verarbeitet werden
       if ticket_id
-        # Bekannter Benutzer + Ticket-ID
-        add_mail_to_ticket(mail, ticket_id, user)
+        # Bekannter Benutzer + Ticket-ID → an spezifisches Ticket
+        add_mail_to_ticket(mail, ticket_id, existing_user)
       else
-        # Bekannter Benutzer ohne Ticket-ID → Posteingang
-        add_mail_to_inbox_ticket(mail, user)
+        # Bekannter Benutzer ohne Ticket-ID → an Posteingang-Ticket
+        add_mail_to_inbox_ticket(mail, existing_user)
       end
-    elsif user && !user.active?
-      # Unbekannter Benutzer (neu erstellt)
-      if ticket_id
-        # Unbekannter Benutzer + Ticket-ID
-        add_mail_to_ticket(mail, ticket_id, user)
+    elsif ticket_id
+      # Unbekannter Benutzer + Ticket-ID → Benutzer erstellen und Mail verarbeiten
+      new_user = create_new_user(from_address)
+      if new_user
+        add_mail_to_ticket(mail, ticket_id, new_user)
       else
-        # Unbekannter Benutzer ohne Ticket-ID → ignorieren
-        @logger.info("Ignoring mail from unknown user #{mail.from.first} without ticket ID")
+        @logger.error("Failed to create user for #{from_address}, cannot process mail")
       end
     else
-      # Benutzer konnte nicht erstellt werden → ignorieren
-      @logger.warn("Could not process mail from #{mail.from.first}")
+      # Unbekannter Benutzer ohne Ticket-ID → Mail ignorieren
+      @logger.info("Ignoring mail from unknown user #{from_address} without ticket ID (business rule)")
     end
     
     # Mail als gelesen markieren und archivieren
@@ -378,41 +383,87 @@ class MailHandlerService
     match ? match[1].to_i : nil
   end
 
-  # Finde oder erstelle Benutzer
-  def find_or_create_user(email)
+  # Finde existierenden Benutzer (ohne Erstellung)
+  def find_existing_user(email)
+    # Validiere E-Mail-Adresse
+    if email.blank?
+      @logger.debug("Email address is blank or nil")
+      return nil
+    end
+    
+    # Normalisiere E-Mail-Adresse
+    normalized_email = email.to_s.strip.downcase
+    
+    # Validiere E-Mail-Format
+    unless normalized_email.match?(/\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i)
+      @logger.debug("Invalid email format: #{email}")
+      return nil
+    end
+    
     # Suche existierenden Benutzer über EmailAddress-Objekt
-    email_address_obj = EmailAddress.find_by(address: email.downcase)
+    email_address_obj = EmailAddress.find_by(address: normalized_email)
     user = email_address_obj&.user
-    return user if user
+    
+    if user
+      @logger.debug("Found existing user for #{normalized_email}: #{user.login}")
+    else
+      @logger.debug("No existing user found for #{normalized_email}")
+    end
+    
+    user
+  end
+  
+  # Erstelle neuen Benutzer (nur wenn Ticket-ID vorhanden)
+  def create_new_user(email)
+    # Validiere E-Mail-Adresse
+    if email.blank?
+      @logger.error("Email address is blank or nil")
+      return nil
+    end
+    
+    # Normalisiere E-Mail-Adresse
+    normalized_email = email.to_s.strip.downcase
+    
+    # Validiere E-Mail-Format
+    unless normalized_email.match?(/\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i)
+      @logger.error("Invalid email format: #{email}")
+      return nil
+    end
     
     # Erstelle neuen Benutzer (deaktiviert)
     begin
       user = User.new(
-        firstname: email.split('@').first,
+        firstname: normalized_email.split('@').first,
         lastname: 'Auto-created',
-        login: email.downcase.gsub(/[^a-zA-Z0-9]/, '_'),
+        login: normalized_email.gsub(/[^a-zA-Z0-9]/, '_'),
         status: User::STATUS_LOCKED,
         mail_notification: 'none'
       )
       
       # Erstelle EmailAddress-Objekt für Redmine 6.x
       email_address = EmailAddress.new(
-        address: email.downcase,
+        address: normalized_email,
         is_default: true
       )
       user.email_addresses = [email_address]
       
       if user.save
-        @logger.info("Created new user for #{email} (locked)")
+        @logger.info("Created new user for #{normalized_email} (locked) - ticket ID present")
         user
       else
-        @logger.error("Failed to create user for #{email}: #{user.errors.full_messages.join(', ')}")
+        @logger.error("Failed to create user for #{normalized_email}: #{user.errors.full_messages.join(', ')}")
         nil
       end
     rescue => e
-      @logger.error("Error creating user for #{email}: #{e.message}")
+      @logger.error("Error creating user for #{normalized_email}: #{e.message}")
       nil
     end
+  end
+  
+  # Legacy-Methode für Rückwärtskompatibilität (deprecated)
+  def find_or_create_user(email)
+    @logger.warn("find_or_create_user is deprecated, use find_existing_user or create_new_user instead")
+    find_existing_user(email) || create_new_user(email)
   end
 
   # Füge Mail zu spezifischem Ticket hinzu
