@@ -435,7 +435,7 @@ class MailHandlerService
       user = User.new(
         firstname: normalized_email.split('@').first,
         lastname: 'Auto-created',
-        login: normalized_email.gsub(/[^a-zA-Z0-9]/, '_'),
+        login: normalized_email.split('@').first,
         status: User::STATUS_LOCKED,
         mail_notification: 'none'
       )
@@ -448,12 +448,19 @@ class MailHandlerService
         
         # Erstelle EmailAddress-Objekt nach dem Speichern des Users
         begin
-          email_address = EmailAddress.create!(
-            user: user,
-            address: normalized_email,
-            is_default: true
-          )
-          @logger.debug("Created EmailAddress for user #{user.id}")
+          # Prüfe ob bereits eine EmailAddress für diese E-Mail existiert
+          existing_email_address = EmailAddress.find_by(address: normalized_email)
+          
+          if existing_email_address
+            @logger.debug("EmailAddress for #{normalized_email} already exists, skipping creation")
+          else
+            email_address = EmailAddress.create!(
+              user: user,
+              address: normalized_email,
+              is_default: true
+            )
+            @logger.debug("Created EmailAddress for user #{user.id}")
+          end
         rescue => email_error
           @logger.warn("Failed to create EmailAddress for user #{user.id}: #{email_error.message}")
         end
