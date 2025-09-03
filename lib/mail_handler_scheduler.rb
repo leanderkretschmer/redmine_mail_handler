@@ -203,4 +203,41 @@ class MailHandlerScheduler
       ENV.delete('users')
     end
   end
+
+  # Sende Bulk-Reminder an alle Benutzer mit Redmines eingebauter Funktionalität
+  def self.send_bulk_reminder
+    begin
+      @@logger.info("Triggering bulk reminder for all users using Redmine's built-in functionality")
+      
+      # Führe Redmines Reminder-Task für alle Benutzer aus
+      require 'rake'
+      
+      # Lade Redmine's Reminder-Task
+      Rake.application.load_rakefile unless Rake.application.tasks.any?
+      
+      # Setze Umgebungsvariablen für Bulk-Reminder
+      ENV['days'] = '30'  # Erweitere Zeitraum für Reminder
+      # Keine spezifische Benutzer-ID setzen = alle Benutzer
+      
+      # Führe den Reminder-Task aus
+      if Rake::Task.task_defined?('redmine:send_reminders')
+        Rake::Task['redmine:send_reminders'].reenable  # Erlaube mehrfache Ausführung
+        Rake::Task['redmine:send_reminders'].invoke
+        @@logger.info("Bulk reminder sent to all users using Redmine's built-in functionality")
+        true
+      else
+        @@logger.error("Redmine's send_reminders task not found")
+        false
+      end
+      
+    rescue => e
+      @@logger.error("Failed to send bulk reminder: #{e.message}")
+      @@logger.error("Backtrace: #{e.backtrace.join("\n")}")
+      false
+    ensure
+      # Bereinige Umgebungsvariablen
+      ENV.delete('days')
+      ENV.delete('users')
+    end
+  end
 end

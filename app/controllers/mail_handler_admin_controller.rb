@@ -48,6 +48,16 @@ class MailHandlerAdminController < ApplicationController
     redirect_to action: :index
   end
 
+  def send_bulk_reminder
+    if MailHandlerScheduler.send_bulk_reminder
+      flash[:notice] = "Bulk-Reminder wurde erfolgreich an alle Benutzer gesendet."
+    else
+      flash[:error] = "Fehler beim Senden des Bulk-Reminders."
+    end
+    
+    redirect_to action: :index
+  end
+
   def test_imap_connection
     # Temporär die Plugin-Einstellungen mit den übergebenen Parametern überschreiben
     original_settings = Setting.plugin_redmine_mail_handler.dup

@@ -71,6 +71,16 @@
 </div>
 
 <div class="box">
+  <h3>Bulk-Reminder senden</h3>
+  <p>Sendet Reminder-E-Mails an alle Benutzer mit offenen Tickets:</p>
+  <%= form_tag({ :action => 'send_bulk_reminder' }, :method => :post) do %>
+    <p>
+      <%= submit_tag 'Bulk-Reminder an alle senden', :confirm => 'Sind Sie sicher, dass Sie Reminder-E-Mails an alle Benutzer senden möchten?' %>
+    </p>
+  <% end %>
+</div>
+
+<div class="box">
   <h3>Manueller E-Mail-Import</h3>
   <p>Für Entwicklung und Tests können Sie E-Mails manuell importieren:</p>
   <%= form_tag({ :action => 'manual_import' }, :method => :post) do %>
