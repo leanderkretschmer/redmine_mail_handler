@@ -141,6 +141,36 @@ namespace :redmine do
       end
     end
     
+    desc 'List available IMAP folders'
+    task :list_folders => :environment do
+      puts "Listing available IMAP folders..."
+      
+      service = MailHandlerService.new
+      folders = service.list_imap_folders
+      
+      if folders.any?
+        puts "\nAvailable folders:"
+        folders.each { |folder| puts "  - #{folder}" }
+        
+        settings = Setting.plugin_redmine_mail_handler
+        archive_folder = settings['archive_folder']
+        
+        puts "\nConfigured archive folder: '#{archive_folder}'"
+        
+        if archive_folder.present?
+          if folders.include?(archive_folder)
+            puts "✅ Archive folder exists"
+          else
+            puts "❌ Archive folder does not exist - it will be created automatically"
+          end
+        else
+          puts "⚠️  No archive folder configured - emails will not be archived"
+        end
+      else
+        puts "❌ Could not retrieve folder list. Check IMAP connection."
+      end
+    end
+    
     desc 'Show plugin status'
     task :status => :environment do
       settings = Setting.plugin_redmine_mail_handler

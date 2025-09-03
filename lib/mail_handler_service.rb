@@ -348,16 +348,78 @@ class MailHandlerService
     begin
       # Prüfe ob die Message-ID noch gültig ist
       imap.fetch(msg_id, 'UID')
+      
+      # Prüfe ob der Archiv-Ordner existiert, erstelle ihn falls nötig
+      ensure_archive_folder_exists(imap)
+      
       imap.move(msg_id, @settings['archive_folder'])
-      @logger.debug("Moved message #{msg_id} to archive")
+      @logger.debug("Moved message #{msg_id} to archive folder '#{@settings['archive_folder']}'")
     rescue Net::IMAP::BadResponseError => e
       if e.message.include?('Invalid messageset')
         @logger.debug("Message #{msg_id} already moved or invalid, skipping archive")
+      elsif e.message.include?('TRYCREATE')
+        @logger.info("Archive folder '#{@settings['archive_folder']}' does not exist, creating it...")
+        create_archive_folder(imap)
+        # Versuche erneut zu verschieben
+        begin
+          imap.move(msg_id, @settings['archive_folder'])
+          @logger.debug("Moved message #{msg_id} to newly created archive folder")
+        rescue => retry_e
+          @logger.error("Failed to move message #{msg_id} to archive after creating folder: #{retry_e.message}")
+        end
       else
         @logger.warn("Failed to archive message #{msg_id}: #{e.message}")
       end
     rescue => e
       @logger.warn("Failed to archive message #{msg_id}: #{e.message}")
+    end
+  end
+
+  # Stelle sicher, dass der Archiv-Ordner existiert
+  def ensure_archive_folder_exists(imap)
+    return unless @settings['archive_folder'].present?
+    
+    begin
+      # Liste alle Ordner auf
+      folders = imap.list('', '*')
+      folder_names = folders.map(&:name)
+      
+      unless folder_names.include?(@settings['archive_folder'])
+        @logger.info("Archive folder '#{@settings['archive_folder']}' not found, creating it...")
+        create_archive_folder(imap)
+      end
+    rescue => e
+      @logger.warn("Could not check archive folder existence: #{e.message}")
+    end
+  end
+
+  # Erstelle den Archiv-Ordner
+  def create_archive_folder(imap)
+    begin
+      imap.create(@settings['archive_folder'])
+      @logger.info("Created archive folder '#{@settings['archive_folder']}'")
+    rescue => e
+      @logger.error("Failed to create archive folder '#{@settings['archive_folder']}': #{e.message}")
+    end
+  end
+
+  # Liste verfügbare IMAP-Ordner auf (für Debugging)
+  def list_imap_folders
+    begin
+      imap = connect_to_imap
+      return [] unless imap
+      
+      folders = imap.list('', '*')
+      folder_names = folders.map(&:name)
+      
+      @logger.info("Available IMAP folders: #{folder_names.join(', ')}")
+      @logger.info("Configured archive folder: '#{@settings['archive_folder']}'")
+      
+      imap.disconnect
+      folder_names
+    rescue => e
+      @logger.error("Failed to list IMAP folders: #{e.message}")
+      []
     end
   end
 
