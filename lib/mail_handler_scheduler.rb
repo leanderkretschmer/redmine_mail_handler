@@ -81,7 +81,7 @@ class MailHandlerScheduler
         @@logger.error("Scheduled mail import failed: #{e.message}")
       ensure
         # Stelle sicher, dass Verbindungen freigegeben werden
-        ActiveRecord::Base.clear_active_connections!
+        ActiveRecord::Base.connection_handler.clear_active_connections!
       end
     end
     
@@ -107,7 +107,7 @@ class MailHandlerScheduler
         @@logger.error("Daily reminder process failed: #{e.message}")
       ensure
         # Stelle sicher, dass Verbindungen freigegeben werden
-        ActiveRecord::Base.clear_active_connections!
+        ActiveRecord::Base.connection_handler.clear_active_connections!
       end
     end
     
@@ -125,14 +125,16 @@ class MailHandlerScheduler
     # Gruppiere nach zugewiesenem Benutzer
     issues_by_user = overdue_issues.group_by(&:assigned_to)
     
-    issues_by_user.each do |user, issues|
-      next unless user && user.email_address.present?
+    issues_by_user.each do |assignee, issues|
+      # Überspringe Groups - nur User-Objekte verarbeiten
+      next unless assignee && assignee.is_a?(User)
+      next unless assignee.email_address.present?
       
       begin
-        send_reminder_to_user(user, issues)
-        @@logger.info("Sent reminder to #{user.email_address} for #{issues.count} issues")
+        send_reminder_to_user(assignee, issues)
+        @@logger.info("Sent reminder to #{assignee.email_address} for #{issues.count} issues")
       rescue => e
-        @@logger.error("Failed to send reminder to #{user.email_address}: #{e.message}")
+        @@logger.error("Failed to send reminder to #{assignee.email_address}: #{e.message}")
       end
     end
     
