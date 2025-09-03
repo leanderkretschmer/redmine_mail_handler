@@ -92,16 +92,17 @@ class MailHandlerScheduler
   def self.schedule_daily_reminders
     settings = Setting.plugin_redmine_mail_handler
     reminder_time = settings['reminder_time'] || '09:00'
+    reminder_type = settings['reminder_type'] || 'redmine'
     
     return unless settings['reminder_enabled'] == '1'
     
     @@scheduler.cron "0 #{reminder_time.split(':')[1]} #{reminder_time.split(':')[0]} * * *" do
       begin
-        @@logger.info("Starting daily reminder process using Redmine's built-in functionality")
+        @@logger.info("Starting daily reminder process using #{reminder_type} functionality")
         
-        # Verwende Redmines eingebaute Reminder-Funktionalität
+        # Verwende die konfigurierte Reminder-Funktionalität
         ActiveRecord::Base.connection_pool.with_connection do
-          send_redmine_reminders
+          send_bulk_reminder
         end
       rescue => e
         @@logger.error("Daily reminder process failed: #{e.message}")
@@ -111,7 +112,7 @@ class MailHandlerScheduler
       end
     end
     
-    @@logger.info("Scheduled daily reminders at #{reminder_time} using Redmine's built-in system")
+    @@logger.info("Scheduled daily reminders at #{reminder_time} using #{reminder_type} system")
   end
 
   def self.send_redmine_reminders

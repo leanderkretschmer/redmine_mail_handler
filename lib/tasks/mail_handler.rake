@@ -21,6 +21,7 @@ namespace :redmine do
           'inbox_ticket_id' => '',
           'reminder_time' => '09:00',
           'reminder_enabled' => '1',
+          'reminder_type' => 'redmine',
           'auto_import_enabled' => '1',
           'import_interval' => '15',
           'import_interval_unit' => 'minutes',
