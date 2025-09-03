@@ -163,8 +163,9 @@ class MailHandlerScheduler
     begin
       @@logger.info("Testing Redmine's built-in reminder functionality for #{to_email}")
       
-      # Finde einen Benutzer mit der angegebenen E-Mail-Adresse
-      user = User.find_by(mail: to_email)
+      # Finde einen Benutzer mit der angegebenen E-Mail-Adresse über EmailAddress
+      email_address_obj = EmailAddress.find_by(address: to_email.to_s.strip.downcase)
+      user = email_address_obj&.user
       
       if user.nil?
         @@logger.error("No user found with email address: #{to_email}")
