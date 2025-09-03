@@ -49,20 +49,31 @@ class MailHandlerAdminController < ApplicationController
   end
 
   def get_imap_folders
-    # Erstelle temporären Service mit aktuellen Parametern
-    temp_settings = {
+    # Temporär die Plugin-Einstellungen mit den übergebenen Parametern überschreiben
+    original_settings = Setting.plugin_redmine_mail_handler.dup
+    
+    temp_settings = original_settings.merge({
       'imap_host' => params[:imap_host],
       'imap_port' => params[:imap_port],
       'imap_ssl' => params[:imap_ssl],
       'imap_username' => params[:imap_username],
       'imap_password' => params[:imap_password]
-    }
+    })
     
-    temp_service = MailHandlerService.new(temp_settings)
-    folders = temp_service.list_imap_folders
+    # Temporär die Einstellungen setzen
+    Setting.plugin_redmine_mail_handler = temp_settings
+    
+    # Service erstellen und Ordner laden
+    service = MailHandlerService.new
+    folders = service.list_imap_folders
+    
+    # Ursprüngliche Einstellungen wiederherstellen
+    Setting.plugin_redmine_mail_handler = original_settings
     
     render json: { success: true, folders: folders }
   rescue => e
+    # Sicherstellen, dass die ursprünglichen Einstellungen wiederhergestellt werden
+    Setting.plugin_redmine_mail_handler = original_settings if original_settings
     render json: { success: false, error: e.message }
   end
 
