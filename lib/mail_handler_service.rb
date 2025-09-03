@@ -203,45 +203,100 @@ class MailHandlerService
       @logger.warn("IMAP connection timeout on attempt #{retry_count + 1}: #{e.message}")
       retry_count += 1
       
+      if retry_count <= max_retries
+        wait_time = [2 ** retry_count, 30].min
+        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
+        sleep(wait_time)
+        retry
+      end
+      
     rescue Net::IMAP::NoResponseError => e
       @logger.warn("IMAP server returned no response on attempt #{retry_count + 1}: #{e.message}")
       retry_count += 1
+      
+      if retry_count <= max_retries
+        wait_time = [2 ** retry_count, 30].min
+        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
+        sleep(wait_time)
+        retry
+      end
       
     rescue Net::IMAP::BadResponseError => e
       @logger.warn("IMAP server bad response on attempt #{retry_count + 1}: #{e.message}")
       retry_count += 1
       
+      if retry_count <= max_retries
+        wait_time = [2 ** retry_count, 30].min
+        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
+        sleep(wait_time)
+        retry
+      end
+      
     rescue Errno::ECONNREFUSED => e
       @logger.warn("IMAP connection refused on attempt #{retry_count + 1}: #{e.message}")
       retry_count += 1
+      
+      if retry_count <= max_retries
+        wait_time = [2 ** retry_count, 30].min
+        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
+        sleep(wait_time)
+        retry
+      end
       
     rescue Errno::EHOSTUNREACH => e
       @logger.warn("IMAP host unreachable on attempt #{retry_count + 1}: #{e.message}")
       retry_count += 1
       
+      if retry_count <= max_retries
+        wait_time = [2 ** retry_count, 30].min
+        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
+        sleep(wait_time)
+        retry
+      end
+      
     rescue Errno::ETIMEDOUT => e
       @logger.warn("IMAP connection timed out on attempt #{retry_count + 1}: #{e.message}")
       retry_count += 1
+      
+      if retry_count <= max_retries
+        wait_time = [2 ** retry_count, 30].min
+        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
+        sleep(wait_time)
+        retry
+      end
       
     rescue SocketError => e
       @logger.warn("IMAP socket error on attempt #{retry_count + 1}: #{e.message}")
       retry_count += 1
       
+      if retry_count <= max_retries
+        wait_time = [2 ** retry_count, 30].min
+        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
+        sleep(wait_time)
+        retry
+      end
+      
     rescue OpenSSL::SSL::SSLError => e
       @logger.warn("IMAP SSL error on attempt #{retry_count + 1}: #{e.message}")
       retry_count += 1
       
+      if retry_count <= max_retries
+        wait_time = [2 ** retry_count, 30].min
+        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
+        sleep(wait_time)
+        retry
+      end
+      
     rescue => e
       @logger.warn("IMAP connection error on attempt #{retry_count + 1}: #{e.class.name} - #{e.message}")
       retry_count += 1
-    end
-    
-    # Retry-Logik
-    if retry_count <= max_retries
-      wait_time = [2 ** retry_count, 30].min  # Exponential backoff, max 30 Sekunden
-      @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
-      sleep(wait_time)
-      retry
+      
+      if retry_count <= max_retries
+        wait_time = [2 ** retry_count, 30].min
+        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
+        sleep(wait_time)
+        retry
+      end
     end
     
     @logger.error("Failed to connect to IMAP server #{@settings['imap_host']} after #{max_retries + 1} attempts")
