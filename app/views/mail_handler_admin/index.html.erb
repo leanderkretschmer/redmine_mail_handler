@@ -39,6 +39,14 @@
       <td><strong>Tägliche Reminder:</strong></td>
       <td><%= @settings['reminder_enabled'] == '1' ? "Aktiviert (#{@settings['reminder_time']})" : 'Deaktiviert' %></td>
     </tr>
+    <tr>
+      <td><strong>Aktionen:</strong></td>
+      <td class="buttons">
+        <%= link_to 'Manueller Import', { :action => 'manual_import' }, :method => :post, :class => 'icon icon-email' %>
+        <%= link_to 'Test-Mail senden', { :action => 'send_test_mail' }, :method => :post, :class => 'icon icon-email-go' %>
+        <%= link_to 'Zurückgestellt verarbeiten', { :action => 'process_deferred' }, :method => :post, :class => 'icon icon-reload' %>
+      </td>
+    </tr>
   </table>
 </div>
 
@@ -75,7 +83,6 @@
     </table>
     
     <p>
-      <%= link_to 'Zurückgestellt verarbeiten', { :action => 'process_deferred' }, :method => :post, :class => 'icon icon-reload' %>
       <%= link_to 'Zurückgestellt-Details', { :action => 'deferred_status' }, :class => 'icon icon-list' %>
     </p>
   </div>

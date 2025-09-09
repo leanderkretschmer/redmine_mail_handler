@@ -307,6 +307,10 @@ class MailHandlerService
     end
   end
 
+
+
+
+
   private
 
   # Verbinde zu IMAP-Server mit Retry-Logik

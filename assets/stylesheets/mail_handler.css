@@ -1,72 +1,71 @@
-/* Mail Handler Plugin Styles */
+/* =========================================
+   Mail Handler Plugin Styles
+   ========================================= */
 
-/* Status-Anzeigen */
+/* -------------------------
+   Status-Anzeigen
+------------------------- */
+.status-running,
+.status-stopped {
+  font-weight: bold;
+}
+
 .status-running {
   color: #28a745;
-  font-weight: bold;
 }
 
 .status-stopped {
   color: #dc3545;
-  font-weight: bold;
 }
 
-/* Tabellen-Ausrichtung - alle Tabellen einheitlich */
-.box table.list {
-  width: 80%; /* Feste Breite für alle Tabellen */
-  margin: 0 auto 0 60px; /* Einheitliche linke und rechte Margins */
-  table-layout: fixed; /* Feste Spaltenbreiten */
-}
-
-.box table.list td:first-child {
-  width: 250px; /* Feste Breite für erste Spalte */
-  text-align: left;
-  padding-right: 20px;
-}
-
-.box table.list td:last-child {
-  text-align: left;
-  padding-left: 20px;
-}
-
-/* Log-Tabellen */
+/* -------------------------
+   Tabellen
+------------------------- */
+.box table.list,
 .logs {
-  width: 80%; /* Gleiche Breite wie andere Tabellen */
-  margin: 0 auto 0 60px; /* Einheitliche Ausrichtung */
-  table-layout: fixed;
+  width: 600px;           /* Einheitliche Breite */
+  margin: 0 0 0 20px;     /* Linksbündig */
+}
+
+.box table.list td,
+.logs td,
+.logs th {
+  padding: 8px 12px;
+  text-align: left;
 }
 
 .logs th {
   background-color: #f8f9fa;
   border-bottom: 2px solid #dee2e6;
-  padding: 8px;
-  text-align: left;
 }
 
 .logs td {
-  padding: 6px 8px;
   border-bottom: 1px solid #dee2e6;
   vertical-align: top;
+  padding: 6px 8px;
 }
 
-/* Log-Level Farben */
-.log-debug {
-  background-color: #f8f9fa;
+/* Tabellen-Verbesserungen */
+.list.logs tr:hover {
+  background-color: #f5f5f5;
 }
 
-.log-info {
-  background-color: #d1ecf1;
+.list.logs .buttons {
+  text-align: center;
+  white-space: nowrap;
 }
 
-.log-warn {
-  background-color: #fff3cd;
-}
+/* -------------------------
+   Log-Level Farben
+------------------------- */
+.log-debug  { background-color: #f8f9fa; }
+.log-info   { background-color: #d1ecf1; }
+.log-warn   { background-color: #fff3cd; }
+.log-error  { background-color: #f8d7da; }
 
-.log-error {
-  background-color: #f8d7da;
-}
-
-/* Log-Spalten */
+/* -------------------------
+   Log-Spalten
+------------------------- */
 .log-time {
   font-family: monospace;
   font-size: 0.9em;
@@ -93,7 +92,14 @@
   word-break: break-word;
 }
 
-/* Toggle-Links für lange Nachrichten */
+.log-message .mail-details + .log-text {
+  border-top: 1px solid #e0e0e0;
+  padding-top: 5px;
+}
+
+/* -------------------------
+   Toggle-Links
+------------------------- */
 .toggle-full-message,
 .toggle-short-message {
   color: #007bff;
@@ -107,7 +113,9 @@
   text-decoration: underline;
 }
 
-/* Mail Details Styles */
+/* -------------------------
+   Mail Details
+------------------------- */
 .mail-details {
   margin-bottom: 8px;
   padding: 6px;
@@ -132,12 +140,9 @@
   font-size: 0.95em;
 }
 
-.log-message .mail-details + .log-text {
-  border-top: 1px solid #e0e0e0;
-  padding-top: 5px;
-}
-
-/* Ticket Link Styles */
+/* -------------------------
+   Links
+------------------------- */
 a[href*="/issues/"] {
   color: #0066cc;
   font-weight: bold;
@@ -148,7 +153,9 @@ a[href*="/issues/"]:hover {
   text-decoration: underline;
 }
 
-/* Message ID Styles */
+/* -------------------------
+   Code / Message ID
+------------------------- */
 code {
   background-color: #f4f4f4;
   padding: 2px 4px;
@@ -157,7 +164,9 @@ code {
   font-size: 0.9em;
 }
 
-/* Statistik-Boxen */
+/* -------------------------
+   Statistik-Boxen
+------------------------- */
 .stats-box {
   display: inline-block;
   margin: 10px;
@@ -180,29 +189,15 @@ code {
   margin-top: 5px;
 }
 
-/* Formular-Styling */
+/* -------------------------
+   Formular
+------------------------- */
 .mail-handler-form {
   background-color: #f8f9fa;
   padding: 15px;
   border-radius: 4px;
-  margin: 10px 0 10px 60px; /* Konsistente Ausrichtung */
-  width: 80%;
-}
-
-/* Box-Inhalte einheitlich ausrichten */
-.box p {
-  margin-left: 60px;
-  width: 80%;
-}
-
-.box form {
-  margin-left: 60px;
-  width: 80%;
-}
-
-.box div#deferred-status {
-  margin-left: 60px;
-  width: 80%;
+  margin: 10px 0 10px 20px;
+  width: 600px;
 }
 
 .mail-handler-form label {
@@ -219,51 +214,58 @@ code {
   border-radius: 3px;
 }
 
-/* Button-Styling */
-.btn-test {
-  background-color: #17a2b8;
-  color: white;
+/* Einheitliche Ausrichtung Box-Inhalte */
+.box p,
+.box form,
+.box div#deferred-status {
+  margin-left: 20px;
+  width: 600px;
+}
+
+/* -------------------------
+   Buttons
+------------------------- */
+.btn-test,
+.btn-danger {
+  color: #fff;
   padding: 8px 15px;
   border: none;
   border-radius: 4px;
   text-decoration: none;
   display: inline-block;
   margin: 5px;
+}
+
+.btn-test {
+  background-color: #17a2b8;
 }
 
 .btn-test:hover {
   background-color: #138496;
-  color: white;
 }
 
 .btn-danger {
   background-color: #dc3545;
-  color: white;
-  padding: 8px 15px;
-  border: none;
-  border-radius: 4px;
-  text-decoration: none;
-  display: inline-block;
-  margin: 5px;
 }
 
 .btn-danger:hover {
   background-color: #c82333;
-  color: white;
 }
 
-/* Responsive Design */
+/* -------------------------
+   Responsive
+------------------------- */
 @media (max-width: 768px) {
   .logs th,
   .logs td {
     padding: 4px;
     font-size: 0.9em;
   }
-  
+
   .log-time {
     font-size: 0.8em;
   }
-  
+
   .mail-handler-form label {
     width: 100%;
     display: block;
@@ -271,89 +273,18 @@ code {
   }
 }
 
-/* Icons */
-.icon-email:before {
-  content: "";
-  margin-right: 5px;
-}
-
-.icon-import:before {
-  content: "";
-  margin-right: 5px;
-}
-
-.icon-test:before {
-  content: "";
-  margin-right: 5px;
-}
-
-.icon-play:before {
-  content: "";
-  margin-right: 5px;
-}
-
+/* -------------------------
+   Icons
+------------------------- */
+.icon-email:before,
+.icon-import:before,
+.icon-test:before,
+.icon-play:before,
 .icon-reload:before {
   content: "";
   margin-right: 5px;
 }
 
-/* Hilfe-Texte */
-.help-text {
-  font-size: 0.9em;
-  color: #6c757d;
-  font-style: italic;
-  margin-top: 5px;
-}
-
-/* Erfolgs- und Fehlermeldungen */
-.flash.notice {
-  background-color: #d4edda;
-  border-color: #c3e6cb;
-  color: #155724;
-}
-
-.flash.error {
-  background-color: #f8d7da;
-  border-color: #f5c6cb;
-  color: #721c24;
-}
-
-/* Tabellen-Verbesserungen */
-.list.logs tr:hover {
-  background-color: #f5f5f5;
-}
-
-.list.logs .buttons {
-  text-align: center;
-  white-space: nowrap;
-}
-
-/* Pagination */
-.pagination {
-  text-align: center;
-  margin: 20px 0;
-}
-
-.pagination a {
-  display: inline-block;
-  padding: 8px 12px;
-  margin: 0 2px;
-  text-decoration: none;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
-}
-
-.pagination a:hover {
-  background-color: #e9ecef;
-}
-
-.pagination .current {
-  background-color: #007bff;
-  color: white;
-  border-color: #007bff;
-}
-
-/* Deferred Mail Actions */
 .buttons {
   white-space: nowrap;
 }
@@ -380,4 +311,56 @@ code {
 .icon-email-go:before {
   content: '📧→';
   font-size: 14px;
+}
+
+/* -------------------------
+   Hilfe-Texte
+------------------------- */
+.help-text {
+  font-size: 0.9em;
+  color: #6c757d;
+  font-style: italic;
+  margin-top: 5px;
+}
+
+/* -------------------------
+   Flash-Messages
+------------------------- */
+.flash.notice {
+  background-color: #d4edda;
+  border-color: #c3e6cb;
+  color: #155724;
+}
+
+.flash.error {
+  background-color: #f8d7da;
+  border-color: #f5c6cb;
+  color: #721c24;
+}
+
+/* -------------------------
+   Pagination
+------------------------- */
+.pagination {
+  text-align: center;
+  margin: 20px 0;
+}
+
+.pagination a {
+  display: inline-block;
+  padding: 8px 12px;
+  margin: 0 2px;
+  text-decoration: none;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+}
+
+.pagination a:hover {
+  background-color: #e9ecef;
+}
+
+.pagination .current {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
 }
