@@ -950,7 +950,6 @@ class MailHandlerService
       @logger.error("Failed to save quarantine timestamp for message #{mail.message_id}: #{e.message}")
     end
   end
-end
 
   # Plugin-eigene SMTP-Einstellungen
   def get_plugin_smtp_settings
