@@ -93,6 +93,7 @@ de:
   help_import_interval: "Wie oft sollen E-Mails automatisch importiert werden"
   help_smtp_settings: "Konfigurieren Sie hier die SMTP-Einstellungen für den E-Mail-Versand."
   help_smtp_same_as_imap: "Wenn aktiviert, werden die IMAP-Einstellungen auch für SMTP verwendet (imap.example.com wird zu smtp.example.com)."
+  help_mail_processing: "E-Mail-Inhalte werden automatisch bereinigt: Zeilenumbrüche normalisiert, übermäßige Leerzeilen entfernt und Encoding-Artefakte korrigiert."
   
   # Tabellen-Header
   field_timestamp: "Zeitstempel"

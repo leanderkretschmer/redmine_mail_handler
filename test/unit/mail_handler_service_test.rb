@@ -115,6 +115,26 @@ class MailHandlerServiceTest < ActiveSupport::TestCase
     assert_includes content, 'Text part content'
   end
 
+  def test_decode_mail_content_with_line_breaks
+    # Test verschiedene Zeilenumbruch-Formate
+    mail = Mail.new do
+      from 'test@example.com'
+      to 'redmine@example.com'
+      subject 'Test Line Breaks'
+      body "Zeile 1\r\nZeile 2\nZeile 3\r\n\r\nAbsatz 2\n\n\n\nZu viele Leerzeilen\n=\nSoft line break"
+    end
+
+    content = @service.send(:decode_mail_content, mail)
+    
+    # Prüfe dass Zeilenumbrüche normalisiert wurden
+    assert_includes content, "Zeile 1\nZeile 2\nZeile 3"
+    assert_includes content, "Absatz 2\n\nZu viele Leerzeilen"
+    assert_includes content, "Soft line break"
+    
+    # Prüfe dass nicht mehr als 2 aufeinanderfolgende Leerzeilen vorhanden sind
+    assert_not_includes content, "\n\n\n"
+  end
+
   def test_send_test_mail
     # Mock Mail delivery
     Mail.any_instance.stubs(:deliver!).returns(true)

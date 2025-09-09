@@ -695,19 +695,39 @@ class MailHandlerService
     content += "**Betreff:** #{mail.subject}\n\n" if mail.subject
     
     # Text-Teil extrahieren
+    mail_body = ""
     if mail.multipart?
       text_part = mail.text_part
       html_part = mail.html_part
       
       if text_part
-        content += text_part.decoded
+        mail_body = text_part.decoded
       elsif html_part
         # HTML zu Text konvertieren
         doc = Nokogiri::HTML(html_part.decoded)
-        content += doc.text
+        mail_body = doc.text
       end
     else
-      content += mail.decoded
+      mail_body = mail.decoded
+    end
+    
+    # Bereinige und normalisiere Zeilenumbrüche
+    if mail_body.present?
+      # Entferne überflüssige Leerzeichen am Anfang und Ende
+      mail_body = mail_body.strip
+      
+      # Normalisiere verschiedene Zeilenumbruch-Formate
+      mail_body = mail_body.gsub(/\r\n/, "\n")  # Windows CRLF -> LF
+      mail_body = mail_body.gsub(/\r/, "\n")    # Mac CR -> LF
+      
+      # Entferne übermäßige Leerzeilen (mehr als 2 aufeinanderfolgende)
+      mail_body = mail_body.gsub(/\n{3,}/, "\n\n")
+      
+      # Behandle quoted-printable Encoding-Artefakte
+      mail_body = mail_body.gsub(/=\n/, "")  # Entferne soft line breaks
+      
+      # Füge den bereinigten Inhalt hinzu
+      content += mail_body
     end
     
     # Anhänge verarbeiten (falls vorhanden)
