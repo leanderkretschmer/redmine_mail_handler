@@ -75,17 +75,17 @@ class MailHandlerLogger
       # Immer in Rails-Log schreiben
       Rails.logger.send(level, "[MailHandler] #{message}")
       
-      # Versuche in DB zu schreiben, aber nur wenn Verbindung verfügbar
+      # Versuche in DB zu schreiben mit ordnungsgemäßer Verbindungsverwaltung
       begin
-        return unless ActiveRecord::Base.connection_pool.connected?
-        
-        log_entry = MailHandlerLog.create!(
-          level: level,
-          message: message,
-          created_at: Time.current.in_time_zone('Europe/Berlin')
-        )
-        
-        @@last_log_id = log_entry.id
+        ActiveRecord::Base.connection_pool.with_connection do
+          log_entry = MailHandlerLog.create!(
+            level: level,
+            message: message,
+            created_at: Time.current.in_time_zone('Europe/Berlin')
+          )
+          
+          @@last_log_id = log_entry.id
+        end
         
       rescue ActiveRecord::ConnectionTimeoutError => e
         # Keine weitere Aktion bei Connection Timeout - Rails.logger wurde bereits verwendet
@@ -108,23 +108,23 @@ class MailHandlerLogger
     return unless @@last_log_id
     
     begin
-      return unless ActiveRecord::Base.connection_pool.connected?
-      
-      # Finde den letzten Log-Eintrag
-      last_log = MailHandlerLog.find_by(id: @@last_log_id)
-      return unless last_log
-      
-      # Aktualisiere die Nachricht mit Zähler
-      count_suffix = " (#{@@repeat_count + 1}x)"
-      updated_message = message + count_suffix
-      
-      last_log.update!(
-        message: updated_message,
-        updated_at: Time.current.in_time_zone('Europe/Berlin')
-      )
-      
-      # Aktualisiere auch Rails-Log
-      Rails.logger.send(level, "[MailHandler] #{updated_message}")
+      ActiveRecord::Base.connection_pool.with_connection do
+        # Finde den letzten Log-Eintrag
+        last_log = MailHandlerLog.find_by(id: @@last_log_id)
+        return unless last_log
+        
+        # Aktualisiere die Nachricht mit Zähler
+        count_suffix = " (#{@@repeat_count + 1}x)"
+        updated_message = message + count_suffix
+        
+        last_log.update!(
+          message: updated_message,
+          updated_at: Time.current.in_time_zone('Europe/Berlin')
+        )
+        
+        # Aktualisiere auch Rails-Log
+        Rails.logger.send(level, "[MailHandler] #{updated_message}")
+      end
       
     rescue ActiveRecord::ConnectionTimeoutError => e
       # Keine weitere Aktion bei Connection Timeout
@@ -137,11 +137,10 @@ class MailHandlerLogger
 
   def ensure_log_table_exists
     begin
-      # Überprüfe ob eine DB-Verbindung verfügbar ist
-      return unless ActiveRecord::Base.connection_pool.connected?
-      
-      unless ActiveRecord::Base.connection.table_exists?('mail_handler_logs')
-        Rails.logger.warn "Mail handler logs table does not exist. Please run migrations."
+      ActiveRecord::Base.connection_pool.with_connection do |connection|
+        unless connection.table_exists?('mail_handler_logs')
+          Rails.logger.warn "Mail handler logs table does not exist. Please run migrations."
+        end
       end
     rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::NoDatabaseError => e
       Rails.logger.warn "Database connection not available for mail handler logs: #{e.message}"
@@ -198,26 +197,26 @@ class MailHandlerLogger
     return if @@import_session_logs.empty?
     
     begin
-      return unless ActiveRecord::Base.connection_pool.connected?
-      
-      # Erstelle zusammengefasste Log-Nachricht
-      duration = Time.current - @@import_session_start if @@import_session_start
-      
-      # Extrahiere wichtige Informationen
-      found_messages = extract_number_from_logs(/Found (\\d+) unread messages/i)
-      processed_messages = extract_number_from_logs(/Processed (\\d+) messages successfully/i)
-      
-      summary_message = "Mail Import Session abgeschlossen"
-      summary_message += " - #{found_messages} Nachrichten gefunden" if found_messages
-      summary_message += ", #{processed_messages} erfolgreich verarbeitet" if processed_messages
-      summary_message += " (Dauer: #{duration.round(2)}s)" if duration
-      
-      # Erstelle einen einzigen Log-Eintrag für die gesamte Session
-      MailHandlerLog.create!(
-        level: 'info',
-        message: summary_message,
-        created_at: @@import_session_start || Time.current.in_time_zone('Europe/Berlin')
-      )
+      ActiveRecord::Base.connection_pool.with_connection do
+        # Erstelle zusammengefasste Log-Nachricht
+        duration = Time.current - @@import_session_start if @@import_session_start
+        
+        # Extrahiere wichtige Informationen
+        found_messages = extract_number_from_logs(/Found (\\d+) unread messages/i)
+        processed_messages = extract_number_from_logs(/Processed (\\d+) messages successfully/i)
+        
+        summary_message = "Mail Import Session abgeschlossen"
+        summary_message += " - #{found_messages} Nachrichten gefunden" if found_messages
+        summary_message += ", #{processed_messages} erfolgreich verarbeitet" if processed_messages
+        summary_message += " (Dauer: #{duration.round(2)}s)" if duration
+        
+        # Erstelle einen einzigen Log-Eintrag für die gesamte Session
+        MailHandlerLog.create!(
+          level: 'info',
+          message: summary_message,
+          created_at: @@import_session_start || Time.current.in_time_zone('Europe/Berlin')
+        )
+      end
       
     rescue => e
       Rails.logger.error "Failed to finalize import session: #{e.message}"
@@ -249,13 +248,17 @@ class MailHandlerLogger
   # Schreibe einen einzelnen Log-Eintrag
   def write_single_log_entry(level, message, timestamp)
     begin
-      return unless ActiveRecord::Base.connection_pool.connected?
-      
-      MailHandlerLog.create!(
-        level: level,
-        message: message,
-        created_at: timestamp.in_time_zone('Europe/Berlin')
-      )
+      ActiveRecord::Base.connection_pool.with_connection do
+        MailHandlerLog.create!(
+          level: level,
+          message: message,
+          created_at: timestamp.in_time_zone('Europe/Berlin')
+        )
+      end
+    rescue ActiveRecord::ConnectionTimeoutError => e
+      # Keine weitere Aktion bei Connection Timeout
+    rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::NoDatabaseError => e
+      # DB nicht verfügbar
     rescue => e
       Rails.logger.error "Failed to write single log entry: #{e.message}"
     end
