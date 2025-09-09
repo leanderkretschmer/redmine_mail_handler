@@ -459,7 +459,7 @@ class MailHandlerService
       user = User.new(
         firstname: normalized_email.split('@').first,
         lastname: 'Auto-created',
-        login: normalized_email.split('@').first,
+        login: normalized_email,
         status: User::STATUS_LOCKED,
         mail_notification: 'none'
       )
