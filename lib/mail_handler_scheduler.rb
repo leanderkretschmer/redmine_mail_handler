@@ -46,10 +46,19 @@ class MailHandlerScheduler
 
   def self.schedule_mail_import
     settings = Setting.plugin_redmine_mail_handler
-    interval = (settings['import_interval'] || '15').to_i
-    interval_unit = settings['import_interval_unit'] || 'minutes'
     
     return unless settings['auto_import_enabled'] == '1'
+    
+    if settings['load_balanced_enabled'] == '1'
+      schedule_load_balanced_import(settings)
+    else
+      schedule_regular_import(settings)
+    end
+  end
+  
+  def self.schedule_regular_import(settings)
+    interval = (settings['import_interval'] || '15').to_i
+    interval_unit = settings['import_interval_unit'] || 'minutes'
     
     # Validiere Mindest-Intervall um DB-Überlastung zu vermeiden
     min_interval_seconds = case interval_unit
@@ -82,7 +91,6 @@ class MailHandlerScheduler
       begin
         @@logger.info("Starting scheduled mail import")
         
-        # Verwende ActiveRecord::Base.connection_pool.with_connection für saubere DB-Verbindungen
         ActiveRecord::Base.connection_pool.with_connection do
           service = MailHandlerService.new
           service.import_mails
@@ -90,13 +98,65 @@ class MailHandlerScheduler
       rescue => e
         @@logger.error("Scheduled mail import failed: #{e.message}")
       ensure
-        # Stelle sicher, dass Verbindungen freigegeben werden
         ActiveRecord::Base.connection_handler.clear_active_connections!
       end
     end
     
     unit_text = interval_unit == 'seconds' ? 'Sekunden' : 'Minuten'
-    @@logger.info("Scheduled mail import every #{interval} #{unit_text}")
+    @@logger.info("Scheduled regular mail import every #{interval} #{unit_text}")
+  end
+  
+  def self.schedule_load_balanced_import(settings)
+    mails_per_hour = (settings['mails_per_hour'] || '60').to_i
+    
+    # Wenn 0 oder negativ, verwende unbegrenzten Import alle 5 Minuten
+    if mails_per_hour <= 0
+      @@scheduler.every '5m' do
+        begin
+          @@logger.info("Starting load-balanced mail import (unlimited)")
+          
+          ActiveRecord::Base.connection_pool.with_connection do
+            service = MailHandlerService.new
+            service.import_mails
+          end
+        rescue => e
+          @@logger.error("Load-balanced mail import failed: #{e.message}")
+        ensure
+          ActiveRecord::Base.connection_handler.clear_active_connections!
+        end
+      end
+      
+      @@logger.info("Scheduled load-balanced mail import every 5 minutes (unlimited)")
+      return
+    end
+    
+    # Berechne Intervall für gleichmäßige Verteilung über die Stunde
+    # Mindestens alle 2 Minuten, maximal alle 30 Sekunden
+    interval_minutes = [120.0 / mails_per_hour, 0.5].max
+    interval_minutes = [interval_minutes, 2.0].min
+    
+    # Berechne Batch-Größe basierend auf dem Intervall
+    imports_per_hour = 60.0 / interval_minutes
+    batch_size = [mails_per_hour / imports_per_hour, 1].max.ceil
+    
+    interval_seconds = (interval_minutes * 60).to_i
+    
+    @@scheduler.every "#{interval_seconds}s" do
+      begin
+        @@logger.info("Starting load-balanced mail import (max #{batch_size} mails)")
+        
+        ActiveRecord::Base.connection_pool.with_connection do
+          service = MailHandlerService.new
+          service.import_mails(batch_size)
+        end
+      rescue => e
+        @@logger.error("Load-balanced mail import failed: #{e.message}")
+      ensure
+        ActiveRecord::Base.connection_handler.clear_active_connections!
+      end
+    end
+    
+    @@logger.info("Scheduled load-balanced mail import: #{mails_per_hour} mails/hour, #{batch_size} mails every #{interval_minutes.round(1)} minutes")
   end
 
   def self.schedule_daily_reminders

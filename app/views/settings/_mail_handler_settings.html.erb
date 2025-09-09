@@ -424,6 +424,18 @@ document.addEventListener('DOMContentLoaded', function() {
                    ], @settings['import_interval_unit'] || 'minutes') %>
     <em class="info">Wie oft sollen E-Mails automatisch importiert werden</em>
   </p>
+  
+  <p>
+    <label for="settings_mails_per_hour">Mails pro Stunde (Load-Balanced):</label>
+    <%= text_field_tag 'settings[mails_per_hour]', @settings['mails_per_hour'] || '60', :size => 10, :placeholder => '60' %>
+    <em class="info">Maximale Anzahl Mails, die pro Stunde gleichmäßig verteilt importiert werden (0 = unbegrenzt)</em>
+  </p>
+  
+  <p>
+    <label for="settings_load_balanced_enabled">Load-Balanced Import aktiviert:</label>
+    <%= check_box_tag 'settings[load_balanced_enabled]', '1', @settings['load_balanced_enabled'] == '1' %>
+    <em class="info">Verteilt den Import gleichmäßig über die Stunde statt alle Mails auf einmal zu importieren</em>
+  </p>
 </div>
 
 <div class="box tabular settings">
