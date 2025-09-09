@@ -37,6 +37,30 @@ class MailHandlerServiceTest < ActiveSupport::TestCase
     assert_equal 123, ticket_id # Should return first match
   end
 
+  def test_extract_ticket_id_with_text_prefix_format
+    subject = "[PFP10368 mobilehomes adria germany - LP2 - Vorplanung #51264] Bayern"
+    ticket_id = @service.send(:extract_ticket_id, subject)
+    assert_equal 51264, ticket_id
+  end
+
+  def test_extract_ticket_id_with_simple_text_prefix
+    subject = "Re: [Project ABC #789] Issue description"
+    ticket_id = @service.send(:extract_ticket_id, subject)
+    assert_equal 789, ticket_id
+  end
+
+  def test_extract_ticket_id_mixed_formats
+    # Test dass beide Formate funktionieren
+    classic_subject = "Re: Test Issue [#123]"
+    new_subject = "[Text before #456] After text"
+    
+    classic_id = @service.send(:extract_ticket_id, classic_subject)
+    new_id = @service.send(:extract_ticket_id, new_subject)
+    
+    assert_equal 123, classic_id
+    assert_equal 456, new_id
+  end
+
   def test_find_existing_user
     user = User.find(1)
     found_user = @service.send(:find_or_create_user, user.email_address)

@@ -15,6 +15,7 @@ RedmineApp::Application.routes.draw do
         post :manual_import
         post :toggle_scheduler
         post :restart_scheduler
+        post :toggle_load_balancing
         post :clear_logs
         post :cleanup_old_logs
         post :get_imap_folders

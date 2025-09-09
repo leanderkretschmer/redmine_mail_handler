@@ -43,6 +43,34 @@
 </div>
 
 <div class="box">
+  <h3>Load-Balanced Importing</h3>
+  <table class="list">
+    <tr>
+      <td><strong>Load-Balancing:</strong></td>
+      <td><%= @load_balanced_enabled ? 'Aktiviert' : 'Deaktiviert' %></td>
+    </tr>
+    <tr>
+      <td><strong>Max. parallele Imports:</strong></td>
+      <td><%= @max_parallel_imports %></td>
+    </tr>
+    <tr>
+      <td><strong>Import-Batch-Größe:</strong></td>
+      <td><%= @import_batch_size %> E-Mails pro Batch</td>
+    </tr>
+    <tr>
+      <td><strong>Worker-Timeout:</strong></td>
+      <td><%= @worker_timeout %> Sekunden</td>
+    </tr>
+  </table>
+  <p>
+    <%= form_tag({ :action => 'toggle_load_balancing' }, :method => :post) do %>
+      <%= submit_tag (@load_balanced_enabled ? 'Load-Balancing deaktivieren' : 'Load-Balancing aktivieren'), :class => 'icon icon-settings' %>
+    <% end %>
+  </p>
+  <p><em>Load-Balanced Importing verteilt große E-Mail-Mengen auf mehrere Worker-Prozesse für bessere Performance.</em></p>
+</div>
+
+<div class="box">
   <h3>IMAP-Verbindung testen</h3>
   <p>Testen Sie die Verbindung zu Ihrem IMAP-Server:</p>
   <%= link_to 'IMAP-Verbindung testen', { :action => 'test_connection' }, :method => :post, :class => 'icon icon-test' %>

@@ -5,6 +5,11 @@ class MailHandlerAdminController < ApplicationController
   def index
     @settings = Setting.plugin_redmine_mail_handler
     @scheduler_running = MailHandlerScheduler.running?
+    @load_balanced_enabled = @settings['load_balanced_enabled'] == '1'
+    @load_balanced_interval = @settings['load_balanced_interval'] || '5'
+    @max_parallel_imports = @settings['max_parallel_imports'] || '3'
+    @import_batch_size = @settings['import_batch_size'] || '50'
+    @worker_timeout = @settings['worker_timeout'] || '300'
     @recent_logs = MailHandlerLog.recent.limit(10)
   end
 
@@ -210,6 +215,30 @@ class MailHandlerAdminController < ApplicationController
     count = MailHandlerLog.where('created_at < ?', 30.days.ago).count
     MailHandlerLogger.cleanup_old_logs
     flash[:notice] = "#{count} alte Log-Einträge wurden gelöscht."
+    redirect_to action: :index
+  end
+
+  def toggle_load_balancing
+    settings = Setting.plugin_redmine_mail_handler
+    current_state = settings['load_balanced_enabled'] == '1'
+    
+    # Toggle Load-Balancing Status
+    new_settings = settings.dup
+    new_settings['load_balanced_enabled'] = current_state ? '0' : '1'
+    
+    Setting.plugin_redmine_mail_handler = new_settings
+    
+    if current_state
+      flash[:notice] = "Load-Balanced Importing wurde deaktiviert."
+    else
+      flash[:notice] = "Load-Balanced Importing wurde aktiviert."
+      # Restart scheduler to apply new settings
+      if MailHandlerScheduler.running?
+        MailHandlerScheduler.restart
+        flash[:notice] += " Scheduler wurde neu gestartet."
+      end
+    end
+    
     redirect_to action: :index
   end
 

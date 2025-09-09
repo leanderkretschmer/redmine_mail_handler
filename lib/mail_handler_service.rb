@@ -358,20 +358,8 @@ class MailHandlerService
       @logger.info("Ignoring mail from unknown user #{from_address} without ticket ID (business rule)")
     end
     
-    # Mail als gelesen markieren und archivieren
-    # Wichtig: Erst markieren, dann archivieren, da move() die Message-ID ungültig macht
-    begin
-      imap.store(msg_id, '+FLAGS', [:Seen])
-    rescue Net::IMAP::BadResponseError => e
-      if e.message.include?('Invalid messageset')
-        @logger.debug("Message #{msg_id} already processed or invalid, skipping mark as seen")
-      else
-        @logger.warn("Failed to mark message #{msg_id} as seen: #{e.message}")
-      end
-    rescue => e
-      @logger.warn("Failed to mark message #{msg_id} as seen: #{e.message}")
-    end
-    
+    # Mail archivieren (move() markiert automatisch als gelesen)
+    # Wichtig: move() macht die Message-ID ungültig, daher zuerst archivieren
     archive_message(imap, msg_id)
   end
 
@@ -379,7 +367,10 @@ class MailHandlerService
   def extract_ticket_id(subject)
     return nil unless subject
     
-    match = subject.match(/\[#(\d+)\]/)
+    # Unterstütze beide Formate:
+    # [#123] - klassisches Format
+    # [Text #123] - neues Format mit Text vor der ID
+    match = subject.match(/\[(?:.*?\s)?#(\d+)\]/) || subject.match(/\[#(\d+)\]/)
     match ? match[1].to_i : nil
   end
 
@@ -552,17 +543,27 @@ class MailHandlerService
 
   # Archiviere Nachricht
   def archive_message(imap, msg_id)
-    return unless @settings['archive_folder'].present?
+    # Überspringe Archivierung wenn kein Archiv-Ordner konfiguriert ist
+    unless @settings['archive_folder'].present?
+      @logger.debug("No archive folder configured, skipping archive for message #{msg_id}")
+      return
+    end
     
     begin
       # Prüfe ob die Message-ID noch gültig ist
-      imap.fetch(msg_id, 'UID')
+      uid_data = imap.fetch(msg_id, 'UID')
+      unless uid_data && uid_data.first
+        @logger.debug("Message #{msg_id} is invalid or already processed, skipping archive")
+        return
+      end
       
       # Prüfe ob der Archiv-Ordner existiert, erstelle ihn falls nötig
       ensure_archive_folder_exists(imap)
       
+      # Verschiebe die Nachricht (markiert automatisch als gelesen)
       imap.move(msg_id, @settings['archive_folder'])
-      @logger.debug("Moved message #{msg_id} to archive folder '#{@settings['archive_folder']}'")
+      @logger.info("Successfully moved message #{msg_id} to archive folder '#{@settings['archive_folder']}'")
+      
     rescue Net::IMAP::BadResponseError => e
       if e.message.include?('Invalid messageset')
         @logger.debug("Message #{msg_id} already moved or invalid, skipping archive")
@@ -572,15 +573,26 @@ class MailHandlerService
         # Versuche erneut zu verschieben
         begin
           imap.move(msg_id, @settings['archive_folder'])
-          @logger.debug("Moved message #{msg_id} to newly created archive folder")
+          @logger.info("Successfully moved message #{msg_id} to newly created archive folder")
         rescue => retry_e
           @logger.error("Failed to move message #{msg_id} to archive after creating folder: #{retry_e.message}")
+        end
+      elsif e.message.include?('NO MOVE')
+        @logger.warn("IMAP server does not support MOVE command for message #{msg_id}, trying COPY + EXPUNGE")
+        # Fallback: COPY + STORE + EXPUNGE
+        begin
+          imap.copy(msg_id, @settings['archive_folder'])
+          imap.store(msg_id, '+FLAGS', [:Deleted])
+          imap.expunge
+          @logger.info("Successfully copied and deleted message #{msg_id} to archive folder (fallback method)")
+        rescue => copy_e
+          @logger.error("Fallback archive method failed for message #{msg_id}: #{copy_e.message}")
         end
       else
         @logger.warn("Failed to archive message #{msg_id}: #{e.message}")
       end
     rescue => e
-      @logger.warn("Failed to archive message #{msg_id}: #{e.message}")
+      @logger.error("Unexpected error archiving message #{msg_id}: #{e.class.name} - #{e.message}")
     end
   end
 

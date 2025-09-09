@@ -8,12 +8,20 @@ class MailHandlerScheduler
     return if @@scheduler && @@scheduler.up?
     
     @@logger = MailHandlerLogger.new
+    
+    # Validiere IMAP-Konfiguration vor dem Start
+    unless valid_imap_configuration?
+      @@logger.error("Scheduler start aborted: Invalid or missing IMAP configuration")
+      return false
+    end
+    
     @@scheduler = Rufus::Scheduler.new
     
     schedule_mail_import
     schedule_daily_reminders
     
-    @@logger.info("Mail Handler Scheduler started")
+    @@logger.info("Mail Handler Scheduler started with valid IMAP configuration")
+    true
   end
 
   def self.stop
@@ -395,4 +403,36 @@ class MailHandlerScheduler
        false
      end
    end
+
+  # Validiere IMAP-Konfiguration
+  def self.valid_imap_configuration?
+    settings = Setting.plugin_redmine_mail_handler
+    
+    # Prüfe ob alle erforderlichen IMAP-Einstellungen vorhanden sind
+    required_settings = ['imap_host', 'imap_port', 'imap_username', 'imap_password']
+    
+    required_settings.each do |setting|
+      if settings[setting].blank?
+        @@logger&.warn("Missing IMAP setting: #{setting}")
+        return false
+      end
+    end
+    
+    # Teste IMAP-Verbindung
+    begin
+      service = MailHandlerService.new
+      result = service.test_connection
+      
+      if result[:success]
+        @@logger&.debug("IMAP configuration validation successful")
+        return true
+      else
+        @@logger&.error("IMAP connection test failed: #{result[:error]}")
+        return false
+      end
+    rescue => e
+      @@logger&.error("IMAP configuration validation error: #{e.message}")
+      return false
+    end
+  end
 end
