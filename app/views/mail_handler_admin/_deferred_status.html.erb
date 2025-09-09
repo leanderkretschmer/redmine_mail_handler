@@ -2,18 +2,22 @@
 
 <div class="box">
   <h3>Statistiken</h3>
-  <div class="stats-box">
-    <div class="stats-number"><%= @deferred_stats[:total] %></div>
-    <div class="stats-label">Gesamt</div>
-  </div>
-  <div class="stats-box">
-    <div class="stats-number"><%= @deferred_stats[:active] %></div>
-    <div class="stats-label">Aktiv</div>
-  </div>
-  <div class="stats-box">
-    <div class="stats-number"><%= @deferred_stats[:expired] %></div>
-    <div class="stats-label">Abgelaufen</div>
-  </div>
+  <% begin %>
+     <div class="stats-box">
+       <div class="stats-number"><%= @deferred_stats[:total] %></div>
+       <div class="stats-label">Gesamt</div>
+     </div>
+     <div class="stats-box">
+       <div class="stats-number"><%= @deferred_stats[:active] %></div>
+       <div class="stats-label">Aktiv</div>
+     </div>
+     <div class="stats-box">
+       <div class="stats-number"><%= @deferred_stats[:expired] %></div>
+       <div class="stats-label">Abgelaufen</div>
+     </div>
+   <% rescue => e %>
+     <div class="flash error">Fehler beim Laden der Zurückgestellt-Statistiken: <%= e.message %></div>
+   <% end %>
 </div>
 
 <div class="box">

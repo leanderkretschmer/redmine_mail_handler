@@ -198,14 +198,20 @@ class MailHandlerAdminController < ApplicationController
   end
 
   def deferred_status
-    @deferred_entries = MailDeferredEntry.includes([])
-                                            .order(deferred_at: :desc)
-                                            .limit(20)
-    @deferred_stats = {
-      total: MailDeferredEntry.count,
-      active: MailDeferredEntry.active.count,
-      expired: MailDeferredEntry.expired.count
-    }
+    begin
+      @deferred_entries = MailDeferredEntry.includes([])
+                                              .order(deferred_at: :desc)
+                                               .limit(20)
+      @deferred_stats = {
+        total: MailDeferredEntry.count,
+        active: MailDeferredEntry.active.count,
+        expired: MailDeferredEntry.expired.count
+      }
+    rescue ActiveRecord::StatementInvalid => e
+      @deferred_entries = []
+      @deferred_stats = { total: 0, active: 0, expired: 0 }
+      flash[:error] = "Zurückgestellt-Tabelle nicht gefunden. Bitte führen Sie die Datenbankmigrationen aus."
+    end
     
     render partial: 'deferred_status' if request.xhr?
   end

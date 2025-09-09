@@ -50,6 +50,17 @@
     <span id="archive_loading" style="display: none;">Lade...</span>
   </p>
   
+</div>
+
+<div class="box tabular settings">
+  <h3>Zurückgestellte Mails</h3>
+  
+  <p>
+    <label for="settings_deferred_enabled">Zurückstellung aktiviert:</label>
+    <%= check_box_tag 'settings[deferred_enabled]', '1', @settings['deferred_enabled'] == '1' %>
+    <em class="info">Aktiviert die Zurückstellung-Funktion für unbekannte Benutzer</em>
+  </p>
+  
   <p>
     <label for="settings_deferred_folder">Zurückgestellt-Ordner:</label>
     <select name="settings[deferred_folder]" id="settings_deferred_folder">
@@ -60,21 +71,15 @@
   </p>
   
   <p>
-    <label for="settings_deferred_lifetime_days">Zurückgestellt-Aufbewahrungszeit (Tage):</label>
+    <label for="settings_deferred_lifetime_days">Aufbewahrungszeit (Tage):</label>
     <%= text_field_tag 'settings[deferred_lifetime_days]', @settings['deferred_lifetime_days'] || '30', :size => 10, :placeholder => '30' %>
     <em class="info">Anzahl Tage, die Mails von unbekannten Benutzern zurückgestellt bleiben</em>
   </p>
   
   <p>
-    <label for="settings_deferred_recheck_time">Zurückgestellt-Prüfzeit:</label>
+    <label for="settings_deferred_recheck_time">Prüfzeit:</label>
     <%= text_field_tag 'settings[deferred_recheck_time]', @settings['deferred_recheck_time'] || '02:00', :size => 10, :placeholder => '02:00' %>
     <em class="info">Uhrzeit für tägliche Zurückgestellt-Prüfung (HH:MM)</em>
-  </p>
-  
-  <p>
-    <label for="settings_quarantine_enabled">Quarantäne aktiviert:</label>
-    <%= check_box_tag 'settings[quarantine_enabled]', '1', @settings['quarantine_enabled'] == '1' %>
-    <em class="info">Aktiviert die Quarantäne-Funktionalität für unbekannte Benutzer</em>
   </p>
 </div>
 
@@ -362,8 +367,8 @@ document.addEventListener('DOMContentLoaded', function() {
     loadImapFolders('settings_archive_folder', 'archive_loading');
   });
   
-  document.getElementById('load_quarantine_folders').addEventListener('click', function() {
-    loadImapFolders('settings_quarantine_folder', 'quarantine_loading');
+  document.getElementById('load_deferred_folders').addEventListener('click', function() {
+    loadImapFolders('settings_deferred_folder', 'deferred_loading');
   });
   
   document.getElementById('test_imap_connection').addEventListener('click', testImapConnection);
