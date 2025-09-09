@@ -11,9 +11,18 @@
   font-weight: bold;
 }
 
+/* Tabellen-Ausrichtung - alle Tabellen weiter rechts */
+.box table.list {
+  width: 100%;
+  margin-left: 40px; /* Verschiebung nach rechts */
+  max-width: calc(100% - 60px); /* Platz für Margin */
+}
+
 /* Log-Tabellen */
 .logs {
   width: 100%;
+  margin-left: 40px; /* Konsistente Ausrichtung */
+  max-width: calc(100% - 60px);
 }
 
 .logs th {
@@ -165,7 +174,24 @@ code {
   background-color: #f8f9fa;
   padding: 15px;
   border-radius: 4px;
-  margin: 10px 0;
+  margin: 10px 0 10px 40px; /* Konsistente Ausrichtung */
+  max-width: calc(100% - 60px);
+}
+
+/* Box-Inhalte einheitlich ausrichten */
+.box p {
+  margin-left: 40px;
+  max-width: calc(100% - 60px);
+}
+
+.box form {
+  margin-left: 40px;
+  max-width: calc(100% - 60px);
+}
+
+.box div#deferred-status {
+  margin-left: 40px;
+  max-width: calc(100% - 60px);
 }
 
 .mail-handler-form label {
