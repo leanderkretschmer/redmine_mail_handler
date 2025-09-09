@@ -19,6 +19,8 @@ RedmineApp::Application.routes.draw do
         post :clear_logs
         post :cleanup_old_logs
         post :get_imap_folders
+        post :process_quarantine
+        get :quarantine_status
       end
     end
     

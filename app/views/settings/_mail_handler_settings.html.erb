@@ -49,6 +49,33 @@
     <button type="button" id="load_archive_folders" class="small-button">Ordner laden</button>
     <span id="archive_loading" style="display: none;">Lade...</span>
   </p>
+  
+  <p>
+    <label for="settings_quarantine_folder">Quarantäne-Ordner:</label>
+    <select name="settings[quarantine_folder]" id="settings_quarantine_folder">
+      <option value="<%= @settings['quarantine_folder'] %>"><%= @settings['quarantine_folder'].present? ? @settings['quarantine_folder'] : 'Quarantine' %></option>
+    </select>
+    <button type="button" id="load_quarantine_folders" class="small-button">Ordner laden</button>
+    <span id="quarantine_loading" style="display: none;">Lade...</span>
+  </p>
+  
+  <p>
+    <label for="settings_quarantine_lifetime_days">Quarantäne-Aufbewahrungszeit (Tage):</label>
+    <%= text_field_tag 'settings[quarantine_lifetime_days]', @settings['quarantine_lifetime_days'] || '30', :size => 10, :placeholder => '30' %>
+    <em class="info">Anzahl Tage, die Mails von unbekannten Benutzern in Quarantäne bleiben</em>
+  </p>
+  
+  <p>
+    <label for="settings_quarantine_recheck_time">Quarantäne-Prüfzeit:</label>
+    <%= text_field_tag 'settings[quarantine_recheck_time]', @settings['quarantine_recheck_time'] || '02:00', :size => 10, :placeholder => '02:00' %>
+    <em class="info">Uhrzeit für tägliche Quarantäne-Prüfung (HH:MM)</em>
+  </p>
+  
+  <p>
+    <label for="settings_quarantine_enabled">Quarantäne aktiviert:</label>
+    <%= check_box_tag 'settings[quarantine_enabled]', '1', @settings['quarantine_enabled'] == '1' %>
+    <em class="info">Aktiviert die Quarantäne-Funktionalität für unbekannte Benutzer</em>
+  </p>
 </div>
 
 <div class="box tabular settings">
@@ -333,6 +360,10 @@ document.addEventListener('DOMContentLoaded', function() {
   
   document.getElementById('load_archive_folders').addEventListener('click', function() {
     loadImapFolders('settings_archive_folder', 'archive_loading');
+  });
+  
+  document.getElementById('load_quarantine_folders').addEventListener('click', function() {
+    loadImapFolders('settings_quarantine_folder', 'quarantine_loading');
   });
   
   document.getElementById('test_imap_connection').addEventListener('click', testImapConnection);

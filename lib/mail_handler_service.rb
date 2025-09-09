@@ -69,8 +69,153 @@ class MailHandlerService
     end
   end
 
-  # Teste IMAP-Verbindung
-  def test_connection
+  # Verarbeite Quarantäne-Mails
+  def process_quarantine_mails
+    @logger.info("Starting quarantine mail processing")
+    
+    imap = connect_to_imap
+    return unless imap
+    
+    begin
+      quarantine_folder = @settings['quarantine_folder'] || 'Quarantine'
+      
+      # Prüfe ob Quarantäne-Ordner existiert
+      begin
+        imap.select(quarantine_folder)
+      rescue Net::IMAP::NoResponseError
+        @logger.info("Quarantine folder '#{quarantine_folder}' does not exist, nothing to process")
+        return
+      end
+      
+      @logger.info("Selected quarantine folder: #{quarantine_folder}")
+      
+      # Hole alle Nachrichten-IDs aus Quarantäne
+      message_ids = imap.search(['ALL'])
+      @logger.info("Found #{message_ids.length} messages in quarantine")
+      
+      if message_ids.empty?
+        @logger.info("No quarantine messages to process")
+        return
+      end
+      
+      processed_count = 0
+      expired_count = 0
+      
+      # Verarbeite jede Quarantäne-Nachricht
+      message_ids.each do |msg_id|
+        begin
+          result = process_quarantine_message(imap, msg_id)
+          case result
+          when :processed
+            processed_count += 1
+          when :expired
+            expired_count += 1
+          end
+        rescue => e
+          @logger.error("Error processing quarantine message #{msg_id}: #{e.class.name} - #{e.message}")
+          # Weiter mit nächster Nachricht
+        end
+      end
+      
+      @logger.info("Quarantine processing completed: #{processed_count} processed, #{expired_count} expired")
+      
+    rescue => e
+      @logger.error("Quarantine processing failed: #{e.class.name} - #{e.message}")
+      @logger.debug("Backtrace: #{e.backtrace.first(10).join('\n')}")
+    ensure
+      imap&.disconnect
+    end
+   end
+
+  # Bereinige abgelaufene Quarantäne-Einträge
+  def cleanup_expired_quarantine
+    @logger.info("Starting cleanup of expired quarantine entries")
+    
+    begin
+      # Lösche abgelaufene Einträge aus der Datenbank
+      expired_entries = MailQuarantineEntry.expired
+      deleted_count = expired_entries.count
+      
+      expired_entries.delete_all
+      
+      @logger.info("Cleanup completed: #{deleted_count} expired quarantine entries removed")
+      deleted_count
+    rescue => e
+      @logger.error("Failed to cleanup expired quarantine entries: #{e.message}")
+      @logger.error("Backtrace: #{e.backtrace.join("\n")}")
+      0
+    end
+  end
+
+  # Verarbeite einzelne Quarantäne-Nachricht
+  def process_quarantine_message(imap, msg_id)
+    # Hole Mail-Daten
+    begin
+      msg_data = imap.fetch(msg_id, 'RFC822')[0].attr['RFC822']
+      
+      if msg_data.blank?
+        @logger.error("Empty mail data for quarantine message #{msg_id}, skipping")
+        return :skipped
+      end
+      
+      mail = Mail.read_from_string(msg_data)
+      
+      if mail.nil?
+        @logger.error("Failed to parse quarantine mail object for message #{msg_id}, skipping")
+        return :skipped
+      end
+      
+    rescue => e
+      @logger.error("Failed to fetch quarantine mail data for message #{msg_id}: #{e.message}")
+      return :skipped
+    end
+    
+    # Prüfe Quarantäne-Status
+    quarantine_entry = MailQuarantineEntry.find_by(message_id: mail.message_id)
+    
+    if quarantine_entry&.expired?
+      # Quarantäne abgelaufen → in Archiv verschieben
+      @logger.info("Quarantine expired for message #{msg_id}, moving to archive")
+      archive_message(imap, msg_id, mail)
+      quarantine_entry.destroy if quarantine_entry
+      return :expired
+    end
+    
+    # Prüfe ob Benutzer jetzt existiert
+    from_address = mail.from&.first
+    return :skipped if from_address.blank?
+    
+    existing_user = find_existing_user(from_address)
+    
+    if existing_user
+      # Benutzer existiert jetzt → Mail normal verarbeiten
+      @logger.info("User #{from_address} now exists, processing quarantine message #{msg_id}")
+      
+      # Extrahiere Ticket-ID (falls vorhanden)
+      ticket_id = extract_ticket_id(mail.subject)
+      
+      if ticket_id
+        add_mail_to_ticket(mail, ticket_id, existing_user)
+      else
+        add_mail_to_inbox_ticket(mail, existing_user)
+      end
+      
+      # Mail archivieren
+      archive_message(imap, msg_id, mail)
+      
+      # Quarantäne-Eintrag löschen
+      quarantine_entry.destroy if quarantine_entry
+      
+      return :processed
+    else
+      # Benutzer existiert noch nicht → in Quarantäne lassen
+      @logger.debug("User #{from_address} still does not exist, keeping message #{msg_id} in quarantine")
+      return :kept
+    end
+  end
+ 
+    # Teste IMAP-Verbindung
+    def test_connection
     begin
       imap = connect_to_imap
       return false unless imap
@@ -387,8 +532,10 @@ class MailHandlerService
         @logger.error("Failed to create user for #{from_address}, cannot process mail")
       end
     else
-      # Unbekannter Benutzer ohne Ticket-ID → Mail ignorieren
-      @logger.info("Ignoring mail from unknown user #{from_address} without ticket ID (business rule)")
+      # Unbekannter Benutzer ohne Ticket-ID → in Quarantäne
+      @logger.info("Moving mail from unknown user #{from_address} without ticket ID to quarantine")
+      quarantine_message(imap, msg_id, mail)
+      return # Nicht archivieren, da in Quarantäne
     end
     
     # Mail archivieren (move() markiert automatisch als gelesen)
@@ -629,6 +776,55 @@ class MailHandlerService
     end
   end
 
+  # Verschiebe Nachricht in Quarantäne-Ordner
+  def quarantine_message(imap, msg_id, mail)
+    quarantine_folder = @settings['quarantine_folder'] || 'Quarantine'
+    
+    begin
+      # Stelle sicher, dass Quarantäne-Ordner existiert
+      ensure_quarantine_folder_exists(imap)
+      
+      # Verschiebe Mail in Quarantäne-Ordner
+      imap.move(msg_id, quarantine_folder)
+      @logger.info_mail("Successfully moved message #{msg_id} to quarantine folder '#{quarantine_folder}'", mail)
+      
+      # Speichere Quarantäne-Zeitstempel
+      save_quarantine_timestamp(mail, Time.current)
+      
+    rescue Net::IMAP::BadResponseError => e
+      if e.message.include?('Invalid messageset')
+        @logger.debug("Message #{msg_id} already moved or invalid, skipping quarantine")
+      elsif e.message.include?('TRYCREATE')
+        @logger.info("Quarantine folder '#{quarantine_folder}' does not exist, creating it...")
+        create_quarantine_folder(imap)
+        # Versuche erneut zu verschieben
+        begin
+          imap.move(msg_id, quarantine_folder)
+          @logger.info("Successfully moved message #{msg_id} to newly created quarantine folder")
+          save_quarantine_timestamp(mail, Time.current)
+        rescue => retry_e
+          @logger.error("Failed to move message #{msg_id} to quarantine after creating folder: #{retry_e.message}")
+        end
+      elsif e.message.include?('NO MOVE')
+        @logger.warn("IMAP server does not support MOVE command for message #{msg_id}, trying COPY + EXPUNGE")
+        # Fallback: COPY + STORE + EXPUNGE
+        begin
+          imap.copy(msg_id, quarantine_folder)
+          imap.store(msg_id, '+FLAGS', [:Deleted])
+          imap.expunge
+          @logger.info("Successfully copied and deleted message #{msg_id} to quarantine folder (fallback method)")
+          save_quarantine_timestamp(mail, Time.current)
+        rescue => copy_e
+          @logger.error("Fallback quarantine method failed for message #{msg_id}: #{copy_e.message}")
+        end
+      else
+        @logger.warn("Failed to quarantine message #{msg_id}: #{e.message}")
+      end
+    rescue => e
+      @logger.error("Unexpected error quarantining message #{msg_id}: #{e.class.name} - #{e.message}")
+    end
+  end
+
   # Stelle sicher, dass der Archiv-Ordner existiert
   def ensure_archive_folder_exists(imap)
     return unless @settings['archive_folder'].present?
@@ -703,6 +899,58 @@ class MailHandlerService
       ssl: use_ssl
     }
   end
+
+  # Stelle sicher, dass der Quarantäne-Ordner existiert
+  def ensure_quarantine_folder_exists(imap)
+    quarantine_folder = @settings['quarantine_folder'] || 'Quarantine'
+    return unless quarantine_folder.present?
+    
+    begin
+      # Liste alle Ordner auf
+      folders = imap.list('', '*')
+      folder_names = folders.map(&:name)
+      
+      unless folder_names.include?(quarantine_folder)
+        @logger.info("Quarantine folder '#{quarantine_folder}' not found, creating it...")
+        create_quarantine_folder(imap)
+      end
+    rescue => e
+      @logger.warn("Could not check quarantine folder existence: #{e.message}")
+    end
+  end
+
+  # Erstelle Quarantäne-Ordner
+  def create_quarantine_folder(imap)
+    quarantine_folder = @settings['quarantine_folder'] || 'Quarantine'
+    
+    begin
+      imap.create(quarantine_folder)
+      @logger.info("Successfully created quarantine folder '#{quarantine_folder}'")
+    rescue => e
+      @logger.error("Failed to create quarantine folder '#{quarantine_folder}': #{e.message}")
+    end
+  end
+
+  # Speichere Quarantäne-Zeitstempel für Mail
+  def save_quarantine_timestamp(mail, timestamp)
+    return unless mail&.message_id
+    
+    begin
+      # Erstelle oder aktualisiere Quarantäne-Eintrag
+      quarantine_entry = MailQuarantineEntry.find_or_initialize_by(message_id: mail.message_id)
+      quarantine_entry.update!(
+        from_address: mail.from&.first,
+        subject: mail.subject,
+        quarantined_at: timestamp,
+        expires_at: timestamp + (@settings['quarantine_lifetime_days'] || 30).to_i.days
+      )
+      
+      @logger.debug("Saved quarantine timestamp for message #{mail.message_id}")
+    rescue => e
+      @logger.error("Failed to save quarantine timestamp for message #{mail.message_id}: #{e.message}")
+    end
+  end
+end
 
   # Plugin-eigene SMTP-Einstellungen
   def get_plugin_smtp_settings

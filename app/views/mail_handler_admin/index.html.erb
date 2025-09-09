@@ -43,6 +43,40 @@
 </div>
 
 <div class="box">
+  <h3>Quarantäne-Status</h3>
+  <div id="quarantine-status">
+    <% quarantine_stats = {
+         total: MailQuarantineEntry.count,
+         active: MailQuarantineEntry.active.count,
+         expired: MailQuarantineEntry.expired.count
+       } %>
+    <table class="list">
+      <tr>
+        <td><strong>Mails in Quarantäne:</strong></td>
+        <td><%= quarantine_stats[:active] %> aktiv, <%= quarantine_stats[:expired] %> abgelaufen</td>
+      </tr>
+      <tr>
+        <td><strong>Quarantäne-Ordner:</strong></td>
+        <td><%= @settings['quarantine_folder'] || 'Quarantine' %></td>
+      </tr>
+      <tr>
+        <td><strong>Aufbewahrungszeit:</strong></td>
+        <td><%= @settings['quarantine_lifetime_days'] || '30' %> Tage</td>
+      </tr>
+      <tr>
+        <td><strong>Prüfzeit:</strong></td>
+        <td><%= @settings['quarantine_recheck_time'] || '02:00' %></td>
+      </tr>
+    </table>
+    
+    <p>
+      <%= link_to 'Quarantäne verarbeiten', { :action => 'process_quarantine' }, :method => :post, :class => 'icon icon-reload' %>
+      <%= link_to 'Quarantäne-Details', { :action => 'quarantine_status' }, :class => 'icon icon-list' %>
+    </p>
+  </div>
+</div>
+
+<div class="box">
   <h3>Load-Balanced Importing</h3>
   <table class="list">
     <tr>

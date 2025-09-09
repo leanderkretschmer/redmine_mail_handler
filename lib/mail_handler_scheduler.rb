@@ -19,6 +19,8 @@ class MailHandlerScheduler
     
     schedule_mail_import
     schedule_daily_reminders
+    schedule_quarantine_processing
+    schedule_quarantine_cleanup
     
     @@logger.info("Mail Handler Scheduler started with valid IMAP configuration")
     true
@@ -121,6 +123,54 @@ class MailHandlerScheduler
     end
     
     @@logger.info("Scheduled daily reminders at #{reminder_time} using #{reminder_type} system")
+  end
+
+  def self.schedule_quarantine_processing
+    settings = Setting.plugin_redmine_mail_handler
+    quarantine_recheck_time = settings['quarantine_recheck_time'] || '02:00'
+    
+    return unless settings['quarantine_enabled'] == '1'
+    
+    @@scheduler.cron "0 #{quarantine_recheck_time.split(':')[1]} #{quarantine_recheck_time.split(':')[0]} * * *" do
+      begin
+        @@logger.info("Starting scheduled quarantine processing")
+        
+        ActiveRecord::Base.connection_pool.with_connection do
+          service = MailHandlerService.new
+          service.process_quarantine_mails
+        end
+      rescue => e
+        @@logger.error("Scheduled quarantine processing failed: #{e.message}")
+      ensure
+        ActiveRecord::Base.connection_handler.clear_active_connections!
+      end
+    end
+    
+    @@logger.info("Scheduled quarantine processing at #{quarantine_recheck_time}")
+  end
+
+  def self.schedule_quarantine_cleanup
+    settings = Setting.plugin_redmine_mail_handler
+    cleanup_time = '03:00' # Feste Zeit für Cleanup, 1 Stunde nach Quarantäne-Verarbeitung
+    
+    return unless settings['quarantine_enabled'] == '1'
+    
+    @@scheduler.cron "0 #{cleanup_time.split(':')[1]} #{cleanup_time.split(':')[0]} * * *" do
+      begin
+        @@logger.info("Starting scheduled quarantine cleanup")
+        
+        ActiveRecord::Base.connection_pool.with_connection do
+          service = MailHandlerService.new
+          service.cleanup_expired_quarantine
+        end
+      rescue => e
+        @@logger.error("Scheduled quarantine cleanup failed: #{e.message}")
+      ensure
+        ActiveRecord::Base.connection_handler.clear_active_connections!
+      end
+    end
+    
+    @@logger.info("Scheduled quarantine cleanup at #{cleanup_time}")
   end
 
   def self.send_redmine_reminders
