@@ -21,10 +21,14 @@
 /* -------------------------
    Tabellen
 ------------------------- */
-.box table.list,
+.box table.list {
+  width: calc(100% - 20px); /* Über die ganze Breite minus 20px */
+  margin: 0 0 0 20px;        /* 20px nach links */
+}
+
 .logs {
-  width: 600px;           /* Einheitliche Breite */
-  margin: 0 0 0 20px;     /* Linksbündig */
+  width: calc(100% - 20px); /* Über die ganze Breite minus 20px */
+  margin: 0 0 0 20px;        /* 20px nach links */
 }
 
 .box table.list td,
