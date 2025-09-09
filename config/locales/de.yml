@@ -94,6 +94,7 @@ de:
   help_smtp_settings: "Konfigurieren Sie hier die SMTP-Einstellungen für den E-Mail-Versand."
   help_smtp_same_as_imap: "Wenn aktiviert, werden die IMAP-Einstellungen auch für SMTP verwendet (imap.example.com wird zu smtp.example.com)."
   help_mail_processing: "E-Mail-Inhalte werden automatisch bereinigt: Zeilenumbrüche normalisiert, übermäßige Leerzeilen entfernt und Encoding-Artefakte korrigiert."
+  help_attachment_processing: "E-Mail-Anhänge werden automatisch als Redmine-Attachments an das entsprechende Ticket angehängt."
   
   # Tabellen-Header
   field_timestamp: "Zeitstempel"
@@ -118,6 +119,11 @@ de:
   field_days_until_expiry: "Tage bis Ablauf"
   label_expired: "Abgelaufen"
   label_days: "Tage"
+  label_actions: "Aktionen"
+  label_create_user_from_mail: "Benutzer aus E-Mail erstellen"
+  label_process_deferred_mail: "E-Mail verarbeiten"
+  text_confirm_create_user: "Möchten Sie einen neuen Benutzer für die E-Mail-Adresse %{email} erstellen?"
+  text_confirm_process_mail: "Möchten Sie die zurückgestellte E-Mail von %{email} jetzt verarbeiten?"
   
   # Verschiedenes
   label_system_status: "System-Status"

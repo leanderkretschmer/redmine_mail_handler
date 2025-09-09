@@ -315,3 +315,32 @@ code {
   color: white;
   border-color: #007bff;
 }
+
+/* Deferred Mail Actions */
+.buttons {
+  white-space: nowrap;
+}
+
+.buttons .icon {
+  margin-right: 5px;
+  display: inline-block;
+}
+
+.icon-user-add {
+  background-image: url('../images/user_add.png');
+}
+
+.icon-email-go {
+  background-image: url('../images/email_go.png');
+}
+
+/* Fallback für fehlende Icons */
+.icon-user-add:before {
+  content: '👤+';
+  font-size: 14px;
+}
+
+.icon-email-go:before {
+  content: '📧→';
+  font-size: 14px;
+}

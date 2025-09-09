@@ -21,6 +21,7 @@
         <th><%= l(:field_deferred_at) %></th>
         <th><%= l(:field_expires_at) %></th>
         <th><%= l(:field_days_until_expiry) %></th>
+        <th><%= l(:label_actions) %></th>
       </tr>
     </thead>
     <tbody>
@@ -36,6 +37,20 @@
             <% else %>
               <%= entry.days_until_expiry %> <%= l(:label_days) %>
             <% end %>
+          </td>
+          <td class="buttons">
+            <%= link_to '', 
+                { :controller => 'mail_handler_admin', :action => 'create_user_from_mail', :id => entry.id }, 
+                { :method => :post, 
+                  :class => 'icon icon-user-add', 
+                  :title => l(:label_create_user_from_mail),
+                  :confirm => l(:text_confirm_create_user, :email => entry.from_address) } %>
+            <%= link_to '', 
+                { :controller => 'mail_handler_admin', :action => 'process_deferred_mail', :id => entry.id }, 
+                { :method => :post, 
+                  :class => 'icon icon-email-go', 
+                  :title => l(:label_process_deferred_mail),
+                  :confirm => l(:text_confirm_process_mail, :email => entry.from_address) } %>
           </td>
         </tr>
       <% end %>

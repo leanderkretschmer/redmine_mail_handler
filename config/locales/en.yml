@@ -91,6 +91,9 @@ en:
   help_auto_import: "Automatic import at specified interval. Disable for manual import."
   help_reminder_time: "Format: HH:MM (24-hour format)"
   help_import_interval: "How often should mails be imported automatically"
+  help_smtp_same_as_imap: "When enabled, IMAP settings will also be used for SMTP (imap.example.com becomes smtp.example.com)."
+  help_mail_processing: "Email content is automatically cleaned: line breaks normalized, excessive blank lines removed, and encoding artifacts corrected."
+  help_attachment_processing: "Email attachments are automatically attached as Redmine attachments to the corresponding ticket."
   
   # Table headers
   field_timestamp: "Timestamp"
@@ -115,6 +118,11 @@ en:
   field_days_until_expiry: "Days Until Expiry"
   label_expired: "Expired"
   label_days: "Days"
+  label_actions: "Actions"
+  label_create_user_from_mail: "Create user from email"
+  label_process_deferred_mail: "Process email"
+  text_confirm_create_user: "Do you want to create a new user for the email address %{email}?"
+  text_confirm_process_mail: "Do you want to process the deferred email from %{email} now?"
   
   # Miscellaneous
   label_system_status: "System Status"

@@ -272,6 +272,58 @@ class MailHandlerAdminController < ApplicationController
     redirect_to action: :index
   end
 
+  def create_user_from_mail
+    entry_id = params[:id]
+    entry = MailDeferredEntry.find_by(id: entry_id)
+    
+    unless entry
+      flash[:error] = "Zurückgestellte E-Mail nicht gefunden."
+      redirect_to action: :deferred_status
+      return
+    end
+    
+    begin
+      # Erstelle Benutzer aus E-Mail-Adresse
+      user = @service.create_new_user(entry.from_address)
+      
+      if user && user.persisted?
+        flash[:notice] = "Benutzer #{user.login} wurde erfolgreich erstellt."
+      else
+        flash[:error] = "Fehler beim Erstellen des Benutzers: #{user&.errors&.full_messages&.join(', ') || 'Unbekannter Fehler'}"
+      end
+    rescue => e
+      flash[:error] = "Fehler beim Erstellen des Benutzers: #{e.message}"
+    end
+    
+    redirect_to action: :deferred_status
+  end
+
+  def process_deferred_mail
+    entry_id = params[:id]
+    entry = MailDeferredEntry.find_by(id: entry_id)
+    
+    unless entry
+      flash[:error] = "Zurückgestellte E-Mail nicht gefunden."
+      redirect_to action: :deferred_status
+      return
+    end
+    
+    begin
+      # Verarbeite die zurückgestellte E-Mail
+      result = @service.process_single_deferred_mail(entry)
+      
+      if result
+        flash[:notice] = "E-Mail von #{entry.from_address} wurde erfolgreich verarbeitet."
+      else
+        flash[:error] = "Fehler beim Verarbeiten der E-Mail von #{entry.from_address}."
+      end
+    rescue => e
+      flash[:error] = "Fehler beim Verarbeiten der E-Mail: #{e.message}"
+    end
+    
+    redirect_to action: :deferred_status
+  end
+
   private
 
   def init_service

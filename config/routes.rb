@@ -20,6 +20,8 @@ RedmineApp::Application.routes.draw do
         post :cleanup_old_logs
         post :get_imap_folders
         post :process_deferred
+        post :create_user_from_mail
+        post :process_deferred_mail
       get :deferred_status
       end
     end

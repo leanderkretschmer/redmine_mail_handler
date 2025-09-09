@@ -150,4 +150,38 @@ class MailHandlerServiceTest < ActiveSupport::TestCase
     result = @service.send_test_mail('test@example.com')
     assert_not result
   end
+
+  def test_process_mail_attachments
+    # Erstelle Test-Issue
+    issue = Issue.create!(
+      project: Project.first,
+      tracker: Tracker.first,
+      author: User.first,
+      subject: 'Test Issue for Attachments'
+    )
+    
+    # Erstelle Test-Mail mit Anhang
+    mail = Mail.new do
+      from 'test@example.com'
+      to 'redmine@example.com'
+      subject 'Test with Attachment'
+      body 'Test message with attachment'
+      
+      add_file filename: 'test.txt', content: 'Test file content'
+    end
+    
+    user = User.first
+    initial_attachment_count = issue.attachments.count
+    
+    # Verarbeite Anhänge
+    @service.send(:process_mail_attachments, mail, issue, user)
+    
+    # Prüfe ob Anhang hinzugefügt wurde
+    issue.reload
+    assert_equal initial_attachment_count + 1, issue.attachments.count
+    
+    attachment = issue.attachments.last
+    assert_equal 'test.txt', attachment.filename
+    assert_equal user, attachment.author
+  end
 end
