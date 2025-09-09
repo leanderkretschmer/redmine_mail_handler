@@ -307,9 +307,46 @@ class MailHandlerService
     end
   end
 
-
-
-
+  # Verarbeite eine einzelne zurückgestellte E-Mail
+  def process_single_deferred_mail(deferred_entry)
+    begin
+      @logger.info("Processing single deferred mail from #{deferred_entry.from_address}")
+      
+      # Verbinde zu IMAP
+      imap = connect_to_imap
+      return false unless imap
+      
+      # Wähle den zurückgestellten Ordner
+      deferred_folder = @settings['deferred_folder'] || 'Deferred'
+      imap.select(deferred_folder)
+      
+      # Suche die E-Mail anhand der Message-ID
+      message_ids = imap.search(['HEADER', 'Message-ID', deferred_entry.message_id])
+      
+      if message_ids.empty?
+        @logger.warn("Deferred mail with Message-ID #{deferred_entry.message_id} not found in folder #{deferred_folder}")
+        return false
+      end
+      
+      # Verarbeite die erste gefundene Nachricht
+      msg_id = message_ids.first
+      result = process_message(imap, msg_id)
+      
+      if result
+        # Lösche den Eintrag aus der Datenbank nach erfolgreicher Verarbeitung
+        deferred_entry.destroy
+        @logger.info("Successfully processed and removed deferred entry for #{deferred_entry.from_address}")
+      end
+      
+      imap.disconnect if imap
+      return result
+      
+    rescue => e
+      @logger.error("Error processing single deferred mail: #{e.message}")
+      @logger.error("Backtrace: #{e.backtrace.join("\n")}")
+      return false
+    end
+  end
 
   private
 
@@ -1081,47 +1118,6 @@ class MailHandlerService
     else
       # Fallback auf Redmine's Standard-Absender
       return Setting.mail_from
-    end
-  end
-
-  # Verarbeite eine einzelne zurückgestellte E-Mail
-  def process_single_deferred_mail(deferred_entry)
-    begin
-      @logger.info("Processing single deferred mail from #{deferred_entry.from_address}")
-      
-      # Verbinde zu IMAP
-      imap = connect_to_imap
-      return false unless imap
-      
-      # Wähle den zurückgestellten Ordner
-      deferred_folder = @settings['deferred_folder'] || 'Deferred'
-      imap.select(deferred_folder)
-      
-      # Suche die E-Mail anhand der Message-ID
-      message_ids = imap.search(['HEADER', 'Message-ID', deferred_entry.message_id])
-      
-      if message_ids.empty?
-        @logger.warn("Deferred mail with Message-ID #{deferred_entry.message_id} not found in folder #{deferred_folder}")
-        return false
-      end
-      
-      # Verarbeite die erste gefundene Nachricht
-      msg_id = message_ids.first
-      result = process_message(imap, msg_id)
-      
-      if result
-        # Lösche den Eintrag aus der Datenbank nach erfolgreicher Verarbeitung
-        deferred_entry.destroy
-        @logger.info("Successfully processed and removed deferred entry for #{deferred_entry.from_address}")
-      end
-      
-      imap.disconnect if imap
-      return result
-      
-    rescue => e
-      @logger.error("Error processing single deferred mail: #{e.message}")
-      @logger.error("Backtrace: #{e.backtrace.join("\n")}")
-      return false
     end
   end
 
