@@ -11,18 +11,29 @@
   font-weight: bold;
 }
 
-/* Tabellen-Ausrichtung - alle Tabellen weiter rechts */
+/* Tabellen-Ausrichtung - alle Tabellen einheitlich */
 .box table.list {
-  width: 100%;
-  margin-left: 40px; /* Verschiebung nach rechts */
-  max-width: calc(100% - 60px); /* Platz für Margin */
+  width: 80%; /* Feste Breite für alle Tabellen */
+  margin: 0 auto 0 60px; /* Einheitliche linke und rechte Margins */
+  table-layout: fixed; /* Feste Spaltenbreiten */
+}
+
+.box table.list td:first-child {
+  width: 250px; /* Feste Breite für erste Spalte */
+  text-align: left;
+  padding-right: 20px;
+}
+
+.box table.list td:last-child {
+  text-align: left;
+  padding-left: 20px;
 }
 
 /* Log-Tabellen */
 .logs {
-  width: 100%;
-  margin-left: 40px; /* Konsistente Ausrichtung */
-  max-width: calc(100% - 60px);
+  width: 80%; /* Gleiche Breite wie andere Tabellen */
+  margin: 0 auto 0 60px; /* Einheitliche Ausrichtung */
+  table-layout: fixed;
 }
 
 .logs th {
@@ -174,24 +185,24 @@ code {
   background-color: #f8f9fa;
   padding: 15px;
   border-radius: 4px;
-  margin: 10px 0 10px 40px; /* Konsistente Ausrichtung */
-  max-width: calc(100% - 60px);
+  margin: 10px 0 10px 60px; /* Konsistente Ausrichtung */
+  width: 80%;
 }
 
 /* Box-Inhalte einheitlich ausrichten */
 .box p {
-  margin-left: 40px;
-  max-width: calc(100% - 60px);
+  margin-left: 60px;
+  width: 80%;
 }
 
 .box form {
-  margin-left: 40px;
-  max-width: calc(100% - 60px);
+  margin-left: 60px;
+  width: 80%;
 }
 
 .box div#deferred-status {
-  margin-left: 40px;
-  max-width: calc(100% - 60px);
+  margin-left: 60px;
+  width: 80%;
 }
 
 .mail-handler-form label {
