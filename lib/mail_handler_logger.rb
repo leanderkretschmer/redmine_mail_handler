@@ -34,6 +34,23 @@ class MailHandlerLogger
     log('error', message)
   end
 
+  # Erweiterte Logging-Methoden mit Mail-Details
+  def log_mail_processing(level, message, mail = nil, ticket_id = nil)
+    log_with_details(level, message, mail, ticket_id)
+  end
+
+  def info_mail(message, mail = nil, ticket_id = nil)
+    log_with_details('info', message, mail, ticket_id)
+  end
+
+  def error_mail(message, mail = nil, ticket_id = nil)
+    log_with_details('error', message, mail, ticket_id)
+  end
+
+  def debug_mail(message, mail = nil, ticket_id = nil)
+    log_with_details('debug', message, mail, ticket_id)
+  end
+
   # Hole Logs mit Paginierung
   def self.get_logs(page = 1, per_page = 50, level = nil)
     query = MailHandlerLog.order(created_at: :desc)
@@ -47,7 +64,60 @@ class MailHandlerLogger
     MailHandlerLog.where('created_at < ?', 30.days.ago).delete_all
   end
 
+  # Setze Logger-Status zurück (für neue Import-Sessions)
+  def self.reset_logger_state
+    @@mutex.synchronize do
+      @@last_message = nil
+      @@repeat_count = 0
+      @@last_log_id = nil
+    end
+  end
+
   private
+
+  def log_with_details(level, message, mail = nil, ticket_id = nil)
+    return unless should_log?(level)
+    
+    @@mutex.synchronize do
+      # Extrahiere Mail-Details falls verfügbar
+      mail_subject = nil
+      mail_from = nil
+      mail_message_id = nil
+      
+      if mail.respond_to?(:subject)
+        mail_subject = mail.subject.to_s.strip if mail.subject
+        mail_from = mail.from&.first.to_s.strip if mail.from&.first
+        mail_message_id = mail.message_id.to_s.strip if mail.message_id
+      end
+      
+      # Immer in Rails-Log schreiben
+      Rails.logger.send(level, "[MailHandler] #{message}")
+      
+      # Versuche in DB zu schreiben mit Mail-Details
+      begin
+        ActiveRecord::Base.connection_pool.with_connection do
+          log_entry = MailHandlerLog.create!(
+            level: level,
+            message: message,
+            mail_subject: mail_subject,
+            mail_from: mail_from,
+            mail_message_id: mail_message_id,
+            ticket_id: ticket_id,
+            created_at: Time.current.in_time_zone('Europe/Berlin')
+          )
+          
+          @@last_log_id = log_entry.id
+        end
+        
+      rescue ActiveRecord::ConnectionTimeoutError => e
+        # Keine weitere Aktion bei Connection Timeout - Rails.logger wurde bereits verwendet
+      rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::NoDatabaseError => e
+        # DB nicht verfügbar - nur Rails.logger verwenden
+      rescue => e
+        Rails.logger.error "Failed to write mail handler log with details: #{e.message}"
+      end
+    end
+  end
 
   def log(level, message)
     return unless should_log?(level)
@@ -59,8 +129,8 @@ class MailHandlerLogger
         return
       end
       
-      # Prüfe auf wiederholte Nachrichten
-      if @@last_message == message
+      # Prüfe auf wiederholte Nachrichten (nur bei identischen Nachrichten)
+      if @@last_message == message && @@repeat_count < 100  # Begrenze auf max 100 Wiederholungen
         @@repeat_count += 1
         
         # Aktualisiere die letzte Log-Nachricht mit Zähler

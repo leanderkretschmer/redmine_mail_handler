@@ -16,6 +16,9 @@ class MailHandlerService
   # Hauptmethode für Mail-Import
   def import_mails(limit = nil)
     begin
+      # Setze Logger-Status zurück für neue Import-Session
+      MailHandlerLogger.reset_logger_state
+      
       @logger.info("Starting mail import process")
       
       imap = connect_to_imap
@@ -40,8 +43,19 @@ class MailHandlerService
         begin
           process_message(imap, msg_id)
           processed_count += 1
+        rescue Net::IMAP::BadResponseError => e
+          if e.message.include?('Invalid messageset')
+            @logger.debug("Message #{msg_id} is invalid or already processed, skipping")
+          else
+            @logger.error("IMAP error processing message #{msg_id}: #{e.message}")
+          end
+        rescue Mail::Field::ParseError => e
+          @logger.error("Mail parsing error for message #{msg_id}: #{e.message}")
+        rescue ActiveRecord::RecordInvalid => e
+          @logger.error("Database validation error for message #{msg_id}: #{e.message}")
         rescue => e
-          @logger.error("Error processing message #{msg_id}: #{e.message}")
+          @logger.error("Unexpected error processing message #{msg_id}: #{e.class.name} - #{e.message}")
+          @logger.debug("Backtrace: #{e.backtrace.first(5).join('\n')}")
         end
       end
 
@@ -318,8 +332,27 @@ class MailHandlerService
     end
     
     # Hole Mail-Daten
-    msg_data = imap.fetch(msg_id, 'RFC822')[0].attr['RFC822']
-    mail = Mail.read_from_string(msg_data)
+    begin
+      msg_data = imap.fetch(msg_id, 'RFC822')[0].attr['RFC822']
+      
+      # Validiere Mail-Daten
+      if msg_data.blank?
+        @logger.error("Empty mail data for message #{msg_id}, skipping")
+        return
+      end
+      
+      mail = Mail.read_from_string(msg_data)
+      
+      # Validiere Mail-Objekt
+      if mail.nil?
+        @logger.error("Failed to parse mail object for message #{msg_id}, skipping")
+        return
+      end
+      
+    rescue => e
+      @logger.error("Failed to fetch or parse mail data for message #{msg_id}: #{e.message}")
+      raise e
+    end
     
     # Validiere From-Adresse
     from_address = mail.from&.first
@@ -328,7 +361,7 @@ class MailHandlerService
       return
     end
     
-    @logger.debug("Processing mail from #{from_address} with subject: #{mail.subject}")
+    @logger.debug_mail("Processing mail from #{from_address} with subject: #{mail.subject}", mail)
     
     # Extrahiere Ticket-ID aus Betreff
     ticket_id = extract_ticket_id(mail.subject)
@@ -360,7 +393,7 @@ class MailHandlerService
     
     # Mail archivieren (move() markiert automatisch als gelesen)
     # Wichtig: move() macht die Message-ID ungültig, daher zuerst archivieren
-    archive_message(imap, msg_id)
+    archive_message(imap, msg_id, mail)
   end
 
   # Extrahiere Ticket-ID aus Betreff
@@ -477,7 +510,7 @@ class MailHandlerService
   def add_mail_to_ticket(mail, ticket_id, user)
     ticket = Issue.find_by(id: ticket_id)
     unless ticket
-      @logger.warn("Ticket ##{ticket_id} not found, forwarding to inbox ticket")
+      @logger.error_mail("Ticket ##{ticket_id} not found, forwarding to inbox ticket", mail, ticket_id)
       # Fallback: Leite E-Mail an Posteingang-Ticket weiter
       add_mail_to_inbox_ticket(mail, user)
       return
@@ -490,9 +523,9 @@ class MailHandlerService
     journal = ticket.init_journal(user, content)
     
     if ticket.save
-      @logger.info("Added mail content to ticket ##{ticket_id}")
+      @logger.info_mail("Added mail content to ticket ##{ticket_id}", mail, ticket_id)
     else
-      @logger.error("Failed to add mail to ticket ##{ticket_id}: #{ticket.errors.full_messages.join(', ')}")
+      @logger.error_mail("Failed to add mail to ticket ##{ticket_id}: #{ticket.errors.full_messages.join(', ')}", mail, ticket_id)
     end
   end
 
@@ -542,7 +575,7 @@ class MailHandlerService
   end
 
   # Archiviere Nachricht
-  def archive_message(imap, msg_id)
+  def archive_message(imap, msg_id, mail = nil)
     # Überspringe Archivierung wenn kein Archiv-Ordner konfiguriert ist
     unless @settings['archive_folder'].present?
       @logger.debug("No archive folder configured, skipping archive for message #{msg_id}")
@@ -562,7 +595,7 @@ class MailHandlerService
       
       # Verschiebe die Nachricht (markiert automatisch als gelesen)
       imap.move(msg_id, @settings['archive_folder'])
-      @logger.info("Successfully moved message #{msg_id} to archive folder '#{@settings['archive_folder']}'")
+      @logger.info_mail("Successfully moved message #{msg_id} to archive folder '#{@settings['archive_folder']}'", mail)
       
     rescue Net::IMAP::BadResponseError => e
       if e.message.include?('Invalid messageset')

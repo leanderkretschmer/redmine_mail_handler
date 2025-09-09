@@ -6,6 +6,8 @@ class MailHandlerLog < ActiveRecord::Base
   scope :by_level, ->(level) { where(level: level) if level.present? }
   scope :today, -> { where('created_at >= ?', Date.current.beginning_of_day) }
   scope :this_week, -> { where('created_at >= ?', Date.current.beginning_of_week) }
+  scope :with_mail_details, -> { where.not(mail_subject: nil) }
+  scope :by_ticket, ->(ticket_id) { where(ticket_id: ticket_id) if ticket_id.present? }
 
   def self.levels
     %w[debug info warn error]
@@ -43,5 +45,25 @@ class MailHandlerLog < ActiveRecord::Base
 
   def formatted_time
     created_at.strftime('%d.%m.%Y %H:%M:%S')
+  end
+
+  def has_mail_details?
+    mail_subject.present? || mail_from.present?
+  end
+
+  def mail_details_summary
+    return nil unless has_mail_details?
+    
+    details = []
+    details << "Von: #{mail_from}" if mail_from.present?
+    details << "Betreff: #{mail_subject}" if mail_subject.present?
+    details << "Ticket: ##{ticket_id}" if ticket_id.present?
+    
+    details.join(' | ')
+  end
+
+  def truncated_subject(length = 50)
+    return nil unless mail_subject.present?
+    mail_subject.length > length ? "#{mail_subject[0..length-3]}..." : mail_subject
   end
 end

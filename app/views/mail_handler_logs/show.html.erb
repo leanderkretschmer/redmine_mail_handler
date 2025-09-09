@@ -27,6 +27,33 @@
         <%= simple_format(h(@log.message)) %>
       </td>
     </tr>
+    <% if @log.has_mail_details? %>
+      <tr>
+        <th>Mail-Betreff:</th>
+        <td><%= h(@log.mail_subject) if @log.mail_subject.present? %></td>
+      </tr>
+      <tr>
+        <th>Von:</th>
+        <td><%= h(@log.mail_from) if @log.mail_from.present? %></td>
+      </tr>
+      <% if @log.ticket_id.present? %>
+        <tr>
+          <th>Ticket:</th>
+          <td>
+            <%= link_to "##{@log.ticket_id}", issue_path(@log.ticket_id), :target => '_blank' if Issue.exists?(@log.ticket_id) %>
+            <% unless Issue.exists?(@log.ticket_id) %>
+              #<%= @log.ticket_id %> (nicht gefunden)
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+      <% if @log.mail_message_id.present? %>
+        <tr>
+          <th>Message-ID:</th>
+          <td><code><%= h(@log.mail_message_id) %></code></td>
+        </tr>
+      <% end %>
+    <% end %>
   </table>
 </div>
 

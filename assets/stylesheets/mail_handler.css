@@ -87,6 +87,56 @@
   text-decoration: underline;
 }
 
+/* Mail Details Styles */
+.mail-details {
+  margin-bottom: 8px;
+  padding: 6px;
+  background-color: #f0f8ff;
+  border-left: 3px solid #0066cc;
+  border-radius: 3px;
+}
+
+.mail-details strong {
+  color: #003366;
+  font-size: 1.1em;
+}
+
+.mail-meta {
+  color: #666;
+  font-size: 0.9em;
+  margin-top: 3px;
+}
+
+.log-text {
+  margin-top: 5px;
+  font-size: 0.95em;
+}
+
+.log-message .mail-details + .log-text {
+  border-top: 1px solid #e0e0e0;
+  padding-top: 5px;
+}
+
+/* Ticket Link Styles */
+a[href*="/issues/"] {
+  color: #0066cc;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+a[href*="/issues/"]:hover {
+  text-decoration: underline;
+}
+
+/* Message ID Styles */
+code {
+  background-color: #f4f4f4;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
 /* Statistik-Boxen */
 .stats-box {
   display: inline-block;

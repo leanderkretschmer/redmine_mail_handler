@@ -66,17 +66,38 @@
             <%= log.level.upcase %>
           </td>
           <td class="log-message">
-            <% if log.message.length > 200 %>
-              <div class="log-message-short">
-                <%= truncate(log.message, length: 200) %>
-                <a href="#" class="toggle-full-message" data-log-id="<%= log.id %>">Mehr anzeigen</a>
+            <% if log.has_mail_details? %>
+              <div class="mail-details">
+                <strong><%= log.truncated_subject(60) %></strong><br>
+                <small class="mail-meta"><%= log.mail_details_summary %></small>
               </div>
-              <div class="log-message-full" id="log-full-<%= log.id %>" style="display: none;">
-                <%= simple_format(h(log.message)) %>
-                <a href="#" class="toggle-short-message" data-log-id="<%= log.id %>">Weniger anzeigen</a>
+              <div class="log-text">
+                <% if log.message.length > 150 %>
+                  <div class="log-message-short">
+                    <%= truncate(log.message, length: 150) %>
+                    <a href="#" class="toggle-full-message" data-log-id="<%= log.id %>">Mehr anzeigen</a>
+                  </div>
+                  <div class="log-message-full" id="log-full-<%= log.id %>" style="display: none;">
+                    <%= simple_format(h(log.message)) %>
+                    <a href="#" class="toggle-short-message" data-log-id="<%= log.id %>">Weniger anzeigen</a>
+                  </div>
+                <% else %>
+                  <%= simple_format(h(log.message)) %>
+                <% end %>
               </div>
             <% else %>
-              <%= simple_format(h(log.message)) %>
+              <% if log.message.length > 200 %>
+                <div class="log-message-short">
+                  <%= truncate(log.message, length: 200) %>
+                  <a href="#" class="toggle-full-message" data-log-id="<%= log.id %>">Mehr anzeigen</a>
+                </div>
+                <div class="log-message-full" id="log-full-<%= log.id %>" style="display: none;">
+                  <%= simple_format(h(log.message)) %>
+                  <a href="#" class="toggle-short-message" data-log-id="<%= log.id %>">Weniger anzeigen</a>
+                </div>
+              <% else %>
+                <%= simple_format(h(log.message)) %>
+              <% end %>
             <% end %>
           </td>
           <td class="buttons">
