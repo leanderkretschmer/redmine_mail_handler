@@ -105,6 +105,17 @@ en:
   label_logs_this_week: "This Week"
   label_logs_by_level: "By Level"
   
+  # Deferred Mails
+  label_deferred_mails_status: "Deferred Mails Status"
+  label_deferred_entries: "Deferred Entries"
+  field_message_id: "Message ID"
+  field_from_address: "From Address"
+  field_deferred_at: "Deferred At"
+  field_expires_at: "Expires At"
+  field_days_until_expiry: "Days Until Expiry"
+  label_expired: "Expired"
+  label_days: "Days"
+  
   # Miscellaneous
   label_system_status: "System Status"
   label_scheduler_status: "Scheduler Status"

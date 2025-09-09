@@ -1,0 +1,45 @@
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag 'mail_handler', :plugin => 'redmine_mail_handler' %>
+<% end %>
+
+<div class="contextual">
+  <%= link_to l(:label_mail_handler_admin), mail_handler_admin_index_path, :class => 'icon icon-index' %>
+</div>
+
+<h2><%= l(:label_deferred_mails_status) %></h2>
+
+<%= render 'deferred_status' %>
+
+<% if @deferred_entries && @deferred_entries.any? %>
+<div class="box tabular">
+  <h3><%= l(:label_deferred_entries) %></h3>
+  <table class="list">
+    <thead>
+      <tr>
+        <th><%= l(:field_message_id) %></th>
+        <th><%= l(:field_from_address) %></th>
+        <th><%= l(:field_deferred_at) %></th>
+        <th><%= l(:field_expires_at) %></th>
+        <th><%= l(:field_days_until_expiry) %></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @deferred_entries.each do |entry| %>
+        <tr class="<%= cycle('odd', 'even') %>">
+          <td><%= entry.message_id %></td>
+          <td><%= entry.from_address %></td>
+          <td><%= format_time(entry.deferred_at) %></td>
+          <td><%= format_time(entry.expires_at) %></td>
+          <td>
+            <% if entry.expired? %>
+              <span class="expired"><%= l(:label_expired) %></span>
+            <% else %>
+              <%= entry.days_until_expiry %> <%= l(:label_days) %>
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+<% end %>

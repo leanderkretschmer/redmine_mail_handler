@@ -107,6 +107,17 @@ de:
   label_logs_this_week: "Diese Woche"
   label_logs_by_level: "Nach Level"
   
+  # Zurückgestellte Mails
+  label_deferred_mails_status: "Status zurückgestellter Mails"
+  label_deferred_entries: "Zurückgestellte Einträge"
+  field_message_id: "Nachrichten-ID"
+  field_from_address: "Absender"
+  field_deferred_at: "Zurückgestellt am"
+  field_expires_at: "Läuft ab am"
+  field_days_until_expiry: "Tage bis Ablauf"
+  label_expired: "Abgelaufen"
+  label_days: "Tage"
+  
   # Verschiedenes
   label_system_status: "System-Status"
   label_scheduler_status: "Scheduler-Status"
