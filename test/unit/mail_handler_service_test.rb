@@ -18,6 +18,26 @@ class MailHandlerServiceTest < ActiveSupport::TestCase
     }
     Setting.plugin_redmine_mail_handler = @settings
   end
+  
+  def test_get_user_firstname_mail_account
+    @service.instance_variable_set(:@settings, {'user_firstname_type' => 'mail_account'})
+    assert_equal 'testuser', @service.get_user_firstname('testuser@example.com')
+  end
+  
+  def test_get_user_firstname_mail_address
+    @service.instance_variable_set(:@settings, {'user_firstname_type' => 'mail_address'})
+    assert_equal 'testuser@example.com', @service.get_user_firstname('testuser@example.com')
+  end
+  
+  def test_get_user_lastname_custom
+    @service.instance_variable_set(:@settings, {'user_lastname_custom' => 'Custom Name'})
+    assert_equal 'Custom Name', @service.get_user_lastname
+  end
+  
+  def test_get_user_lastname_default
+    @service.instance_variable_set(:@settings, {})
+    assert_equal 'Auto-generated', @service.get_user_lastname
+  end
 
   def test_extract_ticket_id_with_valid_format
     subject = "Re: Test Issue [#123]"

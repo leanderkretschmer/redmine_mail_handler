@@ -32,7 +32,9 @@ Redmine::Plugin.register :redmine_mail_handler do
     'smtp_port' => '465',
     'smtp_ssl' => '1',
     'smtp_username' => '',
-    'smtp_password' => ''
+    'smtp_password' => '',
+    'user_firstname_type' => 'mail_account',
+    'user_lastname_custom' => 'Auto-generated'
   }, :partial => 'settings/mail_handler_settings'
 
   # Menü-Einträge hinzufügen

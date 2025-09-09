@@ -365,11 +365,15 @@ class MailHandlerService
       return nil
     end
     
+    # Bestimme Vor- und Nachname basierend auf Konfiguration
+    firstname = get_user_firstname(normalized_email)
+    lastname = get_user_lastname()
+    
     # Erstelle neuen Benutzer (deaktiviert)
     begin
       user = User.new(
-        firstname: normalized_email.split('@').first,
-        lastname: 'Auto-created',
+        firstname: firstname,
+        lastname: lastname,
         login: normalized_email,
         status: User::STATUS_LOCKED,
         mail_notification: 'none'
@@ -409,6 +413,25 @@ class MailHandlerService
       @logger.error("Error creating user for #{normalized_email}: #{e.message}")
       nil
     end
+  end
+
+  # Bestimme Vorname basierend auf Konfiguration
+  def get_user_firstname(email)
+    firstname_type = @settings['user_firstname_type'] || 'mail_account'
+    
+    case firstname_type
+    when 'mail_account'
+      email.split('@').first
+    when 'mail_address'
+      email
+    else
+      email.split('@').first # Fallback
+    end
+  end
+  
+  # Bestimme Nachname basierend auf Konfiguration
+  def get_user_lastname
+    @settings['user_lastname_custom'] || 'Auto-generated'
   end
 
   private

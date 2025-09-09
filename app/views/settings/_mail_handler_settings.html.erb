@@ -444,6 +444,26 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <div class="box tabular settings">
+  <h3>Benutzer-Erstellung</h3>
+  
+  <p>
+    <label for="settings_user_firstname_type">Vorname für neue Benutzer:</label>
+    <%= select_tag 'settings[user_firstname_type]', 
+                   options_for_select([
+                     ['Mail-Account (Teil vor @)', 'mail_account'],
+                     ['Vollständige E-Mail-Adresse', 'mail_address']
+                   ], @settings['user_firstname_type'] || 'mail_account') %>
+    <em class="info">Bestimmt, wie der Vorname für automatisch erstellte Benutzer generiert wird</em>
+  </p>
+  
+  <p>
+    <label for="settings_user_lastname_custom">Nachname für neue Benutzer:</label>
+    <%= text_field_tag 'settings[user_lastname_custom]', @settings['user_lastname_custom'] || 'Auto-generated', :size => 30, :placeholder => 'Auto-generated' %>
+    <em class="info">Benutzerdefinierter Nachname für alle automatisch erstellten Benutzer</em>
+  </p>
+</div>
+
+<div class="box tabular settings">
   <h3>Logging-Einstellungen</h3>
   
   <p>
@@ -474,5 +494,8 @@ document.addEventListener('DOMContentLoaded', function() {
   </p>
   <p>
     <strong>Automatischer Import:</strong> Wenn aktiviert, werden E-Mails automatisch im angegebenen Intervall importiert. Deaktivieren Sie dies für manuellen Import in der Entwicklung.
+  </p>
+  <p>
+    <strong>Benutzer-Erstellung:</strong> Konfigurieren Sie hier, wie Vor- und Nachname für automatisch erstellte Benutzer generiert werden. Der Vorname kann entweder der Teil vor dem @ der E-Mail-Adresse oder die vollständige E-Mail-Adresse sein. Der Nachname ist frei konfigurierbar.
   </p>
 </div>

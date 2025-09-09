@@ -26,7 +26,9 @@ Rails.application.config.after_initialize do
       'smtp_port' => '465',
       'smtp_ssl' => '1',
       'smtp_username' => '',
-      'smtp_password' => ''
+      'smtp_password' => '',
+      'user_firstname_type' => 'mail_account',
+      'user_lastname_custom' => 'Auto-generated'
     }
     
     # Füge fehlende SMTP-Einstellungen hinzu
@@ -82,7 +84,9 @@ Rails.application.config.to_prepare do
   User.class_eval do
     # Prüfe ob Benutzer durch Mail Handler erstellt wurde
     def created_by_mail_handler?
-      self.status == User::STATUS_LOCKED && self.lastname == 'Auto-created'
+      settings = Setting.plugin_redmine_mail_handler || {}
+      expected_lastname = settings['user_lastname_custom'] || 'Auto-generated'
+      self.status == User::STATUS_LOCKED && self.lastname == expected_lastname
     end
     
     # Aktiviere Benutzer (für Admin-Interface)
