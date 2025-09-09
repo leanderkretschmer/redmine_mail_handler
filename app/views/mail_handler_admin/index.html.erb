@@ -43,35 +43,35 @@
 </div>
 
 <div class="box">
-  <h3>Quarantäne-Status</h3>
-  <div id="quarantine-status">
-    <% quarantine_stats = {
-         total: MailQuarantineEntry.count,
-         active: MailQuarantineEntry.active.count,
-         expired: MailQuarantineEntry.expired.count
+  <h3>Zurückgestellt-Status</h3>
+  <div id="deferred-status">
+    <% deferred_stats = {
+         total: MailDeferredEntry.count,
+         active: MailDeferredEntry.active.count,
+         expired: MailDeferredEntry.expired.count
        } %>
     <table class="list">
       <tr>
-        <td><strong>Mails in Quarantäne:</strong></td>
-        <td><%= quarantine_stats[:active] %> aktiv, <%= quarantine_stats[:expired] %> abgelaufen</td>
+        <td><strong>Zurückgestellte Mails:</strong></td>
+        <td><%= deferred_stats[:active] %> aktiv, <%= deferred_stats[:expired] %> abgelaufen</td>
       </tr>
       <tr>
-        <td><strong>Quarantäne-Ordner:</strong></td>
-        <td><%= @settings['quarantine_folder'] || 'Quarantine' %></td>
+        <td><strong>Zurückgestellt-Ordner:</strong></td>
+        <td><%= @settings['deferred_folder'] || 'Deferred' %></td>
       </tr>
       <tr>
         <td><strong>Aufbewahrungszeit:</strong></td>
-        <td><%= @settings['quarantine_lifetime_days'] || '30' %> Tage</td>
+        <td><%= @settings['deferred_lifetime_days'] || '30' %> Tage</td>
       </tr>
       <tr>
         <td><strong>Prüfzeit:</strong></td>
-        <td><%= @settings['quarantine_recheck_time'] || '02:00' %></td>
+        <td><%= @settings['deferred_recheck_time'] || '02:00' %></td>
       </tr>
     </table>
     
     <p>
-      <%= link_to 'Quarantäne verarbeiten', { :action => 'process_quarantine' }, :method => :post, :class => 'icon icon-reload' %>
-      <%= link_to 'Quarantäne-Details', { :action => 'quarantine_status' }, :class => 'icon icon-list' %>
+      <%= link_to 'Zurückgestellt verarbeiten', { :action => 'process_deferred' }, :method => :post, :class => 'icon icon-reload' %>
+      <%= link_to 'Zurückgestellt-Details', { :action => 'deferred_status' }, :class => 'icon icon-list' %>
     </p>
   </div>
 </div>

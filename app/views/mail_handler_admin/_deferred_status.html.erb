@@ -1,41 +1,41 @@
-<h2>Quarantäne-Status</h2>
+<h2>Zurückgestellt-Status</h2>
 
 <div class="box">
   <h3>Statistiken</h3>
   <div class="stats-box">
-    <div class="stats-number"><%= @quarantine_stats[:total] %></div>
+    <div class="stats-number"><%= @deferred_stats[:total] %></div>
     <div class="stats-label">Gesamt</div>
   </div>
   <div class="stats-box">
-    <div class="stats-number"><%= @quarantine_stats[:active] %></div>
+    <div class="stats-number"><%= @deferred_stats[:active] %></div>
     <div class="stats-label">Aktiv</div>
   </div>
   <div class="stats-box">
-    <div class="stats-number"><%= @quarantine_stats[:expired] %></div>
+    <div class="stats-number"><%= @deferred_stats[:expired] %></div>
     <div class="stats-label">Abgelaufen</div>
   </div>
 </div>
 
 <div class="box">
-  <h3>Aktuelle Quarantäne-Einträge</h3>
+  <h3>Aktuelle Zurückgestellt-Einträge</h3>
   
-  <% if @quarantine_entries.any? %>
+  <% if @deferred_entries.any? %>
     <table class="list logs">
       <thead>
         <tr>
           <th>Von</th>
           <th>Betreff</th>
-          <th>Quarantäne seit</th>
+          <th>Zurückgestellt seit</th>
           <th>Läuft ab</th>
           <th>Status</th>
         </tr>
       </thead>
       <tbody>
-        <% @quarantine_entries.each do |entry| %>
+        <% @deferred_entries.each do |entry| %>
           <tr class="<%= entry.expired? ? 'log-error' : 'log-info' %>">
             <td><%= entry.from_address %></td>
             <td><%= truncate(entry.subject, length: 50) %></td>
-            <td class="log-time"><%= entry.quarantined_at.strftime('%d.%m.%Y %H:%M') %></td>
+            <td class="log-time"><%= entry.deferred_at.strftime('%d.%m.%Y %H:%M') %></td>
             <td class="log-time"><%= entry.expires_at.strftime('%d.%m.%Y %H:%M') %></td>
             <td>
               <% if entry.expired? %>
@@ -49,11 +49,11 @@
       </tbody>
     </table>
   <% else %>
-    <p><em>Keine Einträge in der Quarantäne.</em></p>
+    <p><em>Keine Einträge zurückgestellt.</em></p>
   <% end %>
 </div>
 
 <div class="contextual">
   <%= link_to 'Zurück zur Administration', { :action => 'index' }, :class => 'icon icon-back' %>
-  <%= link_to 'Quarantäne verarbeiten', { :action => 'process_quarantine' }, :method => :post, :class => 'icon icon-reload' %>
+  <%= link_to 'Zurückgestellte verarbeiten', { :action => 'process_deferred' }, :method => :post, :class => 'icon icon-reload' %>
 </div>

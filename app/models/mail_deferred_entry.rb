@@ -1,7 +1,7 @@
-class MailQuarantineEntry < ActiveRecord::Base
+class MailDeferredEntry < ActiveRecord::Base
   validates :message_id, presence: true, uniqueness: true
   validates :from_address, presence: true
-  validates :quarantined_at, presence: true
+  validates :deferred_at, presence: true
   validates :expires_at, presence: true
   
   scope :expired, -> { where('expires_at < ?', Time.current) }

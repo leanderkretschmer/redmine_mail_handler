@@ -19,8 +19,8 @@ class MailHandlerScheduler
     
     schedule_mail_import
     schedule_daily_reminders
-    schedule_quarantine_processing
-    schedule_quarantine_cleanup
+    schedule_deferred_processing
+      schedule_deferred_cleanup
     
     @@logger.info("Mail Handler Scheduler started with valid IMAP configuration")
     true
@@ -185,52 +185,52 @@ class MailHandlerScheduler
     @@logger.info("Scheduled daily reminders at #{reminder_time} using #{reminder_type} system")
   end
 
-  def self.schedule_quarantine_processing
+  def self.schedule_deferred_processing
     settings = Setting.plugin_redmine_mail_handler
-    quarantine_recheck_time = settings['quarantine_recheck_time'] || '02:00'
+    deferred_recheck_time = settings['deferred_recheck_time'] || '02:00'
     
-    return unless settings['quarantine_enabled'] == '1'
+    return unless settings['deferred_enabled'] == '1'
     
-    @@scheduler.cron "0 #{quarantine_recheck_time.split(':')[1]} #{quarantine_recheck_time.split(':')[0]} * * *" do
+    @@scheduler.cron "0 #{deferred_recheck_time.split(':')[1]} #{deferred_recheck_time.split(':')[0]} * * *" do
       begin
-        @@logger.info("Starting scheduled quarantine processing")
+        @@logger.info("Starting scheduled deferred processing")
         
         ActiveRecord::Base.connection_pool.with_connection do
           service = MailHandlerService.new
-          service.process_quarantine_mails
+          service.process_deferred_mails
         end
       rescue => e
-        @@logger.error("Scheduled quarantine processing failed: #{e.message}")
+        @@logger.error("Scheduled deferred processing failed: #{e.message}")
       ensure
         ActiveRecord::Base.connection_handler.clear_active_connections!
       end
     end
     
-    @@logger.info("Scheduled quarantine processing at #{quarantine_recheck_time}")
+    @@logger.info("Scheduled deferred processing at #{deferred_recheck_time}")
   end
 
-  def self.schedule_quarantine_cleanup
+  def self.schedule_deferred_cleanup
     settings = Setting.plugin_redmine_mail_handler
-    cleanup_time = '03:00' # Feste Zeit für Cleanup, 1 Stunde nach Quarantäne-Verarbeitung
+    cleanup_time = '03:00' # Feste Zeit für Cleanup, 1 Stunde nach Zurückgestellt-Verarbeitung
     
-    return unless settings['quarantine_enabled'] == '1'
+    return unless settings['deferred_enabled'] == '1'
     
     @@scheduler.cron "0 #{cleanup_time.split(':')[1]} #{cleanup_time.split(':')[0]} * * *" do
       begin
-        @@logger.info("Starting scheduled quarantine cleanup")
+        @@logger.info("Starting scheduled deferred cleanup")
         
         ActiveRecord::Base.connection_pool.with_connection do
           service = MailHandlerService.new
-          service.cleanup_expired_quarantine
+          service.cleanup_expired_deferred
         end
       rescue => e
-        @@logger.error("Scheduled quarantine cleanup failed: #{e.message}")
+        @@logger.error("Scheduled deferred cleanup failed: #{e.message}")
       ensure
         ActiveRecord::Base.connection_handler.clear_active_connections!
       end
     end
     
-    @@logger.info("Scheduled quarantine cleanup at #{cleanup_time}")
+    @@logger.info("Scheduled deferred cleanup at #{cleanup_time}")
   end
 
   def self.send_redmine_reminders

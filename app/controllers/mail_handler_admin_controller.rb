@@ -186,28 +186,28 @@ class MailHandlerAdminController < ApplicationController
     redirect_to action: :index
   end
 
-  def process_quarantine
+  def process_deferred
     begin
-      @service.process_quarantine_mails
-      flash[:notice] = "Quarantäne-Verarbeitung wurde erfolgreich durchgeführt."
+      @service.process_deferred_mails
+      flash[:notice] = "Zurückgestellt-Verarbeitung wurde erfolgreich durchgeführt."
     rescue => e
-      flash[:error] = "Quarantäne-Verarbeitung fehlgeschlagen: #{e.message}"
+      flash[:error] = "Zurückgestellt-Verarbeitung fehlgeschlagen: #{e.message}"
     end
     
     redirect_to action: :index
   end
 
-  def quarantine_status
-    @quarantine_entries = MailQuarantineEntry.includes([])
-                                            .order(quarantined_at: :desc)
+  def deferred_status
+    @deferred_entries = MailDeferredEntry.includes([])
+                                            .order(deferred_at: :desc)
                                             .limit(20)
-    @quarantine_stats = {
-      total: MailQuarantineEntry.count,
-      active: MailQuarantineEntry.active.count,
-      expired: MailQuarantineEntry.expired.count
+    @deferred_stats = {
+      total: MailDeferredEntry.count,
+      active: MailDeferredEntry.active.count,
+      expired: MailDeferredEntry.expired.count
     }
     
-    render partial: 'quarantine_status' if request.xhr?
+    render partial: 'deferred_status' if request.xhr?
   end
 
   def toggle_scheduler
