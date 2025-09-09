@@ -348,6 +348,69 @@ class MailHandlerService
     end
   end
 
+  # Erstelle neuen Benutzer (nur wenn Ticket-ID vorhanden)
+  def create_new_user(email)
+    # Validiere E-Mail-Adresse
+    if email.blank?
+      @logger.error("Email address is blank or nil")
+      return nil
+    end
+    
+    # Normalisiere E-Mail-Adresse
+    normalized_email = email.to_s.strip.downcase
+    
+    # Validiere E-Mail-Format
+    unless normalized_email.match?(/\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i)
+      @logger.error("Invalid email format: #{email}")
+      return nil
+    end
+    
+    # Erstelle neuen Benutzer (deaktiviert)
+    begin
+      user = User.new(
+        firstname: normalized_email.split('@').first,
+        lastname: 'Auto-created',
+        login: normalized_email,
+        status: User::STATUS_LOCKED,
+        mail_notification: 'none'
+      )
+      
+      # Setze E-Mail-Adresse direkt über mail Attribut für Kompatibilität
+      user.mail = normalized_email
+      
+      if user.save
+        @logger.info("Created new user for #{normalized_email} (locked) - ticket ID present")
+        
+        # Erstelle EmailAddress-Objekt nach dem Speichern des Users
+        begin
+          # Prüfe ob bereits eine EmailAddress für diese E-Mail existiert
+          existing_email_address = EmailAddress.find_by(address: normalized_email)
+          
+          if existing_email_address
+            @logger.debug("EmailAddress for #{normalized_email} already exists, skipping creation")
+          else
+            email_address = EmailAddress.create!(
+              user: user,
+              address: normalized_email,
+              is_default: true
+            )
+            @logger.debug("Created EmailAddress for user #{user.id}")
+          end
+        rescue => email_error
+          @logger.warn("Failed to create EmailAddress for user #{user.id}: #{email_error.message}")
+        end
+        
+        user
+      else
+        @logger.error("Failed to create user for #{normalized_email}: #{user.errors.full_messages.join(', ')}")
+        nil
+      end
+    rescue => e
+      @logger.error("Error creating user for #{normalized_email}: #{e.message}")
+      nil
+    end
+  end
+
   private
 
   # Verbinde zu IMAP-Server mit Retry-Logik
@@ -624,69 +687,6 @@ class MailHandlerService
     end
     
     user
-  end
-  
-  # Erstelle neuen Benutzer (nur wenn Ticket-ID vorhanden)
-  def create_new_user(email)
-    # Validiere E-Mail-Adresse
-    if email.blank?
-      @logger.error("Email address is blank or nil")
-      return nil
-    end
-    
-    # Normalisiere E-Mail-Adresse
-    normalized_email = email.to_s.strip.downcase
-    
-    # Validiere E-Mail-Format
-    unless normalized_email.match?(/\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i)
-      @logger.error("Invalid email format: #{email}")
-      return nil
-    end
-    
-    # Erstelle neuen Benutzer (deaktiviert)
-    begin
-      user = User.new(
-        firstname: normalized_email.split('@').first,
-        lastname: 'Auto-created',
-        login: normalized_email,
-        status: User::STATUS_LOCKED,
-        mail_notification: 'none'
-      )
-      
-      # Setze E-Mail-Adresse direkt über mail Attribut für Kompatibilität
-      user.mail = normalized_email
-      
-      if user.save
-        @logger.info("Created new user for #{normalized_email} (locked) - ticket ID present")
-        
-        # Erstelle EmailAddress-Objekt nach dem Speichern des Users
-        begin
-          # Prüfe ob bereits eine EmailAddress für diese E-Mail existiert
-          existing_email_address = EmailAddress.find_by(address: normalized_email)
-          
-          if existing_email_address
-            @logger.debug("EmailAddress for #{normalized_email} already exists, skipping creation")
-          else
-            email_address = EmailAddress.create!(
-              user: user,
-              address: normalized_email,
-              is_default: true
-            )
-            @logger.debug("Created EmailAddress for user #{user.id}")
-          end
-        rescue => email_error
-          @logger.warn("Failed to create EmailAddress for user #{user.id}: #{email_error.message}")
-        end
-        
-        user
-      else
-        @logger.error("Failed to create user for #{normalized_email}: #{user.errors.full_messages.join(', ')}")
-        nil
-      end
-    rescue => e
-      @logger.error("Error creating user for #{normalized_email}: #{e.message}")
-      nil
-    end
   end
   
   # Legacy-Methode für Rückwärtskompatibilität (deprecated)
