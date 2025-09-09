@@ -41,7 +41,8 @@ class ActiveSupport::TestCase
       'import_interval_unit' => 'minutes',
       'log_level' => 'debug',
       'user_firstname_type' => 'mail_account',
-      'user_lastname_custom' => 'Auto-generated'
+      'user_lastname_custom' => 'Auto-generated',
+      'ignore_email_addresses' => ''
     }
     
     Setting.plugin_redmine_mail_handler = default_settings.merge(overrides)

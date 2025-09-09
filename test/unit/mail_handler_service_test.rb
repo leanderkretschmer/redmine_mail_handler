@@ -38,6 +38,38 @@ class MailHandlerServiceTest < ActiveSupport::TestCase
     @service.instance_variable_set(:@settings, {})
     assert_equal 'Auto-generated', @service.get_user_lastname
   end
+  
+  def test_should_ignore_email_exact_match
+    @service.instance_variable_set(:@settings, {'ignore_email_addresses' => 'noreply@example.com\nsystem@test.com'})
+    assert @service.should_ignore_email?('noreply@example.com')
+    assert @service.should_ignore_email?('system@test.com')
+    assert_not @service.should_ignore_email?('user@example.com')
+  end
+  
+  def test_should_ignore_email_wildcard_match
+    @service.instance_variable_set(:@settings, {'ignore_email_addresses' => '*@system.example.com\nautomation@*'})
+    assert @service.should_ignore_email?('noreply@system.example.com')
+    assert @service.should_ignore_email?('test@system.example.com')
+    assert @service.should_ignore_email?('automation@company.com')
+    assert @service.should_ignore_email?('automation@test.org')
+    assert_not @service.should_ignore_email?('user@example.com')
+  end
+  
+  def test_should_ignore_email_case_insensitive
+    @service.instance_variable_set(:@settings, {'ignore_email_addresses' => 'NoReply@Example.Com'})
+    assert @service.should_ignore_email?('noreply@example.com')
+    assert @service.should_ignore_email?('NOREPLY@EXAMPLE.COM')
+  end
+  
+  def test_should_ignore_email_empty_settings
+    @service.instance_variable_set(:@settings, {'ignore_email_addresses' => ''})
+    assert_not @service.should_ignore_email?('test@example.com')
+  end
+  
+  def test_should_ignore_email_blank_settings
+    @service.instance_variable_set(:@settings, {})
+    assert_not @service.should_ignore_email?('test@example.com')
+  end
 
   def test_extract_ticket_id_with_valid_format
     subject = "Re: Test Issue [#123]"

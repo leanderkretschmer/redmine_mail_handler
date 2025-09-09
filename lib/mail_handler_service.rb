@@ -434,6 +434,23 @@ class MailHandlerService
     @settings['user_lastname_custom'] || 'Auto-generated'
   end
 
+  def should_ignore_email?(from_address)
+    return false if @settings['ignore_email_addresses'].blank?
+    
+    ignore_patterns = @settings['ignore_email_addresses'].split("\n").map(&:strip).reject(&:blank?)
+    
+    ignore_patterns.any? do |pattern|
+      if pattern.include?('*')
+        # Wildcard-Matching
+        regex_pattern = pattern.gsub('*', '.*')
+        from_address.match?(/\A#{regex_pattern}\z/i)
+      else
+        # Exakte Übereinstimmung
+        from_address.downcase == pattern.downcase
+      end
+    end
+  end
+
   private
 
   # Verbinde zu IMAP-Server mit Retry-Logik
@@ -635,6 +652,13 @@ class MailHandlerService
     end
     
     @logger.debug_mail("Processing mail from #{from_address} with subject: #{mail.subject}", mail)
+    
+    # Prüfe ob E-Mail ignoriert werden soll
+    if should_ignore_email?(from_address)
+      @logger.info("Mail from #{from_address} matches ignore pattern, moving to deferred")
+      defer_message(imap, msg_id, mail, 'ignored')
+      return # Nicht archivieren, da zurückgestellt
+    end
     
     # Extrahiere Ticket-ID aus Betreff
     ticket_id = extract_ticket_id(mail.subject)
@@ -903,7 +927,7 @@ class MailHandlerService
   end
 
   # Verschiebe Nachricht in Zurückgestellt-Ordner
-  def defer_message(imap, msg_id, mail)
+  def defer_message(imap, msg_id, mail, reason = 'unknown_user')
     deferred_folder = @settings['deferred_folder'] || 'Deferred'
     
     begin
@@ -914,8 +938,8 @@ class MailHandlerService
       imap.move(msg_id, deferred_folder)
       @logger.info_mail("Successfully moved message #{msg_id} to deferred folder '#{deferred_folder}'", mail)
       
-      # Speichere Zurückgestellt-Zeitstempel
-      save_deferred_timestamp(mail, Time.current)
+      # Speichere Zurückgestellt-Zeitstempel mit Grund
+      save_deferred_timestamp(mail, Time.current, reason)
       
     rescue Net::IMAP::BadResponseError => e
       if e.message.include?('Invalid messageset')
@@ -1058,7 +1082,7 @@ class MailHandlerService
   end
 
   # Speichere Zurückgestellt-Zeitstempel für Mail
-  def save_deferred_timestamp(mail, timestamp)
+  def save_deferred_timestamp(mail, timestamp, reason = 'unknown_user')
     return unless mail&.message_id
     
     begin
@@ -1068,10 +1092,11 @@ class MailHandlerService
         from_address: mail.from&.first,
         subject: mail.subject,
         deferred_at: timestamp,
-        expires_at: timestamp + (@settings['deferred_lifetime_days'] || 30).to_i.days
+        expires_at: timestamp + (@settings['deferred_lifetime_days'] || 30).to_i.days,
+        reason: reason
       )
       
-      @logger.debug("Saved deferred timestamp for message #{mail.message_id}")
+      @logger.debug("Saved deferred timestamp for message #{mail.message_id} with reason: #{reason}")
     rescue => e
       @logger.error("Failed to save deferred timestamp for message #{mail.message_id}: #{e.message}")
     end

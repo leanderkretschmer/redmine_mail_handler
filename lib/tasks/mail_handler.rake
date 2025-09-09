@@ -27,7 +27,8 @@ namespace :redmine do
           'import_interval_unit' => 'minutes',
           'log_level' => 'info',
           'user_firstname_type' => 'mail_account',
-          'user_lastname_custom' => 'Auto-generated'
+          'user_lastname_custom' => 'Auto-generated',
+          'ignore_email_addresses' => ''
         }
         puts "Default settings created."
       end

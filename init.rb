@@ -34,7 +34,8 @@ Redmine::Plugin.register :redmine_mail_handler do
     'smtp_username' => '',
     'smtp_password' => '',
     'user_firstname_type' => 'mail_account',
-    'user_lastname_custom' => 'Auto-generated'
+      'user_lastname_custom' => 'Auto-generated',
+      'ignore_email_addresses' => ''
   }, :partial => 'settings/mail_handler_settings'
 
   # Menü-Einträge hinzufügen
