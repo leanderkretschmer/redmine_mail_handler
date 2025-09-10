@@ -901,8 +901,14 @@ class MailHandlerService
       convert_table_elements(doc)
       convert_link_elements(doc)
       
-      # Extrahiere den finalen Text
+      # Extrahiere den finalen Text und entferne alle HTML-Reste
       text = doc.text
+      
+      # Zusätzliche HTML-Bereinigung: Entferne alle HTML-Tags und -Attribute
+      text = text.gsub(/<[^>]*>/, ' ')  # Entferne HTML-Tags
+      text = text.gsub(/&[a-zA-Z0-9#]+;/, ' ')  # Entferne HTML-Entities
+      text = text.gsub(/&lt;[^&]*&gt;/, ' ')  # Entferne escaped HTML-Tags
+      text = text.gsub(/&quot;[^&]*&quot;/, '')  # Entferne escaped Quotes
       
       # Bereinige und normalisiere
       text = normalize_whitespace(text)
@@ -1045,12 +1051,15 @@ class MailHandlerService
     
     # Entferne führende Leerzeichen am Zeilenanfang, außer bei Bullet-Points
     text = text.split("\n").map do |line|
-      # Behalte führende Leerzeichen bei Bullet-Points mit "-"
-      if line.match?(/^\s*-\s+/)
+      # Behalte führende Leerzeichen bei Bullet-Points mit "-" oder "*"
+      if line.match?(/^\s*[-*]\s+/)
+        line.strip
+      # Behalte auch nummerierte Listen
+      elsif line.match?(/^\s*\d+\.\s+/)
         line.strip
       else
-        # Entferne alle führenden Leerzeichen bei anderen Zeilen
-        line.lstrip.rstrip
+        # Entferne alle führenden Leerzeichen und Tabs bei anderen Zeilen
+        line.gsub(/^[\s\t]+/, '').rstrip
       end
     end.join("\n")
     
@@ -1068,6 +1077,13 @@ class MailHandlerService
     doc = Nokogiri::HTML::DocumentFragment.parse(html_content)
     doc.css('script, style').remove
     text = doc.text
+    
+    # Zusätzliche HTML-Bereinigung auch für Fallback
+    text = text.gsub(/<[^>]*>/, ' ')  # Entferne HTML-Tags
+    text = text.gsub(/&[a-zA-Z0-9#]+;/, ' ')  # Entferne HTML-Entities
+    text = text.gsub(/&lt;[^&]*&gt;/, ' ')  # Entferne escaped HTML-Tags
+    text = text.gsub(/&quot;[^&]*&quot;/, '')  # Entferne escaped Quotes
+    
     normalize_whitespace(text)
   rescue => e
     @logger&.error("Fallback HTML-zu-Text-Konvertierung fehlgeschlagen: #{e.message}")
