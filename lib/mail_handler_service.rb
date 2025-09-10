@@ -454,6 +454,31 @@ class MailHandlerService
 
   private
 
+  # Helper-Methode für Encoding-Behandlung
+  def ensure_utf8_encoding(content)
+    return "" if content.blank?
+    
+    if content.respond_to?(:encoding)
+      # Versuche automatische Encoding-Erkennung und Konvertierung zu UTF-8
+      if content.encoding != Encoding::UTF_8
+        content = content.encode('UTF-8', 
+          content.encoding, 
+          :invalid => :replace, 
+          :undef => :replace, 
+          :replace => '?'
+        )
+      end
+    else
+      # Fallback: Force UTF-8 encoding
+      content = content.to_s.force_encoding('UTF-8')
+    end
+    
+    content
+  rescue => e
+    @logger&.warn("Encoding-Konvertierung fehlgeschlagen: #{e.message}")
+    content.to_s.force_encoding('UTF-8')
+  end
+
   # Verbinde zu IMAP-Server mit Retry-Logik
   def connect_to_imap(max_retries = 3)
     # Validiere IMAP-Einstellungen
@@ -795,12 +820,16 @@ class MailHandlerService
       
       if text_part
         mail_body = text_part.decoded
+        # Encoding-Behandlung für Plain-Text
+        mail_body = ensure_utf8_encoding(mail_body)
       elsif html_part
         # HTML zu Text konvertieren mit Formatierung
         mail_body = convert_html_to_text(html_part.decoded)
       end
     else
       mail_body = mail.decoded
+      # Encoding-Behandlung für einfache E-Mails
+      mail_body = ensure_utf8_encoding(mail_body)
     end
     
     # Bereinige und normalisiere Zeilenumbrüche
@@ -835,6 +864,8 @@ class MailHandlerService
     return "" if html_content.blank?
     
     begin
+      # Encoding-Behandlung: Konvertiere verschiedene Encodings zu UTF-8
+      html_content = ensure_utf8_encoding(html_content)
       # Verwende Premailer für CSS-Inline-Verarbeitung und bessere HTML-Normalisierung
       premailer = Premailer.new(html_content, 
         :with_html_string => true,
@@ -880,11 +911,8 @@ class MailHandlerService
 
   # Konvertiere Block-Elemente
   def convert_block_elements(doc)
-    # Überschriften mit Hervorhebung
-    doc.css('h1').each { |h| h.replace("\n\n=== #{h.text.strip} ===\n\n") }
-    doc.css('h2').each { |h| h.replace("\n\n## #{h.text.strip} ##\n\n") }
-    doc.css('h3').each { |h| h.replace("\n\n# #{h.text.strip} #\n\n") }
-    doc.css('h4, h5, h6').each { |h| h.replace("\n\n**#{h.text.strip}**\n\n") }
+    # Überschriften: Vereinfacht ohne spezielle Formatierung
+    doc.css('h1, h2, h3, h4, h5, h6').each { |h| h.replace("\n\n#{h.text.strip}\n\n") }
     
     # Absätze und Divs
     doc.css('p').each { |p| p.after("\n\n") }
@@ -893,40 +921,47 @@ class MailHandlerService
     # Zeilenumbrüche
     doc.css('br').each { |br| br.replace("\n") }
     
-    # Blockquotes
+    # Blockquotes: Vereinfacht ohne > Zeichen
     doc.css('blockquote').each do |bq|
       text = bq.text.strip
-      quoted_text = text.split("\n").map { |line| "> #{line}" }.join("\n")
-      bq.replace("\n\n#{quoted_text}\n\n")
+      bq.replace("\n\n#{text}\n\n")
     end
     
-    # Horizontale Linien
-    doc.css('hr').each { |hr| hr.replace("\n\n---\n\n") }
+    # Horizontale Linien: Vereinfacht
+    doc.css('hr').each { |hr| hr.replace("\n\n\n") }
   end
 
   # Konvertiere Inline-Elemente
   def convert_inline_elements(doc)
-    # Fett und kursiv
-    doc.css('strong, b').each { |elem| elem.replace("**#{elem.text}**") }
-    doc.css('em, i').each { |elem| elem.replace("*#{elem.text}*") }
-    doc.css('u').each { |elem| elem.replace("_#{elem.text}_") }
-    doc.css('code').each { |elem| elem.replace("`#{elem.text}`") }
+    # Entferne alle Style-Attribute vor der Verarbeitung
+    doc.css('*').each { |elem| elem.remove_attribute('style') }
     
-    # Durchgestrichen
-    doc.css('s, strike, del').each { |elem| elem.replace("~~#{elem.text}~~") }
+    # Span-Elemente: Nur Text beibehalten, keine Formatierung
+    doc.css('span').each { |elem| elem.replace(elem.text) }
+    
+    # Fett und kursiv - vereinfacht ohne Markdown-Syntax
+    doc.css('strong, b').each { |elem| elem.replace(elem.text) }
+    doc.css('em, i').each { |elem| elem.replace(elem.text) }
+    doc.css('u').each { |elem| elem.replace(elem.text) }
+    
+    # Code-Elemente: Nur Text ohne Backticks
+    doc.css('code').each { |elem| elem.replace(elem.text) }
+    
+    # Durchgestrichen: Nur Text
+    doc.css('s, strike, del').each { |elem| elem.replace(elem.text) }
   end
 
   # Konvertiere Listen
   def convert_list_elements(doc)
-    # Ungeordnete Listen
+    # Ungeordnete Listen: Vereinfacht ohne Bullet-Points
     doc.css('ul').each do |ul|
       ul.css('li').each_with_index do |li, index|
-        li.replace("\n• #{li.text.strip}")
+        li.replace("\n- #{li.text.strip}")
       end
       ul.after("\n")
     end
     
-    # Geordnete Listen
+    # Geordnete Listen: Vereinfacht
     doc.css('ol').each do |ol|
       ol.css('li').each_with_index do |li, index|
         li.replace("\n#{index + 1}. #{li.text.strip}")
@@ -940,18 +975,17 @@ class MailHandlerService
     doc.css('table').each do |table|
       table_text = "\n\n"
       
-      # Tabellenkopf
+      # Tabellenkopf: Vereinfacht ohne Markdown-Tabellen-Syntax
       table.css('thead tr, tr:first-child').each do |row|
         cells = row.css('th, td').map { |cell| cell.text.strip }
-        table_text += "| #{cells.join(' | ')} |\n"
-        table_text += "| #{cells.map { '---' }.join(' | ')} |\n" if row.css('th').any?
+        table_text += "#{cells.join(' | ')}\n"
       end
       
-      # Tabelleninhalt
+      # Tabelleninhalt: Vereinfacht
       table.css('tbody tr, tr:not(:first-child)').each do |row|
         next if row.parent.name == 'thead'
         cells = row.css('td, th').map { |cell| cell.text.strip }
-        table_text += "| #{cells.join(' | ')} |\n"
+        table_text += "#{cells.join(' | ')}\n"
       end
       
       table_text += "\n"
@@ -965,19 +999,22 @@ class MailHandlerService
       href = link['href']
       text = link.text.strip
       
-      if href && href != text && !href.empty?
+      if href.present?
         # Bereinige die URL
-        clean_href = href.strip
-        clean_href = "http://#{clean_href}" unless clean_href.match?(/^https?:\/\//)
+        clean_url = href.gsub(/^mailto:/, '').strip
         
-        if text.empty?
-          link.replace(clean_href)
+        if text.present? && text != clean_url
+          # Text und URL anzeigen, damit Redmine Hyperlinks erstellen kann
+          link.replace("#{text}: #{clean_url}")
         else
-          link.replace("#{text} (#{clean_href})")
+          # Nur URL verwenden
+          link.replace(clean_url)
         end
-      elsif !text.empty?
+      elsif text.present?
+        # Nur Text verwenden
         link.replace(text)
       else
+        # Link ohne Text entfernen
         link.remove
       end
     end
@@ -1006,6 +1043,9 @@ class MailHandlerService
 
   # Fallback für einfache HTML-zu-Text-Konvertierung
   def fallback_html_to_text(html_content)
+    # Encoding-Behandlung auch für Fallback
+    html_content = ensure_utf8_encoding(html_content)
+    
     doc = Nokogiri::HTML::DocumentFragment.parse(html_content)
     doc.css('script, style').remove
     text = doc.text
