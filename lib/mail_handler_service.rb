@@ -6,6 +6,7 @@ require 'premailer'
 require 'timeout'
 require 'openssl'
 require 'tempfile'
+require 'cgi'
 
 class MailHandlerService
   include Redmine::I18n
@@ -455,29 +456,32 @@ class MailHandlerService
   private
 
   # Helper-Methode für Encoding-Behandlung
-  def ensure_utf8_encoding(content)
-    return "" if content.blank?
-    
-    if content.respond_to?(:encoding)
-      # Versuche automatische Encoding-Erkennung und Konvertierung zu UTF-8
-      if content.encoding != Encoding::UTF_8
-        content = content.encode('UTF-8', 
-          content.encoding, 
-          :invalid => :replace, 
-          :undef => :replace, 
-          :replace => '?'
-        )
-      end
-    else
-      # Fallback: Force UTF-8 encoding
-      content = content.to_s.force_encoding('UTF-8')
-    end
-    
-    content
-  rescue => e
-    @logger&.warn("Encoding-Konvertierung fehlgeschlagen: #{e.message}")
-    content.to_s.force_encoding('UTF-8')
-  end
+   def ensure_utf8_encoding(content)
+     return "" if content.blank?
+     
+     if content.respond_to?(:encoding)
+       # Versuche automatische Encoding-Erkennung und Konvertierung zu UTF-8
+       if content.encoding != Encoding::UTF_8
+         content = content.encode('UTF-8', 
+           content.encoding, 
+           :invalid => :replace, 
+           :undef => :replace, 
+           :replace => '?'
+         )
+       end
+     else
+       # Fallback: Force UTF-8 encoding
+       content = content.to_s.force_encoding('UTF-8')
+     end
+     
+     # URL-Dekodierung für kodierte Inhalte
+     content = CGI.unescape(content) rescue content
+     
+     content
+   rescue => e
+     @logger&.warn("Encoding-Konvertierung fehlgeschlagen: #{e.message}")
+     content.to_s.force_encoding('UTF-8')
+   end
 
   # Verbinde zu IMAP-Server mit Retry-Logik
   def connect_to_imap(max_retries = 3)
@@ -866,6 +870,10 @@ class MailHandlerService
     begin
       # Encoding-Behandlung: Konvertiere verschiedene Encodings zu UTF-8
       html_content = ensure_utf8_encoding(html_content)
+      
+      # URL-Dekodierung für kodierte Inhalte (z.B. %20, %3A, etc.)
+      html_content = CGI.unescape(html_content) rescue html_content
+      
       # Verwende Premailer für CSS-Inline-Verarbeitung und bessere HTML-Normalisierung
       premailer = Premailer.new(html_content, 
         :with_html_string => true,
@@ -1035,8 +1043,16 @@ class MailHandlerService
     # Entferne übermäßige Leerzeilen (mehr als 2 aufeinanderfolgende)
     text = text.gsub(/\n{3,}/, "\n\n")
     
-    # Entferne Leerzeichen am Anfang und Ende von Zeilen
-    text = text.split("\n").map(&:strip).join("\n")
+    # Entferne führende Leerzeichen am Zeilenanfang, außer bei Bullet-Points
+    text = text.split("\n").map do |line|
+      # Behalte führende Leerzeichen bei Bullet-Points mit "-"
+      if line.match?(/^\s*-\s+/)
+        line.strip
+      else
+        # Entferne alle führenden Leerzeichen bei anderen Zeilen
+        line.lstrip.rstrip
+      end
+    end.join("\n")
     
     return text
   end
@@ -1045,6 +1061,9 @@ class MailHandlerService
   def fallback_html_to_text(html_content)
     # Encoding-Behandlung auch für Fallback
     html_content = ensure_utf8_encoding(html_content)
+    
+    # URL-Dekodierung auch für Fallback
+    html_content = CGI.unescape(html_content) rescue html_content
     
     doc = Nokogiri::HTML::DocumentFragment.parse(html_content)
     doc.css('script, style').remove
