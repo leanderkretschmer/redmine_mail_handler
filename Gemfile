@@ -14,6 +14,7 @@ gem 'logging', '~> 2.3.0'
 
 # HTML-Parsing für Mail-Inhalte
 # nokogiri wird bereits von Redmine bereitgestellt
+gem 'premailer', '~> 1.21.0'
 
 # Encoding-Unterstützung
 gem 'charlock_holmes', '~> 0.7.7'

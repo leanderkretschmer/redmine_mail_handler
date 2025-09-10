@@ -167,6 +167,98 @@ class MailHandlerServiceTest < ActiveSupport::TestCase
     assert_includes content, 'Text part content'
   end
 
+  def test_convert_html_to_text_simple
+    html = '<p>Hallo <strong>Welt</strong>!</p>'
+    result = @service.send(:convert_html_to_text, html)
+    assert_includes result, 'Hallo **Welt**!'
+  end
+
+  def test_convert_html_to_text_with_lists
+    html = '<ul><li>Punkt 1</li><li>Punkt 2</li></ul>'
+    result = @service.send(:convert_html_to_text, html)
+    assert_includes result, '• Punkt 1'
+    assert_includes result, '• Punkt 2'
+  end
+
+  def test_convert_html_to_text_with_links
+    html = '<p>Besuchen Sie <a href="https://example.com">unsere Website</a></p>'
+    result = @service.send(:convert_html_to_text, html)
+    assert_includes result, 'unsere Website (https://example.com)'
+  end
+
+  def test_convert_html_to_text_with_headings
+    html = '<h1>Haupttitel</h1><h2>Untertitel</h2><h3>Abschnitt</h3>'
+    result = @service.send(:convert_html_to_text, html)
+    assert_includes result, '=== Haupttitel ==='
+    assert_includes result, '## Untertitel ##'
+    assert_includes result, '# Abschnitt #'
+  end
+
+  def test_convert_html_to_text_with_table
+    html = '<table><tr><th>Name</th><th>Alter</th></tr><tr><td>Max</td><td>25</td></tr></table>'
+    result = @service.send(:convert_html_to_text, html)
+    assert_includes result, '| Name | Alter |'
+    assert_includes result, '| --- | --- |'
+    assert_includes result, '| Max | 25 |'
+  end
+
+  def test_convert_html_to_text_with_css_styles
+    html = '<div style="color: red; font-weight: bold;">Wichtiger Text</div><p style="margin: 10px;">Normal</p>'
+    result = @service.send(:convert_html_to_text, html)
+    assert_includes result, 'Wichtiger Text'
+    assert_includes result, 'Normal'
+  end
+
+  def test_html_only_multipart_mail
+    mail = Mail.new do
+      from 'test@example.com'
+      to 'redmine@example.com'
+      subject 'HTML Only Mail'
+      
+      html_part do
+        content_type 'text/html; charset=UTF-8'
+        body '<h1>Titel</h1><p>Das ist <strong>wichtig</strong>!</p><ul><li>Punkt A</li><li>Punkt B</li></ul>'
+      end
+    end
+
+    content = @service.send(:decode_mail_content, mail)
+    assert_includes content, 'HTML Only Mail'
+    assert_includes content, '=== Titel ==='
+    assert_includes content, '**wichtig**'
+    assert_includes content, '• Punkt A'
+    assert_includes content, '• Punkt B'
+  end
+
+  def test_complex_html_email_conversion
+    html = <<~HTML
+      <html>
+        <head><style>body { font-family: Arial; }</style></head>
+        <body>
+          <h2>Newsletter</h2>
+          <p>Liebe Kunden,</p>
+          <blockquote>Das ist ein wichtiges Zitat.</blockquote>
+          <ol>
+            <li>Erster Punkt</li>
+            <li>Zweiter Punkt</li>
+          </ol>
+          <p>Besuchen Sie <a href="https://example.com">unsere Website</a>.</p>
+          <hr>
+          <p><em>Mit freundlichen Grüßen</em></p>
+        </body>
+      </html>
+    HTML
+    
+    result = @service.send(:convert_html_to_text, html)
+    assert_includes result, '## Newsletter ##'
+    assert_includes result, 'Liebe Kunden'
+    assert_includes result, '> Das ist ein wichtiges Zitat'
+    assert_includes result, '1. Erster Punkt'
+    assert_includes result, '2. Zweiter Punkt'
+    assert_includes result, 'unsere Website (https://example.com)'
+    assert_includes result, '---'
+    assert_includes result, '*Mit freundlichen Grüßen*'
+  end
+
   def test_decode_mail_content_with_line_breaks
     # Test verschiedene Zeilenumbruch-Formate
     mail = Mail.new do

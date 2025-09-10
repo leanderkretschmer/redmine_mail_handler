@@ -2,6 +2,7 @@ require 'net/imap'
 require 'mail'
 require 'mime/types'
 require 'nokogiri'
+require 'premailer'
 require 'timeout'
 require 'openssl'
 require 'tempfile'
@@ -795,9 +796,8 @@ class MailHandlerService
       if text_part
         mail_body = text_part.decoded
       elsif html_part
-        # HTML zu Text konvertieren
-        doc = Nokogiri::HTML(html_part.decoded)
-        mail_body = doc.text
+        # HTML zu Text konvertieren mit Formatierung
+        mail_body = convert_html_to_text(html_part.decoded)
       end
     else
       mail_body = mail.decoded
@@ -829,6 +829,193 @@ class MailHandlerService
     
     content
   end
+
+  # Konvertiere HTML zu formatiertem Text mit Premailer und Nokogiri
+  def convert_html_to_text(html_content)
+    return "" if html_content.blank?
+    
+    begin
+      # Verwende Premailer für CSS-Inline-Verarbeitung und bessere HTML-Normalisierung
+      premailer = Premailer.new(html_content, 
+        :with_html_string => true,
+        :warn_level => Premailer::Warnings::NONE,
+        :adapter => :nokogiri,
+        :remove_comments => true,
+        :remove_scripts => true,
+        :remove_classes => true,
+        :remove_ids => true
+      )
+      
+      # Hole das verarbeitete HTML
+      processed_html = premailer.to_inline_css
+      
+      # Parse mit Nokogiri für strukturierte Text-Extraktion
+      doc = Nokogiri::HTML::DocumentFragment.parse(processed_html)
+      
+      # Entferne unerwünschte Elemente
+      doc.css('script, style, meta, link, head').remove
+      
+      # Konvertiere Block-Elemente zu Text mit Formatierung
+      convert_block_elements(doc)
+      convert_inline_elements(doc)
+      convert_list_elements(doc)
+      convert_table_elements(doc)
+      convert_link_elements(doc)
+      
+      # Extrahiere den finalen Text
+      text = doc.text
+      
+      # Bereinige und normalisiere
+      text = normalize_whitespace(text)
+      
+      return text
+    rescue => e
+      @logger&.warn("HTML-zu-Text-Konvertierung fehlgeschlagen: #{e.message}")
+      # Fallback: Einfache Nokogiri-Extraktion
+      fallback_html_to_text(html_content)
+    end
+  end
+
+  private
+
+  # Konvertiere Block-Elemente
+  def convert_block_elements(doc)
+    # Überschriften mit Hervorhebung
+    doc.css('h1').each { |h| h.replace("\n\n=== #{h.text.strip} ===\n\n") }
+    doc.css('h2').each { |h| h.replace("\n\n## #{h.text.strip} ##\n\n") }
+    doc.css('h3').each { |h| h.replace("\n\n# #{h.text.strip} #\n\n") }
+    doc.css('h4, h5, h6').each { |h| h.replace("\n\n**#{h.text.strip}**\n\n") }
+    
+    # Absätze und Divs
+    doc.css('p').each { |p| p.after("\n\n") }
+    doc.css('div').each { |div| div.after("\n") unless div.parent&.name == 'body' }
+    
+    # Zeilenumbrüche
+    doc.css('br').each { |br| br.replace("\n") }
+    
+    # Blockquotes
+    doc.css('blockquote').each do |bq|
+      text = bq.text.strip
+      quoted_text = text.split("\n").map { |line| "> #{line}" }.join("\n")
+      bq.replace("\n\n#{quoted_text}\n\n")
+    end
+    
+    # Horizontale Linien
+    doc.css('hr').each { |hr| hr.replace("\n\n---\n\n") }
+  end
+
+  # Konvertiere Inline-Elemente
+  def convert_inline_elements(doc)
+    # Fett und kursiv
+    doc.css('strong, b').each { |elem| elem.replace("**#{elem.text}**") }
+    doc.css('em, i').each { |elem| elem.replace("*#{elem.text}*") }
+    doc.css('u').each { |elem| elem.replace("_#{elem.text}_") }
+    doc.css('code').each { |elem| elem.replace("`#{elem.text}`") }
+    
+    # Durchgestrichen
+    doc.css('s, strike, del').each { |elem| elem.replace("~~#{elem.text}~~") }
+  end
+
+  # Konvertiere Listen
+  def convert_list_elements(doc)
+    # Ungeordnete Listen
+    doc.css('ul').each do |ul|
+      ul.css('li').each_with_index do |li, index|
+        li.replace("\n• #{li.text.strip}")
+      end
+      ul.after("\n")
+    end
+    
+    # Geordnete Listen
+    doc.css('ol').each do |ol|
+      ol.css('li').each_with_index do |li, index|
+        li.replace("\n#{index + 1}. #{li.text.strip}")
+      end
+      ol.after("\n")
+    end
+  end
+
+  # Konvertiere Tabellen
+  def convert_table_elements(doc)
+    doc.css('table').each do |table|
+      table_text = "\n\n"
+      
+      # Tabellenkopf
+      table.css('thead tr, tr:first-child').each do |row|
+        cells = row.css('th, td').map { |cell| cell.text.strip }
+        table_text += "| #{cells.join(' | ')} |\n"
+        table_text += "| #{cells.map { '---' }.join(' | ')} |\n" if row.css('th').any?
+      end
+      
+      # Tabelleninhalt
+      table.css('tbody tr, tr:not(:first-child)').each do |row|
+        next if row.parent.name == 'thead'
+        cells = row.css('td, th').map { |cell| cell.text.strip }
+        table_text += "| #{cells.join(' | ')} |\n"
+      end
+      
+      table_text += "\n"
+      table.replace(table_text)
+    end
+  end
+
+  # Konvertiere Links
+  def convert_link_elements(doc)
+    doc.css('a').each do |link|
+      href = link['href']
+      text = link.text.strip
+      
+      if href && href != text && !href.empty?
+        # Bereinige die URL
+        clean_href = href.strip
+        clean_href = "http://#{clean_href}" unless clean_href.match?(/^https?:\/\//)
+        
+        if text.empty?
+          link.replace(clean_href)
+        else
+          link.replace("#{text} (#{clean_href})")
+        end
+      elsif !text.empty?
+        link.replace(text)
+      else
+        link.remove
+      end
+    end
+  end
+
+  # Normalisiere Whitespace
+  def normalize_whitespace(text)
+    # Entferne führende und nachfolgende Leerzeichen
+    text = text.strip
+    
+    # Normalisiere verschiedene Zeilenumbruch-Formate
+    text = text.gsub(/\r\n/, "\n")  # Windows CRLF -> LF
+    text = text.gsub(/\r/, "\n")    # Mac CR -> LF
+    
+    # Entferne übermäßige Leerzeichen in Zeilen
+    text = text.gsub(/ +/, " ")
+    
+    # Entferne übermäßige Leerzeilen (mehr als 2 aufeinanderfolgende)
+    text = text.gsub(/\n{3,}/, "\n\n")
+    
+    # Entferne Leerzeichen am Anfang und Ende von Zeilen
+    text = text.split("\n").map(&:strip).join("\n")
+    
+    return text
+  end
+
+  # Fallback für einfache HTML-zu-Text-Konvertierung
+  def fallback_html_to_text(html_content)
+    doc = Nokogiri::HTML::DocumentFragment.parse(html_content)
+    doc.css('script, style').remove
+    text = doc.text
+    normalize_whitespace(text)
+  rescue => e
+    @logger&.error("Fallback HTML-zu-Text-Konvertierung fehlgeschlagen: #{e.message}")
+    html_content.gsub(/<[^>]*>/, ' ').gsub(/\s+/, ' ').strip
+  end
+
+  public
 
   # Verarbeite E-Mail-Anhänge als Redmine-Attachments
   def process_mail_attachments(mail, ticket, user)
