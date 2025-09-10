@@ -909,6 +909,9 @@ class MailHandlerService
       text = text.gsub(/&[a-zA-Z0-9#]+;/, ' ')  # Entferne HTML-Entities
       text = text.gsub(/&lt;[^&]*&gt;/, ' ')  # Entferne escaped HTML-Tags
       text = text.gsub(/&quot;[^&]*&quot;/, '')  # Entferne escaped Quotes
+      text = text.gsub(/style\s*=\s*["'][^"']*["']/, '')  # Entferne style-Attribute
+      text = text.gsub(/\s+/, ' ')  # Normalisiere Whitespace
+      text = text.strip  # Entferne führende/nachfolgende Leerzeichen
       
       # Bereinige und normalisiere
       text = normalize_whitespace(text)
@@ -1079,10 +1082,13 @@ class MailHandlerService
     text = doc.text
     
     # Zusätzliche HTML-Bereinigung auch für Fallback
-    text = text.gsub(/<[^>]*>/, ' ')  # Entferne HTML-Tags
-    text = text.gsub(/&[a-zA-Z0-9#]+;/, ' ')  # Entferne HTML-Entities
-    text = text.gsub(/&lt;[^&]*&gt;/, ' ')  # Entferne escaped HTML-Tags
-    text = text.gsub(/&quot;[^&]*&quot;/, '')  # Entferne escaped Quotes
+      text = text.gsub(/<[^>]*>/, ' ')  # Entferne HTML-Tags
+      text = text.gsub(/&[a-zA-Z0-9#]+;/, ' ')  # Entferne HTML-Entities
+      text = text.gsub(/&lt;[^&]*&gt;/, ' ')  # Entferne escaped HTML-Tags
+      text = text.gsub(/&quot;[^&]*&quot;/, '')  # Entferne escaped Quotes
+      text = text.gsub(/style\s*=\s*["'][^"']*["']/, '')  # Entferne style-Attribute
+      text = text.gsub(/\s+/, ' ')  # Normalisiere Whitespace
+      text = text.strip  # Entferne führende/nachfolgende Leerzeichen
     
     normalize_whitespace(text)
   rescue => e
