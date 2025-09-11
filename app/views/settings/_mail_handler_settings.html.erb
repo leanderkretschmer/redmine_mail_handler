@@ -474,6 +474,32 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <div class="box tabular settings">
+  <h3>Parser-Einstellungen</h3>
+  
+  <p>
+    <label for="settings_parser_mode">Parser-Modus:</label>
+    <%= select_tag 'settings[parser_mode]', 
+                   options_for_select([
+                     ['HTML zu Text (Standard)', 'html_to_text'],
+                     ['Text-Repräsentation', 'text_representation']
+                   ], @settings['parser_mode'] || 'html_to_text') %>
+    <em class="info">HTML zu Text: Konvertiert HTML-Inhalt zu sauberem Text. Text-Repräsentation: Nutzt die Textversion der E-Mail für Kommentare.</em>
+  </p>
+  
+  <p>
+    <label for="settings_html_attachment_enabled">HTML als Anhang speichern:</label>
+    <%= check_box_tag 'settings[html_attachment_enabled]', '1', @settings['html_attachment_enabled'] == '1' %>
+    <em class="info">Wenn aktiviert, wird der HTML-Inhalt der E-Mail als .html Datei an das Ticket angehängt.</em>
+  </p>
+  
+  <p>
+    <label for="settings_backdate_comments">Kommentare rückdatieren:</label>
+    <%= check_box_tag 'settings[backdate_comments]', '1', @settings['backdate_comments'] == '1' %>
+    <em class="info">Wenn aktiviert, werden Kommentare auf das Empfangsdatum der E-Mail zurückdatiert.</em>
+  </p>
+</div>
+
+<div class="box tabular settings">
   <h3>Logging-Einstellungen</h3>
   
   <p>

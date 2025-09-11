@@ -788,6 +788,11 @@ class MailHandlerService
     # Erstelle Journal-Eintrag
     journal = ticket.init_journal(user, content)
     
+    # Rückdatierung anwenden, wenn aktiviert
+    if @settings['backdate_comments'] == '1' && mail.date.present?
+      backdate_journal(journal, mail.date)
+    end
+    
     # Verarbeite Anhänge
     process_mail_attachments(mail, ticket, user)
     
@@ -816,24 +821,32 @@ class MailHandlerService
     # Betreff hinzufügen
     content += "**Betreff:** #{mail.subject}\n\n" if mail.subject
     
-    # Text-Teil extrahieren
+    # Parser-Modus prüfen
+    parser_mode = @settings['parser_mode'] || 'html_to_text'
+    
+    # Text-Teil extrahieren basierend auf Parser-Modus
     mail_body = ""
-    if mail.multipart?
-      text_part = mail.text_part
-      html_part = mail.html_part
-      
-      if text_part
-        mail_body = text_part.decoded
-        # Encoding-Behandlung für Plain-Text
-        mail_body = ensure_utf8_encoding(mail_body)
-      elsif html_part
-        # HTML zu Text konvertieren mit Formatierung
-        mail_body = convert_html_to_text(html_part.decoded)
-      end
+    if parser_mode == 'text_representation'
+      mail_body = extract_text_representation(mail)
     else
-      mail_body = mail.decoded
-      # Encoding-Behandlung für einfache E-Mails
-      mail_body = ensure_utf8_encoding(mail_body)
+      # Standard HTML-zu-Text Parser
+      if mail.multipart?
+        text_part = mail.text_part
+        html_part = mail.html_part
+        
+        if text_part
+          mail_body = text_part.decoded
+          # Encoding-Behandlung für Plain-Text
+          mail_body = ensure_utf8_encoding(mail_body)
+        elsif html_part
+          # HTML zu Text konvertieren mit Formatierung
+          mail_body = convert_html_to_text(html_part.decoded)
+        end
+      else
+        mail_body = mail.decoded
+        # Encoding-Behandlung für einfache E-Mails
+        mail_body = ensure_utf8_encoding(mail_body)
+      end
     end
     
     # Bereinige und normalisiere Zeilenumbrüche
@@ -861,6 +874,75 @@ class MailHandlerService
     end
     
     content
+  end
+
+  # Extrahiere Text-Repräsentation der E-Mail
+  def extract_text_representation(mail)
+    mail_body = ""
+    
+    if mail.multipart?
+      # Bevorzuge Text-Teil wenn vorhanden
+      text_part = mail.text_part
+      if text_part
+        mail_body = text_part.decoded
+        mail_body = ensure_utf8_encoding(mail_body)
+      else
+        # Fallback auf HTML-Teil, aber minimal konvertiert
+        html_part = mail.html_part
+        if html_part
+          html_content = html_part.decoded
+          mail_body = simple_html_to_text(html_content)
+        end
+      end
+    else
+      # Einfache E-Mail
+      mail_body = mail.decoded
+      mail_body = ensure_utf8_encoding(mail_body)
+      
+      # Prüfe ob es HTML-Inhalt ist und konvertiere minimal
+      if mail_body.include?('<html') || mail_body.include?('<HTML')
+        mail_body = simple_html_to_text(mail_body)
+      end
+    end
+    
+    # Bereinige und normalisiere
+    if mail_body.present?
+      mail_body = mail_body.strip
+      mail_body = mail_body.gsub(/\r\n/, "\n")  # Windows CRLF -> LF
+      mail_body = mail_body.gsub(/\r/, "\n")    # Mac CR -> LF
+      mail_body = mail_body.gsub(/\n{3,}/, "\n\n")  # Reduziere übermäßige Leerzeilen
+      mail_body = mail_body.gsub(/=\n/, "")  # Entferne soft line breaks
+    end
+    
+    mail_body
+  end
+
+  # Einfache HTML-zu-Text Konvertierung (minimal)
+  def simple_html_to_text(html_content)
+    return "" if html_content.blank?
+    
+    begin
+      # Verwende Nokogiri für minimale HTML-Bereinigung
+      doc = Nokogiri::HTML::DocumentFragment.parse(html_content)
+      
+      # Entferne Script und Style Tags komplett
+      doc.css('script, style').remove
+      
+      # Konvertiere zu Text und behalte Struktur
+      text = doc.inner_text
+      
+      # Dekodiere HTML-Entities
+      text = CGI.unescapeHTML(text)
+      
+      # Normalisiere Whitespace
+      text = text.gsub(/\s+/, ' ').strip
+      
+      return text
+    rescue => e
+      @logger.warn("Simple HTML-to-text conversion failed: #{e.message}")
+      # Fallback: Entferne nur HTML-Tags mit Regex
+      html_content.gsub(/<[^>]*>/, ' ').gsub(/\s+/, ' ').strip
+    end
   end
 
   # Konvertiere HTML zu formatiertem Text mit effizienten Libraries
@@ -913,8 +995,8 @@ class MailHandlerService
   def fix_encoding_issues(content)
     # Doppelt kodierte UTF-8-Zeichen reparieren
     replacements = {
-      'fÃÂ¼r' => 'für',
-      'kÃÂ¶nnen' => 'können',
+      #'fÃÂ¼r' => 'für',
+      #'kÃÂ¶nnen' => 'können',
       'ÃÂ¼' => 'ü',
       'ÃÂ¶' => 'ö',
       'ÃÂ¤' => 'ä',
@@ -922,11 +1004,11 @@ class MailHandlerService
       'ÃÂÃ' => 'Ö',
       'ÃÂÃ' => 'Ä',
       'ÃÂÃ' => 'ß',
-      'MÃÂGLICHKEITEN' => 'MÖGLICHKEITEN',
-      'SchaltflÃÂ¤che' => 'Schaltfläche',
-      'gefÃÂ¤hrdet' => 'gefährdet',
-      'ÃÂ¶ffentlich' => 'öffentlich',
-      'HinzufÃÂÃÂ¼gen' => 'Hinzufügen'
+      #'MÃÂGLICHKEITEN' => 'MÖGLICHKEITEN',
+      #'SchaltflÃÂ¤che' => 'Schaltfläche',
+      #'gefÃÂ¤hrdet' => 'gefährdet',
+      #'ÃÂ¶ffentlich' => 'öffentlich',
+      #'HinzufÃÂÃÂ¼gen' => 'Hinzufügen'
     }
     
     replacements.each { |bad, good| content = content.gsub(bad, good) }
@@ -937,48 +1019,169 @@ class MailHandlerService
   def normalize_whitespace(content)
     content.gsub(/\s+/, ' ').strip
   end
+  
+  # Datiert Journal auf E-Mail-Empfangsdatum zurück
+  def backdate_journal(journal, mail_date)
+    begin
+      # Konvertiere Mail-Datum zu Time-Objekt falls nötig
+      target_date = mail_date.is_a?(Time) ? mail_date : Time.parse(mail_date.to_s)
+      
+      # Setze created_on direkt nach dem Speichern
+      journal.created_on = target_date
+      
+      @logger.debug("Backdating journal to #{target_date}")
+      
+    rescue => e
+      @logger.error("Failed to backdate journal: #{e.message}")
+    end
+  end
 
 
 
   # Verarbeite E-Mail-Anhänge als Redmine-Attachments
   def process_mail_attachments(mail, ticket, user)
-    return unless mail.attachments.any?
-    
-    mail.attachments.each do |attachment|
-      begin
-        # Überspringe leere oder ungültige Anhänge
-        next if attachment.filename.blank? || attachment.body.blank?
-        
-        # Erstelle temporäre Datei
-        temp_file = Tempfile.new([attachment.filename.gsub(/[^\w.-]/, '_'), File.extname(attachment.filename)])
-        temp_file.binmode
-        temp_file.write(attachment.body.decoded)
-        temp_file.rewind
-        
-        # Erstelle Redmine-Attachment
-        redmine_attachment = Attachment.new(
-          :file => temp_file,
-          :filename => attachment.filename,
-          :author => user,
-          :content_type => attachment.content_type || 'application/octet-stream'
-        )
-        
-        if redmine_attachment.save
-          # Verknüpfe Attachment mit Ticket
-          ticket.attachments << redmine_attachment
-          @logger.info("Successfully attached file: #{attachment.filename} to ticket ##{ticket.id}")
-        else
-          @logger.error("Failed to save attachment #{attachment.filename}: #{redmine_attachment.errors.full_messages.join(', ')}")
+    # Verarbeite reguläre Anhänge
+    if mail.attachments.any?
+      mail.attachments.each do |attachment|
+        begin
+          # Überspringe leere oder ungültige Anhänge
+          next if attachment.filename.blank? || attachment.body.blank?
+          
+          # Erstelle temporäre Datei
+          temp_file = Tempfile.new([attachment.filename.gsub(/[^\w.-]/, '_'), File.extname(attachment.filename)])
+          temp_file.binmode
+          temp_file.write(attachment.body.decoded)
+          temp_file.rewind
+          
+          # Erstelle Redmine-Attachment
+          redmine_attachment = Attachment.new(
+            :file => temp_file,
+            :filename => attachment.filename,
+            :author => user,
+            :content_type => attachment.content_type || 'application/octet-stream'
+          )
+          
+          if redmine_attachment.save
+            # Verknüpfe Attachment mit Ticket
+            ticket.attachments << redmine_attachment
+            @logger.info("Successfully attached file: #{attachment.filename} to ticket ##{ticket.id}")
+          else
+            @logger.error("Failed to save attachment #{attachment.filename}: #{redmine_attachment.errors.full_messages.join(', ')}")
+          end
+          
+        rescue => e
+          @logger.error("Error processing attachment #{attachment.filename}: #{e.message}")
+        ensure
+          # Bereinige temporäre Datei
+          temp_file&.close
+          temp_file&.unlink
         end
-        
-      rescue => e
-        @logger.error("Error processing attachment #{attachment.filename}: #{e.message}")
-      ensure
-        # Bereinige temporäre Datei
-        temp_file&.close
-        temp_file&.unlink
       end
     end
+    
+    # HTML-Anhang erstellen, wenn aktiviert
+    if @settings['html_attachment_enabled'] == '1'
+      create_html_attachment(mail, ticket, user)
+    end
+  end
+  
+  # Erstelle HTML-Anhang aus E-Mail-Inhalt
+  def create_html_attachment(mail, ticket, user)
+    begin
+      # Extrahiere HTML-Inhalt
+      html_content = extract_html_content(mail)
+      
+      return if html_content.blank?
+      
+      # Generiere Dateinamen basierend auf Betreff und Datum
+      timestamp = Time.current.strftime('%Y%m%d_%H%M%S')
+      subject_part = mail.subject.present? ? mail.subject.gsub(/[^\w.-]/, '_')[0..50] : 'email'
+      filename = "#{subject_part}_#{timestamp}.html"
+      
+      # Erstelle temporäre HTML-Datei
+      temp_file = Tempfile.new([filename.gsub(/\.html$/, ''), '.html'])
+      temp_file.write(html_content)
+      temp_file.rewind
+      
+      # Erstelle Redmine-Attachment
+      redmine_attachment = Attachment.new(
+        :file => temp_file,
+        :filename => filename,
+        :author => user,
+        :content_type => 'text/html'
+      )
+      
+      if redmine_attachment.save
+        # Verknüpfe Attachment mit Ticket
+        ticket.attachments << redmine_attachment
+        @logger.info("Successfully attached HTML content as #{filename} to ticket ##{ticket.id}")
+      else
+        @logger.error("Failed to save HTML attachment #{filename}: #{redmine_attachment.errors.full_messages.join(', ')}")
+      end
+      
+    rescue => e
+      @logger.error("Error creating HTML attachment: #{e.message}")
+    ensure
+      # Bereinige temporäre Datei
+      temp_file&.close
+      temp_file&.unlink
+    end
+  end
+  
+  # Extrahiere HTML-Inhalt aus E-Mail
+  def extract_html_content(mail)
+    html_content = ""
+    
+    if mail.multipart?
+      html_part = mail.html_part
+      if html_part
+        html_content = html_part.decoded
+        html_content = ensure_utf8_encoding(html_content)
+      end
+    else
+      # Prüfe ob es sich um HTML handelt
+      if mail.content_type&.include?('text/html')
+        html_content = mail.decoded
+        html_content = ensure_utf8_encoding(html_content)
+      end
+    end
+    
+    # Erstelle vollständiges HTML-Dokument falls nur Fragment vorhanden
+    if html_content.present? && !html_content.include?('<html')
+      html_content = create_complete_html_document(html_content, mail)
+    end
+    
+    html_content
+  end
+  
+  # Erstelle vollständiges HTML-Dokument
+  def create_complete_html_document(html_fragment, mail)
+    <<~HTML
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>#{mail.subject || 'E-Mail'}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          .email-header { border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; }
+          .email-meta { color: #666; font-size: 0.9em; }
+        </style>
+      </head>
+      <body>
+        <div class="email-header">
+          <h2>#{mail.subject || 'Kein Betreff'}</h2>
+          <div class="email-meta">
+            <strong>Von:</strong> #{mail.from&.first || 'Unbekannt'}<br>
+            <strong>Datum:</strong> #{mail.date || Time.current}
+          </div>
+        </div>
+        <div class="email-content">
+          #{html_fragment}
+        </div>
+      </body>
+      </html>
+    HTML
   end
 
   # Archiviere Nachricht
