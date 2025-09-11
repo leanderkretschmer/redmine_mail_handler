@@ -875,20 +875,29 @@ class MailHandlerService
       html_content = CGI.unescape(html_content) rescue html_content
       
       # Aggressive CSS und Whitespace-Bereinigung vor HTML-Verarbeitung
-      # Entferne alle CSS-Blöcke komplett
-      html_content = html_content.gsub(/#[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, '')  # CSS rules like #outlookholder
-      html_content = html_content.gsub(/\.[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, '')  # CSS classes like .qfbf
-      html_content = html_content.gsub(/\{[^}]*\}/m, '')  # Any remaining curly brace blocks
-      html_content = html_content.gsub(/[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, '')  # Any CSS selector with curly braces
-      html_content = html_content.gsub(/font-family\s*:[^;}]*[;}]?/im, '')  # font-family properties
-      html_content = html_content.gsub(/width\s*:[^;}]*[;}]?/im, '')  # width properties
-      html_content = html_content.gsub(/!important/i, '')  # !important declarations
-      # Entferne CSS-ähnliche Patterns und Zahlen am Ende
-      html_content = html_content.gsub(/[a-zA-Z-]+\s*:\s*[^;}]+[;}]/m, '')  # Generic CSS properties
-      html_content = html_content.gsub(/\s+\d+\s*$/, '')  # Trailing numbers like '96'
+      # Entferne alle CSS-Blöcke komplett - erweiterte Patterns
+      # Entferne CSS-Selektoren mit geschweiften Klammern (auch mehrzeilig)
+      html_content = html_content.gsub(/#[a-zA-Z0-9_-]+[\s\n]*\{[^}]*\}/m, '')  # CSS IDs wie #outlookholder
+      html_content = html_content.gsub(/\.[a-zA-Z0-9_-]+[\s\n]*\{[^}]*\}/m, '')  # CSS Klassen wie .qfbf
+      html_content = html_content.gsub(/[a-zA-Z0-9_-]+[\s\n]*\{[^}]*\}/m, '')  # Beliebige CSS-Selektoren
+      html_content = html_content.gsub(/\{[^}]*\}/m, '')  # Alle verbleibenden geschweiften Klammern
+      
+      # Entferne spezifische CSS-Properties (auch ohne geschweifte Klammern)
+      html_content = html_content.gsub(/font-family[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # font-family
+      html_content = html_content.gsub(/width[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # width
+      html_content = html_content.gsub(/!important[\s\n]*/i, '')  # !important
+      
+      # Entferne CSS-Property-Patterns (Eigenschaft: Wert)
+      html_content = html_content.gsub(/[a-zA-Z-]+[\s\n]*:[\s\n]*[^;}\n]+[;}\n]?/m, '')  # Generische CSS-Properties
+      
+      # Entferne alleinstehende Zahlen und CSS-Reste
+      html_content = html_content.gsub(/\b\d+\b[\s\n]*/, '')  # Alleinstehende Zahlen wie '96'
+      html_content = html_content.gsub(/[{}();,]/, '')  # CSS-Zeichen entfernen
+      
       # Aggressive Whitespace-Bereinigung
-      html_content = html_content.gsub(/^\s+/m, '')  # Führende Leerzeichen jeder Zeile
-      html_content = html_content.gsub(/\s{2,}/, ' ')  # Mehrfache Leerzeichen zu einem
+      html_content = html_content.gsub(/^[\s\n]+/m, '')  # Führende Leerzeichen/Zeilenumbrüche
+      html_content = html_content.gsub(/[\s\n]{2,}/, ' ')  # Mehrfache Leerzeichen/Zeilenumbrüche zu einem Leerzeichen
+      html_content = html_content.gsub(/\n+/, ' ')  # Alle Zeilenumbrüche zu Leerzeichen
       
       # Verwende Premailer für CSS-Inline-Verarbeitung und bessere HTML-Normalisierung
       premailer = Premailer.new(html_content, 
