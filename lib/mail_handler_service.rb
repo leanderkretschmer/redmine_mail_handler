@@ -568,15 +568,15 @@ class MailHandlerService
 
     # Multi-pass HTML tag removal for aggressive cleaning
     3.times do
-      text = text.gsub(/<[^>]*>/, ' ')  # Standard tags
-      text = text.gsub(/<\s*[^>]*>/, ' ')  # Tags with leading spaces
+      text = text.gsub(/<[^>]*>/, "\n")  # Standard tags - replace with newline
+      text = text.gsub(/<\s*[^>]*>/, "\n")  # Tags with leading spaces - replace with newline
       text = text.gsub(/\w+\s*=\s*(['"])[^'"]*\1/, ' ')  # Inline style attributes
     end
 
     # Remove CSS blocks and style definitions
-    text = text.gsub(/#[a-zA-Z0-9_-]+\s*\{[^}]*\}/, ' ')  # CSS rules like #outlookholder
-    text = text.gsub(/\.[a-zA-Z0-9_-]+\s*\{[^}]*\}/, ' ')  # CSS classes like .qfbf
-    text = text.gsub(/\{[^}]*\}/, ' ')  # Any remaining curly brace blocks
+    text = text.gsub(/#[a-zA-Z0-9_-]+\s*\{[^}]*\}/, "\n")  # CSS rules like #outlookholder
+    text = text.gsub(/\.[a-zA-Z0-9_-]+\s*\{[^}]*\}/, "\n")  # CSS classes like .qfbf
+    text = text.gsub(/\{[^}]*\}/, "\n")  # Any remaining curly brace blocks
     text = text.gsub(/font-family\s*:[^;]*;?/i, ' ')  # font-family properties
     text = text.gsub(/width\s*:[^;]*;?/i, ' ')  # width properties
     text = text.gsub(/!important/i, ' ')  # !important declarations
