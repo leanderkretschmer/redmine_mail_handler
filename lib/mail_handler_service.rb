@@ -599,7 +599,17 @@ class MailHandlerService
     text = text.to_s
     text = text.gsub(/\r\n?/, "\n")
     text = text.gsub(/\n{3,}/, "\n\n")
-    text = text.split("\n").map(&:rstrip).join("\n")
+    
+    # Intelligente Behandlung von führenden Leerzeichen:
+    # - Entferne führende Leerzeichen von jeder Zeile
+    # - Erhalte aber die Zeilenstruktur und Absätze
+    lines = text.split("\n")
+    lines = lines.map do |line|
+      # Entferne führende Leerzeichen und Tabs, aber erhalte die Zeile
+      line.gsub(/^[ \t]+/, '').rstrip
+    end
+    
+    text = lines.join("\n")
     text.strip
   end
 
