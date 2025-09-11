@@ -910,6 +910,18 @@ class MailHandlerService
       text = text.gsub(/&lt;[^&]*&gt;/, ' ')  # Entferne escaped HTML-Tags
       text = text.gsub(/&quot;[^&]*&quot;/, '')  # Entferne escaped Quotes
       text = text.gsub(/style\s*=\s*["'][^"']*["']/, '')  # Entferne style-Attribute
+      
+      # Remove CSS blocks and style definitions - enhanced pattern matching
+      text = text.gsub(/#[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, "\n")  # CSS rules like #outlookholder
+      text = text.gsub(/\.[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, "\n")  # CSS classes like .qfbf
+      text = text.gsub(/\{[^}]*\}/m, "\n")  # Any remaining curly brace blocks
+      text = text.gsub(/[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, "\n")  # Any CSS selector with curly braces
+      text = text.gsub(/font-family\s*:[^;}]*[;}]?/im, ' ')  # font-family properties
+      text = text.gsub(/width\s*:[^;}]*[;}]?/im, ' ')  # width properties
+      text = text.gsub(/!important/i, ' ')  # !important declarations
+      # Remove any remaining CSS-like patterns
+      text = text.gsub(/[a-zA-Z-]+\s*:\s*[^;}]+[;}]/m, ' ')  # Generic CSS properties
+      
       text = text.gsub(/\s+/, ' ')  # Normalisiere Whitespace
       text = text.strip  # Entferne führende/nachfolgende Leerzeichen
       
