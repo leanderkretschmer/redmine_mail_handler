@@ -874,6 +874,15 @@ class MailHandlerService
       # URL-Dekodierung für kodierte Inhalte (z.B. %20, %3A, etc.)
       html_content = CGI.unescape(html_content) rescue html_content
       
+      # Aggressive CSS-Bereinigung vor HTML-Verarbeitung
+      html_content = html_content.gsub(/#[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, ' ')  # CSS rules like #outlookholder
+      html_content = html_content.gsub(/\.[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, ' ')  # CSS classes like .qfbf
+      html_content = html_content.gsub(/\{[^}]*\}/m, ' ')  # Any remaining curly brace blocks
+      html_content = html_content.gsub(/[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, ' ')  # Any CSS selector with curly braces
+      html_content = html_content.gsub(/font-family\s*:[^;}]*[;}]?/im, ' ')  # font-family properties
+      html_content = html_content.gsub(/width\s*:[^;}]*[;}]?/im, ' ')  # width properties
+      html_content = html_content.gsub(/!important/i, ' ')  # !important declarations
+      
       # Verwende Premailer für CSS-Inline-Verarbeitung und bessere HTML-Normalisierung
       premailer = Premailer.new(html_content, 
         :with_html_string => true,
