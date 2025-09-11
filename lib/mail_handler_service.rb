@@ -874,14 +874,21 @@ class MailHandlerService
       # URL-Dekodierung für kodierte Inhalte (z.B. %20, %3A, etc.)
       html_content = CGI.unescape(html_content) rescue html_content
       
-      # Aggressive CSS-Bereinigung vor HTML-Verarbeitung
-      html_content = html_content.gsub(/#[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, ' ')  # CSS rules like #outlookholder
-      html_content = html_content.gsub(/\.[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, ' ')  # CSS classes like .qfbf
-      html_content = html_content.gsub(/\{[^}]*\}/m, ' ')  # Any remaining curly brace blocks
-      html_content = html_content.gsub(/[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, ' ')  # Any CSS selector with curly braces
-      html_content = html_content.gsub(/font-family\s*:[^;}]*[;}]?/im, ' ')  # font-family properties
-      html_content = html_content.gsub(/width\s*:[^;}]*[;}]?/im, ' ')  # width properties
-      html_content = html_content.gsub(/!important/i, ' ')  # !important declarations
+      # Aggressive CSS und Whitespace-Bereinigung vor HTML-Verarbeitung
+      # Entferne alle CSS-Blöcke komplett
+      html_content = html_content.gsub(/#[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, '')  # CSS rules like #outlookholder
+      html_content = html_content.gsub(/\.[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, '')  # CSS classes like .qfbf
+      html_content = html_content.gsub(/\{[^}]*\}/m, '')  # Any remaining curly brace blocks
+      html_content = html_content.gsub(/[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, '')  # Any CSS selector with curly braces
+      html_content = html_content.gsub(/font-family\s*:[^;}]*[;}]?/im, '')  # font-family properties
+      html_content = html_content.gsub(/width\s*:[^;}]*[;}]?/im, '')  # width properties
+      html_content = html_content.gsub(/!important/i, '')  # !important declarations
+      # Entferne CSS-ähnliche Patterns und Zahlen am Ende
+      html_content = html_content.gsub(/[a-zA-Z-]+\s*:\s*[^;}]+[;}]/m, '')  # Generic CSS properties
+      html_content = html_content.gsub(/\s+\d+\s*$/, '')  # Trailing numbers like '96'
+      # Aggressive Whitespace-Bereinigung
+      html_content = html_content.gsub(/^\s+/m, '')  # Führende Leerzeichen jeder Zeile
+      html_content = html_content.gsub(/\s{2,}/, ' ')  # Mehrfache Leerzeichen zu einem
       
       # Verwende Premailer für CSS-Inline-Verarbeitung und bessere HTML-Normalisierung
       premailer = Premailer.new(html_content, 
