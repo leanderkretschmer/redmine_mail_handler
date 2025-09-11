@@ -600,19 +600,15 @@ class MailHandlerService
     text = text.gsub(/\r\n?/, "\n")
     text = text.gsub(/\n{3,}/, "\n\n")
     
-    # Enhanced leading space removal for non-bullet/non-numbered lines
+    # Only remove leading spaces from each line, preserve structure
     text = text.split("\n").map do |line|
       # Preserve bullet points and numbered lists
       if line.match?(/^\s*[-*]\s/) || line.match?(/^\s*\d+\.\s/)
         line.rstrip
       else
-        line.gsub(/^\s+/, '').rstrip  # Remove all leading whitespace
+        line.gsub(/^[ \t]+/, '').rstrip  # Remove only leading spaces and tabs
       end
     end.join("\n")
-    
-    # Aggressive cleaning: remove leading spaces at text start and after line breaks
-    text = text.gsub(/^\s+/m, '')  # Remove leading spaces at start
-    text = text.gsub(/\n\s+/m, "\n")  # Remove leading spaces after line breaks
     
     text.strip
   end
