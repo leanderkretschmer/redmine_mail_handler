@@ -875,6 +875,60 @@ class MailHandlerService
       html_content = CGI.unescape(html_content) rescue html_content
       
       # Aggressive CSS und Whitespace-Bereinigung vor HTML-Verarbeitung
+      # Dekodiere HTML-Entitäten und URL-kodierte Zeichen zuerst
+      html_content = html_content.gsub(/&lt;/, '<').gsub(/&gt;/, '>').gsub(/&quot;/, '"').gsub(/&amp;/, '&')
+      html_content = html_content.gsub(/&nbsp;/, ' ')  # Non-breaking spaces
+      html_content = html_content.gsub(/&copy;?/i, '©')  # Copyright
+      html_content = html_content.gsub(/&reg;?/i, '®')  # Registered
+      html_content = html_content.gsub(/&trade;?/i, '™')  # Trademark
+      html_content = html_content.gsub(/%20/, ' ')  # URL-kodierte Leerzeichen
+      html_content = html_content.gsub(/%[0-9A-Fa-f]{2}/, '')  # Alle URL-kodierten Zeichen
+      
+      # Doppelt kodierte UTF-8-Zeichen reparieren (häufige Kodierungsfehler)
+      html_content = html_content.gsub(/fÃÂ¼r/i, 'für')  # für
+      html_content = html_content.gsub(/kÃÂ¶nnen/i, 'können')  # können
+      html_content = html_content.gsub(/ÃÂ¼/i, 'ü')  # ü
+      html_content = html_content.gsub(/ÃÂ¶/i, 'ö')  # ö
+      html_content = html_content.gsub(/ÃÂ¤/i, 'ä')  # ä
+      html_content = html_content.gsub(/ÃÂ/i, 'Ü')  # Ü
+      html_content = html_content.gsub(/ÃÂ/i, 'Ö')  # Ö
+      html_content = html_content.gsub(/ÃÂ/i, 'Ä')  # Ä
+      html_content = html_content.gsub(/ÃÂ/i, 'ß')  # ß
+      html_content = html_content.gsub(/MÃÂGLICHKEITEN/i, 'MÖGLICHKEITEN')  # MÖGLICHKEITEN
+      html_content = html_content.gsub(/SchaltflÃÂ¤che/i, 'Schaltfläche')  # Schaltfläche
+      html_content = html_content.gsub(/gefÃÂ¤hrdet/i, 'gefährdet')  # gefährdet
+      html_content = html_content.gsub(/ÃÂ¶ffentlich/i, 'öffentlich')  # öffentlich
+      html_content = html_content.gsub(/HinzufÃÂÃÂ¼gen/i, 'Hinzufügen')  # Hinzufügen
+      
+      # Entferne E-Mail-Client-spezifische HTML-Klassen und CSS
+      html_content = html_content.gsub(/class\s*=\s*["'][^"']*MsoNormal[^"']*["']/im, '')  # MsoNormal Klassen
+      html_content = html_content.gsub(/class\s*=\s*["'][^"']*WordSection[^"']*["']/im, '')  # WordSection Klassen
+      html_content = html_content.gsub(/class\s*=\s*["'][^"']*gmail_quote[^"']*["']/im, '')  # Gmail Quote Klassen
+      html_content = html_content.gsub(/class\s*=\s*["'][^"']*mail_android_quote[^"']*["']/im, '')  # Android Mail Klassen
+      html_content = html_content.gsub(/class\s*=\s*["'][^"']*signature[^"']*["']/im, '')  # Signature Klassen
+      html_content = html_content.gsub(/mso-[a-zA-Z-]+\s*:[^;}]*[;}]?/im, '')  # Alle mso- CSS-Properties
+      html_content = html_content.gsub(/-webkit-[a-zA-Z-]+\s*:[^;}]*[;}]?/im, '')  # Webkit-spezifische Properties
+      
+      # Entferne Font-Referenzen und unvollständige HTML-Fragmente
+      html_content = html_content.gsub(/Calibri[^\s]*/, '')  # Calibri Font-Referenzen
+      html_content = html_content.gsub(/Arial[^\s]*/, '')  # Arial Font-Referenzen
+      html_content = html_content.gsub(/Bahnschrift[^\s]*/, '')  # Bahnschrift Font-Referenzen
+      html_content = html_content.gsub(/sans-serif[^\s]*/, '')  # sans-serif Referenzen
+      html_content = html_content.gsub(/font-family\s*:[^;}]*[;}]?/im, '')  # Alle font-family Deklarationen
+      html_content = html_content.gsub(/font-size\s*:[^;}]*[;}]?/im, '')  # Alle font-size Deklarationen
+      html_content = html_content.gsub(/letter-spacing\s*:[^;}]*[;}]?/im, '')  # letter-spacing Deklarationen
+      html_content = html_content.gsub(/&quot[^;]*/, '')  # Unvollständige HTML-Entitäten
+      html_content = html_content.gsub(/&lt[^;]*/, '')  # Unvollständige < Entitäten
+      html_content = html_content.gsub(/&gt[^;]*/, '')  # Unvollständige > Entitäten
+      
+      # Entferne HTML-Tags mit style-Attributen und anderen Attributen komplett
+      html_content = html_content.gsub(/<[^>]*style\s*=[^>]*>/im, '')  # Tags mit style-Attributen
+      html_content = html_content.gsub(/<[^>]*valign\s*=[^>]*>/im, '')  # Tags mit valign-Attributen
+      html_content = html_content.gsub(/<[^>]*href\s*=[^>]*>/im, '')  # Tags mit href-Attributen
+      html_content = html_content.gsub(/href\s*=\s*["'][^"']*["']/im, '')  # Standalone href-Attribute
+      html_content = html_content.gsub(/valign\s*=\s*["'][^"']*["']/im, '')  # Standalone valign-Attribute
+      html_content = html_content.gsub(/<\/?[a-zA-Z][^>]*>/m, '')  # Alle verbleibenden HTML-Tags
+      
       # Entferne alle CSS-Blöcke komplett - erweiterte Patterns
       # Entferne CSS-Selektoren mit geschweiften Klammern (auch mehrzeilig)
       html_content = html_content.gsub(/#[a-zA-Z0-9_-]+[\s\n]*\{[^}]*\}/m, '')  # CSS IDs wie #outlookholder
@@ -882,9 +936,40 @@ class MailHandlerService
       html_content = html_content.gsub(/[a-zA-Z0-9_-]+[\s\n]*\{[^}]*\}/m, '')  # Beliebige CSS-Selektoren
       html_content = html_content.gsub(/\{[^}]*\}/m, '')  # Alle verbleibenden geschweiften Klammern
       
+      # Entferne inline CSS-Properties (style="...")
+      html_content = html_content.gsub(/style\s*=\s*["'][^"']*["']/im, '')  # style="..."
+      html_content = html_content.gsub(/style\s*=\s*[^\s>]+/im, '')  # style=value ohne Anführungszeichen
+      
+      # Entferne Meta-Tags und blockquote-Elemente
+      html_content = html_content.gsub(/<meta[^>]*>/im, '')  # Meta-Tags
+      html_content = html_content.gsub(/<blockquote[^>]*>/im, '')  # Blockquote öffnende Tags
+      html_content = html_content.gsub(/<\/blockquote>/im, '')  # Blockquote schließende Tags
+      
       # Entferne spezifische CSS-Properties (auch ohne geschweifte Klammern)
       html_content = html_content.gsub(/font-family[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # font-family
       html_content = html_content.gsub(/width[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # width
+      html_content = html_content.gsub(/margin[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # margin
+      html_content = html_content.gsub(/color[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # color
+      html_content = html_content.gsub(/text-decoration[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # text-decoration
+      html_content = html_content.gsub(/cursor[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # cursor
+      html_content = html_content.gsub(/border[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # border
+      html_content = html_content.gsub(/padding[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # padding
+      html_content = html_content.gsub(/line-height[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # line-height
+      html_content = html_content.gsub(/caret-color[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # caret-color
+      html_content = html_content.gsub(/font-style[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # font-style
+      html_content = html_content.gsub(/font-variant-caps[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # font-variant-caps
+      html_content = html_content.gsub(/font-weight[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # font-weight
+      html_content = html_content.gsub(/letter-spacing[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # letter-spacing
+      html_content = html_content.gsub(/orphans[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # orphans
+      html_content = html_content.gsub(/text-align[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # text-align
+      html_content = html_content.gsub(/text-indent[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # text-indent
+      html_content = html_content.gsub(/text-transform[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # text-transform
+      html_content = html_content.gsub(/white-space[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # white-space
+      html_content = html_content.gsub(/widows[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # widows
+      html_content = html_content.gsub(/word-spacing[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # word-spacing
+      html_content = html_content.gsub(/display[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # display
+      html_content = html_content.gsub(/float[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # float
+      html_content = html_content.gsub(/rgb\([^)]*\)/im, '')  # RGB-Farben
       html_content = html_content.gsub(/!important[\s\n]*/i, '')  # !important
       
       # Entferne CSS-Property-Patterns (Eigenschaft: Wert)
@@ -892,12 +977,16 @@ class MailHandlerService
       
       # Entferne alleinstehende Zahlen und CSS-Reste
       html_content = html_content.gsub(/\b\d+\b[\s\n]*/, '')  # Alleinstehende Zahlen wie '96'
-      html_content = html_content.gsub(/[{}();,]/, '')  # CSS-Zeichen entfernen
+      html_content = html_content.gsub(/[{}();,"']/, '')  # CSS-Zeichen und Anführungszeichen entfernen
       
       # Aggressive Whitespace-Bereinigung
       html_content = html_content.gsub(/^[\s\n]+/m, '')  # Führende Leerzeichen/Zeilenumbrüche
       html_content = html_content.gsub(/[\s\n]{2,}/, ' ')  # Mehrfache Leerzeichen/Zeilenumbrüche zu einem Leerzeichen
       html_content = html_content.gsub(/\n+/, ' ')  # Alle Zeilenumbrüche zu Leerzeichen
+      html_content = html_content.gsub(/\s{3,}/, ' ')  # Mehr als 2 aufeinanderfolgende Leerzeichen zu einem
+      html_content = html_content.gsub(/\s+$/, '')  # Trailing Whitespaces entfernen
+      html_content = html_content.gsub(/^\s+/, '')  # Leading Whitespaces entfernen
+      html_content = html_content.strip  # Zusätzliche Bereinigung am Anfang und Ende
       
       # Verwende Premailer für CSS-Inline-Verarbeitung und bessere HTML-Normalisierung
       premailer = Premailer.new(html_content, 
