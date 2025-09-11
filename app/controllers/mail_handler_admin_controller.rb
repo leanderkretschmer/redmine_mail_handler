@@ -386,26 +386,56 @@ class MailHandlerAdminController < ApplicationController
       end
       
       # Lösche alle Journals (Kommentare) des Tickets, außer dem ersten (Ticket-Erstellung)
-      journals_to_delete = inbox_ticket.journals.where('id > ?', inbox_ticket.journals.first.id)
-      deleted_count = journals_to_delete.count
-      
-      if deleted_count > 0
-        # Lösche auch alle Journal-Details (Änderungen)
-        JournalDetail.where(journal_id: journals_to_delete.pluck(:id)).delete_all
-        
-        # Lösche die Journals
-        journals_to_delete.delete_all
-        
-        # Aktualisiere das Ticket (updated_on)
-        inbox_ticket.touch
-        
-        logger = MailHandlerLogger.new
-        logger.info("Deleted #{deleted_count} comments from inbox ticket ##{inbox_ticket_id}")
-        
-        flash[:notice] = "#{deleted_count} Kommentare wurden erfolgreich aus Ticket ##{inbox_ticket_id} gelöscht."
-      else
-        flash[:notice] = "Keine Kommentare zum Löschen gefunden in Ticket ##{inbox_ticket_id}."
-      end
+       journals_to_delete = inbox_ticket.journals.where('id > ?', inbox_ticket.journals.first.id)
+       deleted_comments_count = journals_to_delete.count
+       
+       # Lösche alle angehängten Dateien des Tickets
+       attachments_to_delete = inbox_ticket.attachments
+       deleted_attachments_count = attachments_to_delete.count
+       
+       total_deleted = 0
+       
+       if deleted_comments_count > 0
+         # Lösche auch alle Journal-Details (Änderungen)
+         JournalDetail.where(journal_id: journals_to_delete.pluck(:id)).delete_all
+         
+         # Lösche die Journals
+         journals_to_delete.delete_all
+         total_deleted += deleted_comments_count
+       end
+       
+       if deleted_attachments_count > 0
+         # Lösche die physischen Dateien und Datenbankeinträge
+         attachments_to_delete.each do |attachment|
+           begin
+             # Lösche die physische Datei
+             attachment.diskfile.delete if attachment.diskfile && File.exist?(attachment.diskfile)
+           rescue => e
+             logger = MailHandlerLogger.new
+             logger.warn("Could not delete physical file for attachment #{attachment.id}: #{e.message}")
+           end
+         end
+         
+         # Lösche die Attachment-Datenbankeinträge
+         attachments_to_delete.delete_all
+         total_deleted += deleted_attachments_count
+       end
+       
+       if total_deleted > 0
+         # Aktualisiere das Ticket (updated_on)
+         inbox_ticket.touch
+         
+         logger = MailHandlerLogger.new
+         logger.info("Deleted #{deleted_comments_count} comments and #{deleted_attachments_count} attachments from inbox ticket ##{inbox_ticket_id}")
+         
+         message_parts = []
+         message_parts << "#{deleted_comments_count} Kommentare" if deleted_comments_count > 0
+         message_parts << "#{deleted_attachments_count} Dateien" if deleted_attachments_count > 0
+         
+         flash[:notice] = "#{message_parts.join(' und ')} wurden erfolgreich aus Ticket ##{inbox_ticket_id} gelöscht."
+       else
+         flash[:notice] = "Keine Kommentare oder Dateien zum Löschen gefunden in Ticket ##{inbox_ticket_id}."
+       end
       
     rescue => e
       logger = MailHandlerLogger.new
