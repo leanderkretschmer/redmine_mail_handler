@@ -19,6 +19,12 @@ gem 'premailer', '~> 1.21.0'
 # Encoding-Unterstützung
 gem 'charlock_holmes', '~> 0.7.7'
 
+# Mail-Decoder für robusteres Charset-Handling
+gem 'mail-decoder', '~> 0.1.0'
+
+# HTML zu Text Konvertierung
+gem 'html2text', '~> 0.2.0'
+
 group :development, :test do
   gem 'rspec', '~> 3.11.0'
   gem 'factory_bot', '~> 6.2.0'

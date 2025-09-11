@@ -8,6 +8,14 @@ require 'openssl'
 require 'tempfile'
 require 'cgi'
 
+# Mail-Decoder und HTML2Text für robuste Parser-Option
+begin
+  require 'mail-decoder'
+  require 'html2text'
+rescue LoadError => e
+  # Gems sind optional - nur laden wenn verfügbar
+end
+
 class MailHandlerService
   include Redmine::I18n
 
@@ -818,15 +826,23 @@ class MailHandlerService
   def decode_mail_content(mail)
     content = ""
     
-    # Betreff hinzufügen
-    content += "**Betreff:** #{mail.subject}\n\n" if mail.subject
+    # Prüfe ob Mail-Decoder aktiviert ist
+    use_mail_decoder = @settings['mail_decoder_enabled'] == '1'
+    
+    # Betreff hinzufügen mit robustem Decoding
+    if mail.subject
+      subject = use_mail_decoder ? decode_header_with_mail_decoder(mail.subject) : mail.subject
+      content += "**Betreff:** #{subject}\n\n"
+    end
     
     # Parser-Modus prüfen
     parser_mode = @settings['parser_mode'] || 'html_to_text'
     
-    # Text-Teil extrahieren basierend auf Parser-Modus
+    # Text-Teil extrahieren basierend auf Parser-Modus und Mail-Decoder
     mail_body = ""
-    if parser_mode == 'text_representation'
+    if use_mail_decoder
+      mail_body = extract_content_with_mail_decoder(mail)
+    elsif parser_mode == 'text_representation'
       mail_body = extract_text_representation(mail)
     else
       # Standard HTML-zu-Text Parser
@@ -959,7 +975,19 @@ class MailHandlerService
       # Repariere häufige UTF-8-Kodierungsfehler vor der HTML-Verarbeitung
       html_content = fix_encoding_issues(html_content)
       
-      # Verwende Nokogiri für robuste HTML-Verarbeitung
+      # Prüfe ob html2text verfügbar ist und verwende es bevorzugt
+      if defined?(Html2Text)
+        begin
+          # Verwende html2text für bessere Formatierung (Links in Klammern etc.)
+          text_content = Html2Text.convert(html_content)
+          return ensure_utf8_encoding(text_content)
+        rescue => e
+          @logger.warn("Html2Text Konvertierung fehlgeschlagen, verwende Nokogiri-Fallback: #{e.message}")
+          # Fallback auf Nokogiri bei Fehlern
+        end
+      end
+      
+      # Nokogiri-Fallback für robuste HTML-Verarbeitung
       doc = Nokogiri::HTML::DocumentFragment.parse(html_content)
       
       # Entferne alle style-Attribute und CSS-spezifische Elemente
@@ -986,6 +1014,107 @@ class MailHandlerService
       Rails.logger.error "Fehler bei HTML-zu-Text-Konvertierung: #{e.message}"
       # Fallback: Einfache HTML-Tag-Entfernung
       html_content.gsub(/<[^>]*>/, '').strip
+    end
+  end
+
+  # Dekodiere Header mit Mail-Decoder für robustes Charset-Handling
+  def decode_header_with_mail_decoder(header_value)
+    return "" if header_value.blank?
+    
+    begin
+      # Prüfe ob mail-decoder verfügbar ist
+      if defined?(MailDecoder)
+        decoded = MailDecoder.decode_header(header_value)
+        return ensure_utf8_encoding(decoded)
+      else
+        @logger.warn("Mail-Decoder gem nicht verfügbar, verwende Standard-Decoding")
+        return ensure_utf8_encoding(header_value)
+      end
+    rescue => e
+      @logger.warn("Mail-Decoder Header-Decoding fehlgeschlagen: #{e.message}")
+      # Fallback auf Standard-Encoding-Behandlung
+      return ensure_utf8_encoding(header_value)
+    end
+  end
+
+  # Extrahiere Mail-Inhalt mit Mail-Decoder und HTML2Text
+  def extract_content_with_mail_decoder(mail)
+    mail_body = ""
+    
+    begin
+      if mail.multipart?
+        # Bevorzuge Text-Teil wenn vorhanden
+        text_part = mail.text_part
+        html_part = mail.html_part
+        
+        if text_part
+          # Dekodiere Text-Teil mit Mail-Decoder
+          if defined?(MailDecoder)
+            mail_body = MailDecoder.decode_body(text_part)
+          else
+            mail_body = text_part.decoded
+          end
+          mail_body = ensure_utf8_encoding(mail_body)
+        elsif html_part
+          # HTML-Teil mit verbesserter Konvertierung
+          html_content = html_part.decoded
+          if defined?(MailDecoder)
+            html_content = MailDecoder.decode_body(html_part)
+          end
+          mail_body = convert_html_to_text_with_html2text(html_content)
+        end
+      else
+        # Einfache E-Mail
+        if defined?(MailDecoder)
+          mail_body = MailDecoder.decode_body(mail)
+        else
+          mail_body = mail.decoded
+        end
+        mail_body = ensure_utf8_encoding(mail_body)
+        
+        # Prüfe ob es HTML-Inhalt ist und konvertiere mit html2text
+        if mail_body.include?('<html') || mail_body.include?('<HTML')
+          mail_body = convert_html_to_text_with_html2text(mail_body)
+        end
+      end
+      
+      # Bereinige und normalisiere
+      if mail_body.present?
+        mail_body = mail_body.strip
+        mail_body = mail_body.gsub(/\r\n/, "\n")  # Windows CRLF -> LF
+        mail_body = mail_body.gsub(/\r/, "\n")    # Mac CR -> LF
+        mail_body = mail_body.gsub(/\n{3,}/, "\n\n")  # Reduziere übermäßige Leerzeilen
+        mail_body = mail_body.gsub(/=\n/, "")  # Entferne soft line breaks
+      end
+      
+      return mail_body
+      
+    rescue => e
+      @logger.error("Mail-Decoder Content-Extraktion fehlgeschlagen: #{e.message}")
+      # Fallback auf Standard-Methode
+      return extract_text_representation(mail)
+    end
+  end
+
+  # Konvertiere HTML zu Text mit html2text (schönere Formatierung)
+  def convert_html_to_text_with_html2text(html_content)
+    return "" if html_content.blank?
+    
+    begin
+      # Prüfe ob html2text verfügbar ist
+      if defined?(Html2Text)
+        # Verwende html2text für bessere Formatierung (Links in Klammern etc.)
+        text_content = Html2Text.convert(html_content)
+        return ensure_utf8_encoding(text_content)
+      else
+        @logger.debug("Html2Text gem nicht verfügbar, verwende Nokogiri-Fallback")
+        # Fallback auf Nokogiri
+        return simple_html_to_text(html_content)
+      end
+    rescue => e
+      @logger.warn("Html2Text Konvertierung fehlgeschlagen: #{e.message}")
+      # Fallback auf einfache Nokogiri-Konvertierung
+      return simple_html_to_text(html_content)
     end
   end
   
