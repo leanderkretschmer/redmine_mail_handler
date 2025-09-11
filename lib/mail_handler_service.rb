@@ -291,7 +291,18 @@ class MailHandlerService
 
     # Try common encodings heuristically
     begin
-      return str.force_encoding('UTF-8').encode('UTF-8', invalid: :replace, undef: :replace, replace: '?')
+      result = str.force_encoding('UTF-8').encode('UTF-8', invalid: :replace, undef: :replace, replace: '?')
+      
+      # Remove CSS styling from plain-text emails
+      result = result.gsub(/#[a-zA-Z0-9_-]+\s*\{[^}]*\}/, ' ')  # CSS rules like #outlookholder
+      result = result.gsub(/\.[a-zA-Z0-9_-]+\s*\{[^}]*\}/, ' ')  # CSS classes like .qfbf
+      result = result.gsub(/\{[^}]*\}/, ' ')  # Any remaining curly brace blocks
+      result = result.gsub(/font-family\s*:[^;]*;?/i, ' ')  # font-family properties
+      result = result.gsub(/width\s*:[^;]*;?/i, ' ')  # width properties
+      result = result.gsub(/!important/i, ' ')  # !important declarations
+      result = result.gsub(/\s+/, ' ').strip  # Normalize whitespace
+      
+      return result
     rescue
     end
 
@@ -555,9 +566,20 @@ class MailHandlerService
     end
     text = CGI.unescape(text) rescue text
 
-    # Remove any left-over tags/attributes just in case
-    text = text.gsub(/<[^>]*>/, ' ')
-    text = text.gsub(/\w+\s*=\s*(['"])[^'"]*\1/, ' ')
+    # Multi-pass HTML tag removal for aggressive cleaning
+    3.times do
+      text = text.gsub(/<[^>]*>/, ' ')  # Standard tags
+      text = text.gsub(/<\s*[^>]*>/, ' ')  # Tags with leading spaces
+      text = text.gsub(/\w+\s*=\s*(['"])[^'"]*\1/, ' ')  # Inline style attributes
+    end
+
+    # Remove CSS blocks and style definitions
+    text = text.gsub(/#[a-zA-Z0-9_-]+\s*\{[^}]*\}/, ' ')  # CSS rules like #outlookholder
+    text = text.gsub(/\.[a-zA-Z0-9_-]+\s*\{[^}]*\}/, ' ')  # CSS classes like .qfbf
+    text = text.gsub(/\{[^}]*\}/, ' ')  # Any remaining curly brace blocks
+    text = text.gsub(/font-family\s*:[^;]*;?/i, ' ')  # font-family properties
+    text = text.gsub(/width\s*:[^;]*;?/i, ' ')  # width properties
+    text = text.gsub(/!important/i, ' ')  # !important declarations
 
     # Normalize whitespace and remove control characters
     text = text.gsub(/\r\n?/, "\n")
@@ -577,7 +599,21 @@ class MailHandlerService
     text = text.to_s
     text = text.gsub(/\r\n?/, "\n")
     text = text.gsub(/\n{3,}/, "\n\n")
-    text = text.split("\n").map(&:rstrip).join("\n")
+    
+    # Enhanced leading space removal for non-bullet/non-numbered lines
+    text = text.split("\n").map do |line|
+      # Preserve bullet points and numbered lists
+      if line.match?(/^\s*[-*]\s/) || line.match?(/^\s*\d+\.\s/)
+        line.rstrip
+      else
+        line.gsub(/^\s+/, '').rstrip  # Remove all leading whitespace
+      end
+    end.join("\n")
+    
+    # Aggressive cleaning: remove leading spaces at text start and after line breaks
+    text = text.gsub(/^\s+/m, '')  # Remove leading spaces at start
+    text = text.gsub(/\n\s+/m, "\n")  # Remove leading spaces after line breaks
+    
     text.strip
   end
 
