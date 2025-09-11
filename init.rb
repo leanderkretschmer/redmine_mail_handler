@@ -38,7 +38,8 @@ Redmine::Plugin.register :redmine_mail_handler do
       'ignore_email_addresses' => '',
       'parser_mode' => 'html_to_text',
       'html_attachment_enabled' => '0',
-      'backdate_comments' => '0'
+      'backdate_comments' => '0',
+      'show_block_user' => '0'
   }, :partial => 'settings/mail_handler_settings'
 
   # Menü-Einträge hinzufügen

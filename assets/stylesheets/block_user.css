@@ -1,0 +1,96 @@
+/* Block User Button Styling für Mail Handler Plugin */
+
+.block-user-btn {
+  background-color: #dc3545;
+  color: white;
+  border: 1px solid #dc3545;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: all 0.2s ease;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.block-user-btn:hover {
+  background-color: #c82333;
+  border-color: #bd2130;
+  color: white;
+  text-decoration: none;
+}
+
+.block-user-btn:active {
+  background-color: #bd2130;
+  border-color: #b21f2d;
+  box-shadow: inset 0 3px 5px rgba(0,0,0,.125);
+}
+
+.block-user-btn:disabled {
+  background-color: #6c757d;
+  border-color: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.block-user-btn:disabled:hover {
+  background-color: #6c757d;
+  border-color: #6c757d;
+}
+
+/* Styling für blockierte Benutzer */
+.journal.blocked-user {
+  opacity: 0.7;
+  background-color: #f8f9fa;
+  border-left: 3px solid #dc3545;
+  padding-left: 8px;
+}
+
+.journal.blocked-user .journal-link a {
+  text-decoration: line-through !important;
+  color: #6c757d !important;
+}
+
+.journal.blocked-user::after {
+  content: " (Blockiert)";
+  color: #dc3545;
+  font-size: 11px;
+  font-weight: bold;
+  margin-left: 5px;
+}
+
+/* Responsive Design für kleinere Bildschirme */
+@media (max-width: 768px) {
+  .block-user-btn {
+    font-size: 10px;
+    padding: 1px 4px;
+    margin-left: 4px;
+  }
+}
+
+/* Integration mit Redmine Journal-Styling */
+.journal .journal-link .block-user-btn {
+  vertical-align: baseline;
+}
+
+/* Hover-Effekt für Journal-Zeilen mit Block-Buttons */
+.journal:hover .block-user-btn {
+  opacity: 1;
+}
+
+.journal .block-user-btn {
+  opacity: 0.8;
+}
+
+/* Warnung-Styling für kritische Aktionen */
+.block-user-btn.confirming {
+  background-color: #ffc107;
+  border-color: #ffc107;
+  color: #212529;
+}
+
+.block-user-btn.confirming:hover {
+  background-color: #e0a800;
+  border-color: #d39e00;
+}

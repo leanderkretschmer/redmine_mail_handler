@@ -497,6 +497,12 @@ document.addEventListener('DOMContentLoaded', function() {
     <%= check_box_tag 'settings[backdate_comments]', '1', @settings['backdate_comments'] == '1' %>
     <em class="info">Wenn aktiviert, werden Kommentare auf das Empfangsdatum der E-Mail zurückdatiert.</em>
   </p>
+  
+  <p>
+    <label for="settings_show_block_user">Block User Buttons anzeigen:</label>
+    <%= check_box_tag 'settings[show_block_user]', '1', @settings['show_block_user'] == '1' %>
+    <em class="info">Wenn aktiviert, werden bei Kommentaren im Posteingang-Ticket Block-Buttons angezeigt, um Benutzer zu blockieren.</em>
+  </p>
 </div>
 
 <div class="box tabular settings">

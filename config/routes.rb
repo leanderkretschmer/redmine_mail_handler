@@ -22,6 +22,7 @@ RedmineApp::Application.routes.draw do
         post :process_deferred
         post :create_user_from_mail
         post :process_deferred_mail
+        post :block_user
       get :deferred_status
       end
     end
