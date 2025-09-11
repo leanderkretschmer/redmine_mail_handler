@@ -599,17 +599,7 @@ class MailHandlerService
     text = text.to_s
     text = text.gsub(/\r\n?/, "\n")
     text = text.gsub(/\n{3,}/, "\n\n")
-    
-    # Only remove leading spaces from each line, preserve structure
-    text = text.split("\n").map do |line|
-      # Preserve bullet points and numbered lists
-      if line.match?(/^\s*[-*]\s/) || line.match?(/^\s*\d+\.\s/)
-        line.rstrip
-      else
-        line.gsub(/^[ \t]+/, '').rstrip  # Remove only leading spaces and tabs
-      end
-    end.join("\n")
-    
+    text = text.split("\n").map(&:rstrip).join("\n")
     text.strip
   end
 
