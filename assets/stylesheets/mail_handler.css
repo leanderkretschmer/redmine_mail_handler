@@ -19,6 +19,30 @@
 }
 
 /* -------------------------
+   Delete Comments Button
+------------------------- */
+.delete-comments-btn {
+  background-color: #dc3545 !important;
+  color: white !important;
+  border: 1px solid #dc3545 !important;
+  margin-left: 10px;
+  transition: all 0.2s ease;
+}
+
+.delete-comments-btn:hover {
+  background-color: #c82333 !important;
+  border-color: #bd2130 !important;
+  color: white !important;
+  text-decoration: none !important;
+}
+
+.delete-comments-btn:active {
+  background-color: #bd2130 !important;
+  border-color: #b21f2d !important;
+  box-shadow: inset 0 3px 5px rgba(0,0,0,.125) !important;
+}
+
+/* -------------------------
    Tabellen
 ------------------------- */
 .box table.list {

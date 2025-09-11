@@ -366,6 +366,56 @@ class MailHandlerAdminController < ApplicationController
     end
   end
 
+  def delete_all_comments
+    begin
+      settings = Setting.plugin_redmine_mail_handler
+      inbox_ticket_id = settings['inbox_ticket_id'].to_i
+      
+      if inbox_ticket_id <= 0
+        flash[:error] = 'Kein Posteingang-Ticket konfiguriert.'
+        redirect_to :action => 'index'
+        return
+      end
+      
+      # Finde das Posteingang-Ticket
+      inbox_ticket = Issue.find_by(id: inbox_ticket_id)
+      unless inbox_ticket
+        flash[:error] = "Posteingang-Ticket ##{inbox_ticket_id} nicht gefunden."
+        redirect_to :action => 'index'
+        return
+      end
+      
+      # Lösche alle Journals (Kommentare) des Tickets, außer dem ersten (Ticket-Erstellung)
+      journals_to_delete = inbox_ticket.journals.where('id > ?', inbox_ticket.journals.first.id)
+      deleted_count = journals_to_delete.count
+      
+      if deleted_count > 0
+        # Lösche auch alle Journal-Details (Änderungen)
+        JournalDetail.where(journal_id: journals_to_delete.pluck(:id)).delete_all
+        
+        # Lösche die Journals
+        journals_to_delete.delete_all
+        
+        # Aktualisiere das Ticket (updated_on)
+        inbox_ticket.touch
+        
+        logger = MailHandlerLogger.new
+        logger.info("Deleted #{deleted_count} comments from inbox ticket ##{inbox_ticket_id}")
+        
+        flash[:notice] = "#{deleted_count} Kommentare wurden erfolgreich aus Ticket ##{inbox_ticket_id} gelöscht."
+      else
+        flash[:notice] = "Keine Kommentare zum Löschen gefunden in Ticket ##{inbox_ticket_id}."
+      end
+      
+    rescue => e
+      logger = MailHandlerLogger.new
+      logger.error("Error deleting comments: #{e.message}")
+      flash[:error] = "Fehler beim Löschen der Kommentare: #{e.message}"
+    end
+    
+    redirect_to :action => 'index'
+  end
+
   private
 
   def init_service
