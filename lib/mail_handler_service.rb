@@ -863,7 +863,7 @@ class MailHandlerService
     content
   end
 
-  # Konvertiere HTML zu formatiertem Text mit Premailer und Nokogiri
+  # Konvertiere HTML zu formatiertem Text mit effizienten Libraries
   def convert_html_to_text(html_content)
     return "" if html_content.blank?
     
@@ -871,358 +871,74 @@ class MailHandlerService
       # Encoding-Behandlung: Konvertiere verschiedene Encodings zu UTF-8
       html_content = ensure_utf8_encoding(html_content)
       
-      # URL-Dekodierung für kodierte Inhalte (z.B. %20, %3A, etc.)
+      # URL-Dekodierung für kodierte Inhalte
       html_content = CGI.unescape(html_content) rescue html_content
       
-      # Aggressive CSS und Whitespace-Bereinigung vor HTML-Verarbeitung
-      # Dekodiere HTML-Entitäten und URL-kodierte Zeichen zuerst
-      html_content = html_content.gsub(/&lt;/, '<').gsub(/&gt;/, '>').gsub(/&quot;/, '"').gsub(/&amp;/, '&')
-      html_content = html_content.gsub(/&nbsp;/, ' ')  # Non-breaking spaces
-      html_content = html_content.gsub(/&copy;?/i, '©')  # Copyright
-      html_content = html_content.gsub(/&reg;?/i, '®')  # Registered
-      html_content = html_content.gsub(/&trade;?/i, '™')  # Trademark
-      html_content = html_content.gsub(/%20/, ' ')  # URL-kodierte Leerzeichen
-      html_content = html_content.gsub(/%[0-9A-Fa-f]{2}/, '')  # Alle URL-kodierten Zeichen
+      # Repariere häufige UTF-8-Kodierungsfehler vor der HTML-Verarbeitung
+      html_content = fix_encoding_issues(html_content)
       
-      # Doppelt kodierte UTF-8-Zeichen reparieren (häufige Kodierungsfehler)
-      html_content = html_content.gsub(/fÃÂ¼r/i, 'für')  # für
-      html_content = html_content.gsub(/kÃÂ¶nnen/i, 'können')  # können
-      html_content = html_content.gsub(/ÃÂ¼/i, 'ü')  # ü
-      html_content = html_content.gsub(/ÃÂ¶/i, 'ö')  # ö
-      html_content = html_content.gsub(/ÃÂ¤/i, 'ä')  # ä
-      html_content = html_content.gsub(/ÃÂ/i, 'Ü')  # Ü
-      html_content = html_content.gsub(/ÃÂ/i, 'Ö')  # Ö
-      html_content = html_content.gsub(/ÃÂ/i, 'Ä')  # Ä
-      html_content = html_content.gsub(/ÃÂ/i, 'ß')  # ß
-      html_content = html_content.gsub(/MÃÂGLICHKEITEN/i, 'MÖGLICHKEITEN')  # MÖGLICHKEITEN
-      html_content = html_content.gsub(/SchaltflÃÂ¤che/i, 'Schaltfläche')  # Schaltfläche
-      html_content = html_content.gsub(/gefÃÂ¤hrdet/i, 'gefährdet')  # gefährdet
-      html_content = html_content.gsub(/ÃÂ¶ffentlich/i, 'öffentlich')  # öffentlich
-      html_content = html_content.gsub(/HinzufÃÂÃÂ¼gen/i, 'Hinzufügen')  # Hinzufügen
+      # Verwende Nokogiri für robuste HTML-Verarbeitung
+      doc = Nokogiri::HTML::DocumentFragment.parse(html_content)
       
-      # Entferne E-Mail-Client-spezifische HTML-Klassen und CSS
-      html_content = html_content.gsub(/class\s*=\s*["'][^"']*MsoNormal[^"']*["']/im, '')  # MsoNormal Klassen
-      html_content = html_content.gsub(/class\s*=\s*["'][^"']*WordSection[^"']*["']/im, '')  # WordSection Klassen
-      html_content = html_content.gsub(/class\s*=\s*["'][^"']*gmail_quote[^"']*["']/im, '')  # Gmail Quote Klassen
-      html_content = html_content.gsub(/class\s*=\s*["'][^"']*mail_android_quote[^"']*["']/im, '')  # Android Mail Klassen
-      html_content = html_content.gsub(/class\s*=\s*["'][^"']*signature[^"']*["']/im, '')  # Signature Klassen
-      html_content = html_content.gsub(/mso-[a-zA-Z-]+\s*:[^;}]*[;}]?/im, '')  # Alle mso- CSS-Properties
-      html_content = html_content.gsub(/-webkit-[a-zA-Z-]+\s*:[^;}]*[;}]?/im, '')  # Webkit-spezifische Properties
+      # Entferne alle style-Attribute und CSS-spezifische Elemente
+      doc.search('*').each do |element|
+        element.remove_attribute('style')
+        element.remove_attribute('class') if element['class']&.match?(/mso|gmail|word|signature/i)
+      end
       
-      # Entferne Font-Referenzen und unvollständige HTML-Fragmente
-      html_content = html_content.gsub(/Calibri[^\s]*/, '')  # Calibri Font-Referenzen
-      html_content = html_content.gsub(/Arial[^\s]*/, '')  # Arial Font-Referenzen
-      html_content = html_content.gsub(/Bahnschrift[^\s]*/, '')  # Bahnschrift Font-Referenzen
-      html_content = html_content.gsub(/sans-serif[^\s]*/, '')  # sans-serif Referenzen
-      html_content = html_content.gsub(/font-family\s*:[^;}]*[;}]?/im, '')  # Alle font-family Deklarationen
-      html_content = html_content.gsub(/font-size\s*:[^;}]*[;}]?/im, '')  # Alle font-size Deklarationen
-      html_content = html_content.gsub(/letter-spacing\s*:[^;}]*[;}]?/im, '')  # letter-spacing Deklarationen
-      html_content = html_content.gsub(/&quot[^;]*/, '')  # Unvollständige HTML-Entitäten
-      html_content = html_content.gsub(/&lt[^;]*/, '')  # Unvollständige < Entitäten
-      html_content = html_content.gsub(/&gt[^;]*/, '')  # Unvollständige > Entitäten
+      # Entferne problematische Tags komplett
+      doc.search('style, script, meta, link').remove
       
-      # Entferne HTML-Tags mit style-Attributen und anderen Attributen komplett
-      html_content = html_content.gsub(/<[^>]*style\s*=[^>]*>/im, '')  # Tags mit style-Attributen
-      html_content = html_content.gsub(/<[^>]*valign\s*=[^>]*>/im, '')  # Tags mit valign-Attributen
-      html_content = html_content.gsub(/<[^>]*href\s*=[^>]*>/im, '')  # Tags mit href-Attributen
-      html_content = html_content.gsub(/href\s*=\s*["'][^"']*["']/im, '')  # Standalone href-Attribute
-      html_content = html_content.gsub(/valign\s*=\s*["'][^"']*["']/im, '')  # Standalone valign-Attribute
-      html_content = html_content.gsub(/<\/?[a-zA-Z][^>]*>/m, '')  # Alle verbleibenden HTML-Tags
+      # Konvertiere zu Text mit Nokogiri's eingebauter Methode
+      text_content = doc.inner_text
       
-      # Entferne alle CSS-Blöcke komplett - erweiterte Patterns
-      # Entferne CSS-Selektoren mit geschweiften Klammern (auch mehrzeilig)
-      html_content = html_content.gsub(/#[a-zA-Z0-9_-]+[\s\n]*\{[^}]*\}/m, '')  # CSS IDs wie #outlookholder
-      html_content = html_content.gsub(/\.[a-zA-Z0-9_-]+[\s\n]*\{[^}]*\}/m, '')  # CSS Klassen wie .qfbf
-      html_content = html_content.gsub(/[a-zA-Z0-9_-]+[\s\n]*\{[^}]*\}/m, '')  # Beliebige CSS-Selektoren
-      html_content = html_content.gsub(/\{[^}]*\}/m, '')  # Alle verbleibenden geschweiften Klammern
+      # HTML-Entities dekodieren
+      text_content = CGI.unescapeHTML(text_content)
       
-      # Entferne inline CSS-Properties (style="...")
-      html_content = html_content.gsub(/style\s*=\s*["'][^"']*["']/im, '')  # style="..."
-      html_content = html_content.gsub(/style\s*=\s*[^\s>]+/im, '')  # style=value ohne Anführungszeichen
+      # Whitespace normalisieren
+      text_content = normalize_whitespace(text_content)
       
-      # Entferne Meta-Tags und blockquote-Elemente
-      html_content = html_content.gsub(/<meta[^>]*>/im, '')  # Meta-Tags
-      html_content = html_content.gsub(/<blockquote[^>]*>/im, '')  # Blockquote öffnende Tags
-      html_content = html_content.gsub(/<\/blockquote>/im, '')  # Blockquote schließende Tags
+      return text_content
       
-      # Entferne spezifische CSS-Properties (auch ohne geschweifte Klammern)
-      html_content = html_content.gsub(/font-family[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # font-family
-      html_content = html_content.gsub(/width[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # width
-      html_content = html_content.gsub(/margin[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # margin
-      html_content = html_content.gsub(/color[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # color
-      html_content = html_content.gsub(/text-decoration[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # text-decoration
-      html_content = html_content.gsub(/cursor[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # cursor
-      html_content = html_content.gsub(/border[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # border
-      html_content = html_content.gsub(/padding[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # padding
-      html_content = html_content.gsub(/line-height[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # line-height
-      html_content = html_content.gsub(/caret-color[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # caret-color
-      html_content = html_content.gsub(/font-style[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # font-style
-      html_content = html_content.gsub(/font-variant-caps[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # font-variant-caps
-      html_content = html_content.gsub(/font-weight[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # font-weight
-      html_content = html_content.gsub(/letter-spacing[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # letter-spacing
-      html_content = html_content.gsub(/orphans[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # orphans
-      html_content = html_content.gsub(/text-align[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # text-align
-      html_content = html_content.gsub(/text-indent[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # text-indent
-      html_content = html_content.gsub(/text-transform[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # text-transform
-      html_content = html_content.gsub(/white-space[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # white-space
-      html_content = html_content.gsub(/widows[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # widows
-      html_content = html_content.gsub(/word-spacing[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # word-spacing
-      html_content = html_content.gsub(/display[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # display
-      html_content = html_content.gsub(/float[\s\n]*:[^;}\n]*[;}\n]?/im, '')  # float
-      html_content = html_content.gsub(/rgb\([^)]*\)/im, '')  # RGB-Farben
-      html_content = html_content.gsub(/!important[\s\n]*/i, '')  # !important
-      
-      # Entferne CSS-Property-Patterns (Eigenschaft: Wert)
-      html_content = html_content.gsub(/[a-zA-Z-]+[\s\n]*:[\s\n]*[^;}\n]+[;}\n]?/m, '')  # Generische CSS-Properties
-      
-      # Entferne alleinstehende Zahlen und CSS-Reste
-      html_content = html_content.gsub(/\b\d+\b[\s\n]*/, '')  # Alleinstehende Zahlen wie '96'
-      html_content = html_content.gsub(/[{}();,"']/, '')  # CSS-Zeichen und Anführungszeichen entfernen
-      
-      # Aggressive Whitespace-Bereinigung
-      html_content = html_content.gsub(/^[\s\n]+/m, '')  # Führende Leerzeichen/Zeilenumbrüche
-      html_content = html_content.gsub(/[\s\n]{2,}/, ' ')  # Mehrfache Leerzeichen/Zeilenumbrüche zu einem Leerzeichen
-      html_content = html_content.gsub(/\n+/, ' ')  # Alle Zeilenumbrüche zu Leerzeichen
-      html_content = html_content.gsub(/\s{3,}/, ' ')  # Mehr als 2 aufeinanderfolgende Leerzeichen zu einem
-      html_content = html_content.gsub(/\s+$/, '')  # Trailing Whitespaces entfernen
-      html_content = html_content.gsub(/^\s+/, '')  # Leading Whitespaces entfernen
-      html_content = html_content.strip  # Zusätzliche Bereinigung am Anfang und Ende
-      
-      # Verwende Premailer für CSS-Inline-Verarbeitung und bessere HTML-Normalisierung
-      premailer = Premailer.new(html_content, 
-        :with_html_string => true,
-        :warn_level => Premailer::Warnings::NONE,
-        :adapter => :nokogiri,
-        :remove_comments => true,
-        :remove_scripts => true,
-        :remove_classes => true,
-        :remove_ids => true
-      )
-      
-      # Hole das verarbeitete HTML
-      processed_html = premailer.to_inline_css
-      
-      # Parse mit Nokogiri für strukturierte Text-Extraktion
-      doc = Nokogiri::HTML::DocumentFragment.parse(processed_html)
-      
-      # Entferne unerwünschte Elemente
-      doc.css('script, style, meta, link, head').remove
-      
-      # Konvertiere Block-Elemente zu Text mit Formatierung
-      convert_block_elements(doc)
-      convert_inline_elements(doc)
-      convert_list_elements(doc)
-      convert_table_elements(doc)
-      convert_link_elements(doc)
-      
-      # Extrahiere den finalen Text und entferne alle HTML-Reste
-      text = doc.text
-      
-      # Zusätzliche HTML-Bereinigung: Entferne alle HTML-Tags und -Attribute
-      text = text.gsub(/<[^>]*>/, ' ')  # Entferne HTML-Tags
-      text = text.gsub(/&[a-zA-Z0-9#]+;/, ' ')  # Entferne HTML-Entities
-      text = text.gsub(/&lt;[^&]*&gt;/, ' ')  # Entferne escaped HTML-Tags
-      text = text.gsub(/&quot;[^&]*&quot;/, '')  # Entferne escaped Quotes
-      text = text.gsub(/style\s*=\s*["'][^"']*["']/, '')  # Entferne style-Attribute
-      
-      # Remove CSS blocks and style definitions - enhanced pattern matching
-      text = text.gsub(/#[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, "\n")  # CSS rules like #outlookholder
-      text = text.gsub(/\.[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, "\n")  # CSS classes like .qfbf
-      text = text.gsub(/\{[^}]*\}/m, "\n")  # Any remaining curly brace blocks
-      text = text.gsub(/[a-zA-Z0-9_-]+\s*\{[^}]*\}/m, "\n")  # Any CSS selector with curly braces
-      text = text.gsub(/font-family\s*:[^;}]*[;}]?/im, ' ')  # font-family properties
-      text = text.gsub(/width\s*:[^;}]*[;}]?/im, ' ')  # width properties
-      text = text.gsub(/!important/i, ' ')  # !important declarations
-      # Remove any remaining CSS-like patterns
-      text = text.gsub(/[a-zA-Z-]+\s*:\s*[^;}]+[;}]/m, ' ')  # Generic CSS properties
-      
-      text = text.gsub(/\s+/, ' ')  # Normalisiere Whitespace
-      text = text.strip  # Entferne führende/nachfolgende Leerzeichen
-      
-      # Bereinige und normalisiere
-      text = normalize_whitespace(text)
-      
-      return text
     rescue => e
-      @logger&.warn("HTML-zu-Text-Konvertierung fehlgeschlagen: #{e.message}")
-      # Fallback: Einfache Nokogiri-Extraktion
-      fallback_html_to_text(html_content)
+      Rails.logger.error "Fehler bei HTML-zu-Text-Konvertierung: #{e.message}"
+      # Fallback: Einfache HTML-Tag-Entfernung
+      html_content.gsub(/<[^>]*>/, '').strip
     end
   end
-
+  
   private
-
-  # Konvertiere Block-Elemente
-  def convert_block_elements(doc)
-    # Überschriften: Vereinfacht ohne spezielle Formatierung
-    doc.css('h1, h2, h3, h4, h5, h6').each { |h| h.replace("\n\n#{h.text.strip}\n\n") }
+  
+  # Repariert häufige UTF-8-Kodierungsfehler
+  def fix_encoding_issues(content)
+    # Doppelt kodierte UTF-8-Zeichen reparieren
+    replacements = {
+      'fÃÂ¼r' => 'für',
+      'kÃÂ¶nnen' => 'können',
+      'ÃÂ¼' => 'ü',
+      'ÃÂ¶' => 'ö',
+      'ÃÂ¤' => 'ä',
+      'ÃÂ' => 'Ü',
+      'ÃÂ' => 'Ö',
+      'ÃÂ' => 'Ä',
+      'ÃÂ' => 'ß',
+      'MÃÂGLICHKEITEN' => 'MÖGLICHKEITEN',
+      'SchaltflÃÂ¤che' => 'Schaltfläche',
+      'gefÃÂ¤hrdet' => 'gefährdet',
+      'ÃÂ¶ffentlich' => 'öffentlich',
+      'HinzufÃÂÃÂ¼gen' => 'Hinzufügen'
+    }
     
-    # Absätze und Divs
-    doc.css('p').each { |p| p.after("\n\n") }
-    doc.css('div').each { |div| div.after("\n") unless div.parent&.name == 'body' }
-    
-    # Zeilenumbrüche
-    doc.css('br').each { |br| br.replace("\n") }
-    
-    # Blockquotes: Vereinfacht ohne > Zeichen
-    doc.css('blockquote').each do |bq|
-      text = bq.text.strip
-      bq.replace("\n\n#{text}\n\n")
-    end
-    
-    # Horizontale Linien: Vereinfacht
-    doc.css('hr').each { |hr| hr.replace("\n\n\n") }
+    replacements.each { |bad, good| content = content.gsub(bad, good) }
+    content
+  end
+  
+  # Normalisiert Whitespace
+  def normalize_whitespace(content)
+    content.gsub(/\s+/, ' ').strip
   end
 
-  # Konvertiere Inline-Elemente
-  def convert_inline_elements(doc)
-    # Entferne alle Style-Attribute vor der Verarbeitung
-    doc.css('*').each { |elem| elem.remove_attribute('style') }
-    
-    # Span-Elemente: Nur Text beibehalten, keine Formatierung
-    doc.css('span').each { |elem| elem.replace(elem.text) }
-    
-    # Fett und kursiv - vereinfacht ohne Markdown-Syntax
-    doc.css('strong, b').each { |elem| elem.replace(elem.text) }
-    doc.css('em, i').each { |elem| elem.replace(elem.text) }
-    doc.css('u').each { |elem| elem.replace(elem.text) }
-    
-    # Code-Elemente: Nur Text ohne Backticks
-    doc.css('code').each { |elem| elem.replace(elem.text) }
-    
-    # Durchgestrichen: Nur Text
-    doc.css('s, strike, del').each { |elem| elem.replace(elem.text) }
-  end
 
-  # Konvertiere Listen
-  def convert_list_elements(doc)
-    # Ungeordnete Listen: Vereinfacht ohne Bullet-Points
-    doc.css('ul').each do |ul|
-      ul.css('li').each_with_index do |li, index|
-        li.replace("\n- #{li.text.strip}")
-      end
-      ul.after("\n")
-    end
-    
-    # Geordnete Listen: Vereinfacht
-    doc.css('ol').each do |ol|
-      ol.css('li').each_with_index do |li, index|
-        li.replace("\n#{index + 1}. #{li.text.strip}")
-      end
-      ol.after("\n")
-    end
-  end
-
-  # Konvertiere Tabellen
-  def convert_table_elements(doc)
-    doc.css('table').each do |table|
-      table_text = "\n\n"
-      
-      # Tabellenkopf: Vereinfacht ohne Markdown-Tabellen-Syntax
-      table.css('thead tr, tr:first-child').each do |row|
-        cells = row.css('th, td').map { |cell| cell.text.strip }
-        table_text += "#{cells.join(' | ')}\n"
-      end
-      
-      # Tabelleninhalt: Vereinfacht
-      table.css('tbody tr, tr:not(:first-child)').each do |row|
-        next if row.parent.name == 'thead'
-        cells = row.css('td, th').map { |cell| cell.text.strip }
-        table_text += "#{cells.join(' | ')}\n"
-      end
-      
-      table_text += "\n"
-      table.replace(table_text)
-    end
-  end
-
-  # Konvertiere Links
-  def convert_link_elements(doc)
-    doc.css('a').each do |link|
-      href = link['href']
-      text = link.text.strip
-      
-      if href.present?
-        # Bereinige die URL
-        clean_url = href.gsub(/^mailto:/, '').strip
-        
-        if text.present? && text != clean_url
-          # Text und URL anzeigen, damit Redmine Hyperlinks erstellen kann
-          link.replace("#{text}: #{clean_url}")
-        else
-          # Nur URL verwenden
-          link.replace(clean_url)
-        end
-      elsif text.present?
-        # Nur Text verwenden
-        link.replace(text)
-      else
-        # Link ohne Text entfernen
-        link.remove
-      end
-    end
-  end
-
-  # Normalisiere Whitespace
-  def normalize_whitespace(text)
-    # Entferne führende und nachfolgende Leerzeichen
-    text = text.strip
-    
-    # Normalisiere verschiedene Zeilenumbruch-Formate
-    text = text.gsub(/\r\n/, "\n")  # Windows CRLF -> LF
-    text = text.gsub(/\r/, "\n")    # Mac CR -> LF
-    
-    # Entferne übermäßige Leerzeichen in Zeilen
-    text = text.gsub(/ +/, " ")
-    
-    # Entferne übermäßige Leerzeilen (mehr als 2 aufeinanderfolgende)
-    text = text.gsub(/\n{3,}/, "\n\n")
-    
-    # Entferne führende Leerzeichen am Zeilenanfang, außer bei Bullet-Points
-    text = text.split("\n").map do |line|
-      # Behalte führende Leerzeichen bei Bullet-Points mit "-" oder "*"
-      if line.match?(/^\s*[-*]\s+/)
-        line.strip
-      # Behalte auch nummerierte Listen
-      elsif line.match?(/^\s*\d+\.\s+/)
-        line.strip
-      else
-        # Entferne alle führenden Leerzeichen und Tabs bei anderen Zeilen
-        line.gsub(/^[\s\t]+/, '').rstrip
-      end
-    end.join("\n")
-    
-    return text
-  end
-
-  # Fallback für einfache HTML-zu-Text-Konvertierung
-  def fallback_html_to_text(html_content)
-    # Encoding-Behandlung auch für Fallback
-    html_content = ensure_utf8_encoding(html_content)
-    
-    # URL-Dekodierung auch für Fallback
-    html_content = CGI.unescape(html_content) rescue html_content
-    
-    doc = Nokogiri::HTML::DocumentFragment.parse(html_content)
-    doc.css('script, style').remove
-    text = doc.text
-    
-    # Zusätzliche HTML-Bereinigung auch für Fallback
-      text = text.gsub(/<[^>]*>/, ' ')  # Entferne HTML-Tags
-      text = text.gsub(/&[a-zA-Z0-9#]+;/, ' ')  # Entferne HTML-Entities
-      text = text.gsub(/&lt;[^&]*&gt;/, ' ')  # Entferne escaped HTML-Tags
-      text = text.gsub(/&quot;[^&]*&quot;/, '')  # Entferne escaped Quotes
-      text = text.gsub(/style\s*=\s*["'][^"']*["']/, '')  # Entferne style-Attribute
-      text = text.gsub(/\s+/, ' ')  # Normalisiere Whitespace
-      text = text.strip  # Entferne führende/nachfolgende Leerzeichen
-    
-    normalize_whitespace(text)
-  rescue => e
-    @logger&.error("Fallback HTML-zu-Text-Konvertierung fehlgeschlagen: #{e.message}")
-    html_content.gsub(/<[^>]*>/, ' ').gsub(/\s+/, ' ').strip
-  end
-
-  public
 
   # Verarbeite E-Mail-Anhänge als Redmine-Attachments
   def process_mail_attachments(mail, ticket, user)
