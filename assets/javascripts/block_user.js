@@ -5,18 +5,39 @@
   
   // Prüfe ob Block User Feature aktiviert ist
   function isBlockUserEnabled() {
-    // Diese Information muss vom Server bereitgestellt werden
     return window.mailHandlerBlockUserEnabled === true;
   }
   
   // Füge Block User Buttons zu Kommentaren hinzu
   function addBlockUserButtons() {
     if (!isBlockUserEnabled()) {
+      console.log('Block User Feature ist nicht aktiviert');
       return;
     }
     
-    // Finde alle Journal-Einträge (Kommentare)
-    const journals = document.querySelectorAll('.journal');
+    console.log('Suche nach Journal-Einträgen...');
+    
+    // Erweiterte Selektoren für verschiedene Redmine-Versionen und HTML-Strukturen
+    const journalSelectors = [
+      '.journal',
+      '#history .journal',
+      '.journal.has-notes',
+      '.journal.has-details',
+      'div[id^="change-"]',
+      '.changeset'
+    ];
+    
+    let journals = [];
+    journalSelectors.forEach(selector => {
+      const found = document.querySelectorAll(selector);
+      found.forEach(journal => {
+        if (!journals.includes(journal)) {
+          journals.push(journal);
+        }
+      });
+    });
+    
+    console.log(`Gefundene Journals: ${journals.length}`);
     
     journals.forEach(function(journal) {
       // Prüfe ob bereits ein Block-Button existiert
@@ -24,20 +45,41 @@
         return;
       }
       
-      // Finde den Benutzer-Link im Journal-Header
-      const userLink = journal.querySelector('.journal-link a[href*="/users/"]');
+      // Erweiterte Suche nach Benutzer-Links mit verschiedenen Selektoren
+      const userLinkSelectors = [
+        '.journal-link a[href*="/users/"]',
+        'h4 a[href*="/users/"]',
+        '.user a[href*="/users/"]',
+        'a[href*="/users/"]',
+        '.author a[href*="/users/"]',
+        '.journal-user a[href*="/users/"]'
+      ];
+      
+      let userLink = null;
+      for (const selector of userLinkSelectors) {
+        userLink = journal.querySelector(selector);
+        if (userLink) {
+          console.log(`Benutzer-Link gefunden mit Selektor: ${selector}`);
+          break;
+        }
+      }
+      
       if (!userLink) {
+        console.log('Kein Benutzer-Link gefunden in Journal:', journal);
         return;
       }
       
       // Extrahiere Benutzer-ID aus dem Link
       const userIdMatch = userLink.href.match(/\/users\/(\d+)/);
       if (!userIdMatch) {
+        console.log('Keine Benutzer-ID gefunden in Link:', userLink.href);
         return;
       }
       
       const userId = userIdMatch[1];
       const userName = userLink.textContent.trim();
+      
+      console.log(`Füge Block-Button für Benutzer hinzu: ${userName} (ID: ${userId})`);
       
       // Erstelle Block-Button
       const blockButton = document.createElement('button');
@@ -53,11 +95,30 @@
         blockUser(userId, userName, blockButton);
       });
       
-      // Füge Button neben dem Benutzer-Link hinzu
-      const journalHeader = journal.querySelector('.journal-link');
-      if (journalHeader) {
-        journalHeader.appendChild(document.createTextNode(' '));
-        journalHeader.appendChild(blockButton);
+      // Finde den besten Platz für den Button mit erweiterten Selektoren
+      const insertionTargets = [
+        journal.querySelector('.journal-link'),
+        journal.querySelector('h4'),
+        journal.querySelector('.user'),
+        journal.querySelector('.author'),
+        journal.querySelector('.journal-user'),
+        userLink.parentNode
+      ];
+      
+      let insertionTarget = null;
+      for (const target of insertionTargets) {
+        if (target) {
+          insertionTarget = target;
+          break;
+        }
+      }
+      
+      if (insertionTarget) {
+        insertionTarget.appendChild(document.createTextNode(' '));
+        insertionTarget.appendChild(blockButton);
+        console.log('Block-Button erfolgreich hinzugefügt');
+      } else {
+        console.log('Kein geeigneter Platz für Block-Button gefunden');
       }
     });
   }
@@ -129,6 +190,10 @@
   
   // Initialisiere die Funktionalität
   function init() {
+    console.log('Block User JavaScript wird initialisiert...');
+    console.log('mailHandlerBlockUserEnabled:', window.mailHandlerBlockUserEnabled);
+    console.log('Current URL:', window.location.href);
+    
     // Füge Buttons beim Laden der Seite hinzu
     addBlockUserButtons();
     
@@ -148,6 +213,7 @@
       });
       
       if (shouldUpdate) {
+        console.log('DOM-Änderung erkannt, füge Block-Buttons hinzu...');
         setTimeout(addBlockUserButtons, 100);
       }
     });
@@ -157,6 +223,25 @@
       childList: true,
       subtree: true
     });
+    
+    // Zusätzliche Versuche für langsam ladende Inhalte
+    setTimeout(() => {
+      console.log('Zusätzlicher Versuch nach 1 Sekunde...');
+      addBlockUserButtons();
+    }, 1000);
+    
+    setTimeout(() => {
+      console.log('Zusätzlicher Versuch nach 3 Sekunden...');
+      addBlockUserButtons();
+    }, 3000);
+    
+    // Event-Listener für AJAX-Requests (falls Redmine AJAX verwendet)
+    if (typeof jQuery !== 'undefined') {
+      jQuery(document).ajaxComplete(function() {
+        console.log('AJAX-Request abgeschlossen, füge Block-Buttons hinzu...');
+        setTimeout(addBlockUserButtons, 500);
+      });
+    }
   }
   
   // Starte Initialisierung wenn DOM bereit ist

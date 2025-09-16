@@ -11,19 +11,38 @@ class MailHandlerHooks < Redmine::Hook::ViewListener
     # Block User Funktionalität auf Ticket-Seiten
     if context[:controller] && context[:controller].controller_name == 'issues'
       settings = Setting.plugin_redmine_mail_handler
+      
+      # Debug-Ausgabe in Rails-Log
+      Rails.logger.info "Block User Hook: Controller=#{context[:controller].controller_name}, Action=#{context[:controller].action_name}"
+      Rails.logger.info "Block User Hook: Settings present=#{!settings.nil?}, show_block_user=#{settings&.[]('show_block_user')}"
+      
       if settings && settings['show_block_user'] == '1'
         # Prüfe ob es sich um das Posteingang-Ticket handelt
         inbox_ticket_id = settings['inbox_ticket_id'].to_i
         current_issue_id = context[:controller].params[:id].to_i
+        
+        Rails.logger.info "Block User Hook: inbox_ticket_id=#{inbox_ticket_id}, current_issue_id=#{current_issue_id}"
         
         if inbox_ticket_id > 0 && current_issue_id == inbox_ticket_id
           # Lade CSS und JavaScript für Block User Buttons
           html += stylesheet_link_tag('block_user', :plugin => 'redmine_mail_handler')
           html += javascript_include_tag('block_user', :plugin => 'redmine_mail_handler')
           
-          # Setze JavaScript-Variable für Feature-Aktivierung
-          html += content_tag(:script, "window.mailHandlerBlockUserEnabled = true;".html_safe)
+          # Setze JavaScript-Variable für Feature-Aktivierung mit Debug-Info
+          html += content_tag(:script, 
+            "console.log('Block User Feature aktiviert für Ticket #{current_issue_id}'); " +
+            "window.mailHandlerBlockUserEnabled = true;".html_safe)
+          
+          Rails.logger.info "Block User Hook: Assets und JavaScript-Variable gesetzt für Ticket #{current_issue_id}"
+        else
+          # Debug für nicht-matching Tickets
+          html += content_tag(:script, 
+            "console.log('Block User nicht aktiviert: inbox_ticket_id=#{inbox_ticket_id}, current_issue_id=#{current_issue_id}');".html_safe)
         end
+      else
+        # Debug für deaktivierte Funktion
+        html += content_tag(:script, 
+          "console.log('Block User Feature ist deaktiviert in den Einstellungen');".html_safe)
       end
     end
     
