@@ -1238,6 +1238,12 @@ class MailHandlerService
           # Überspringe leere oder ungültige Anhänge
           next if attachment.filename.blank? || attachment.body.blank?
           
+          # Überspringe ausgeschlossene Dateien
+          if should_exclude_attachment?(attachment.filename)
+            @logger.info("Skipping excluded attachment: #{attachment.filename}")
+            next
+          end
+          
           # Erstelle temporäre Datei
           temp_file = Tempfile.new([attachment.filename.gsub(/[^\w.-]/, '_'), File.extname(attachment.filename)])
           temp_file.binmode
@@ -1765,6 +1771,41 @@ class MailHandlerService
     
     @logger.debug("Absatz-Normalisierungs-Filter angewendet: Maximal #{max_paragraphs} aufeinanderfolgende Absätze")
     filtered_text
+  end
+
+  # Prüfe ob Anhang ausgeschlossen werden soll
+  def should_exclude_attachment?(filename)
+    return false unless @settings['exclude_attachments_enabled'] == '1'
+    return false if filename.blank?
+    
+    # Hole Ausschluss-Muster aus Einstellungen
+    patterns = @settings['excluded_attachment_patterns']
+    return false if patterns.blank?
+    
+    # Teile Muster in einzelne Zeilen auf
+    pattern_list = patterns.split("\n").map(&:strip).reject(&:empty?)
+    
+    # Prüfe jeden Pattern
+    pattern_list.each do |pattern|
+      # Konvertiere Wildcard-Pattern zu Regex
+      regex_pattern = pattern.gsub('*', '.*')
+      
+      # Erstelle Regex (case-insensitive)
+      begin
+        regex = Regexp.new("^#{regex_pattern}$", Regexp::IGNORECASE)
+        
+        # Prüfe ob Dateiname dem Muster entspricht
+        if filename.match?(regex)
+          @logger.debug("Attachment '#{filename}' matches exclusion pattern '#{pattern}'")
+          return true
+        end
+      rescue RegexpError => e
+        @logger.warn("Invalid exclusion pattern '#{pattern}': #{e.message}")
+        next
+      end
+    end
+    
+    false
   end
 
   # Alias für Rückwärtskompatibilität

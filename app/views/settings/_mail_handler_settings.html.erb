@@ -545,6 +545,18 @@ document.addEventListener('DOMContentLoaded', function() {
     <%= number_field_tag 'settings[max_consecutive_paragraphs]', @settings['max_consecutive_paragraphs'] || '1', :min => 1, :max => 5, :step => 1 %>
     <em class="info">Anzahl der maximal erlaubten aufeinanderfolgenden leeren Zeilen (Standard: 1).</em>
   </p>
+  
+  <p>
+    <label for="settings_exclude_attachments_enabled">Datei-Ausschluss aktivieren:</label>
+    <%= check_box_tag 'settings[exclude_attachments_enabled]', '1', @settings['exclude_attachments_enabled'] == '1' %>
+    <em class="info">Aktiviert den Ausschluss bestimmter Dateien von der Anhang-Verarbeitung.</em>
+  </p>
+  
+  <p>
+    <label for="settings_excluded_attachment_patterns">Ausgeschlossene Datei-Muster (eines pro Zeile):</label>
+    <%= text_area_tag 'settings[excluded_attachment_patterns]', @settings['excluded_attachment_patterns'] || "*.tmp\n*.log\nwinmail.dat\nimage001.png", :rows => 6, :cols => 60 %>
+    <em class="info">Dateinamen oder Muster (mit Wildcards *) für Dateien, die nicht als Anhänge hinzugefügt werden sollen. Ein Muster pro Zeile.</em>
+  </p>
 </div>
 
 <div class="box tabular settings">

@@ -478,4 +478,60 @@ class MailHandlerServiceTest < ActiveSupport::TestCase
     # Filter ist deaktiviert, Text sollte unverändert bleiben
     assert_equal text, result
   end
+
+  def test_should_exclude_attachment_enabled
+    @service.instance_variable_set(:@settings, {
+      'exclude_attachments_enabled' => '1',
+      'excluded_attachment_patterns' => "*.tmp\n*.log\nwinmail.dat\nimage*.png"
+    })
+    
+    # Diese Dateien sollten ausgeschlossen werden
+    assert @service.send(:should_exclude_attachment?, 'test.tmp')
+    assert @service.send(:should_exclude_attachment?, 'debug.log')
+    assert @service.send(:should_exclude_attachment?, 'winmail.dat')
+    assert @service.send(:should_exclude_attachment?, 'image001.png')
+    assert @service.send(:should_exclude_attachment?, 'image123.png')
+    
+    # Diese Dateien sollten NICHT ausgeschlossen werden
+    assert_not @service.send(:should_exclude_attachment?, 'document.pdf')
+    assert_not @service.send(:should_exclude_attachment?, 'test.txt')
+    assert_not @service.send(:should_exclude_attachment?, 'photo.jpg')
+  end
+
+  def test_should_exclude_attachment_disabled
+    @service.instance_variable_set(:@settings, {
+      'exclude_attachments_enabled' => '0',
+      'excluded_attachment_patterns' => "*.tmp\n*.log"
+    })
+    
+    # Auch wenn Muster definiert sind, sollten keine Dateien ausgeschlossen werden
+    assert_not @service.send(:should_exclude_attachment?, 'test.tmp')
+    assert_not @service.send(:should_exclude_attachment?, 'debug.log')
+  end
+
+  def test_should_exclude_attachment_case_insensitive
+    @service.instance_variable_set(:@settings, {
+      'exclude_attachments_enabled' => '1',
+      'excluded_attachment_patterns' => "*.TMP\nWINMAIL.DAT"
+    })
+    
+    # Case-insensitive Matching
+    assert @service.send(:should_exclude_attachment?, 'test.tmp')
+    assert @service.send(:should_exclude_attachment?, 'TEST.TMP')
+    assert @service.send(:should_exclude_attachment?, 'winmail.dat')
+    assert @service.send(:should_exclude_attachment?, 'WINMAIL.DAT')
+  end
+
+  def test_should_exclude_attachment_invalid_pattern
+    @service.instance_variable_set(:@settings, {
+      'exclude_attachments_enabled' => '1',
+      'excluded_attachment_patterns' => "[invalid\nvalid.txt"
+    })
+    
+    # Ungültiges Regex-Pattern sollte ignoriert werden
+    assert_not @service.send(:should_exclude_attachment?, '[invalid')
+    
+    # Gültiges Pattern sollte funktionieren
+    assert @service.send(:should_exclude_attachment?, 'valid.txt')
+  end
 end
