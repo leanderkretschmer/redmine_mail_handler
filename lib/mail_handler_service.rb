@@ -1893,7 +1893,7 @@ class MailHandlerService
      end
      total_conversions += tel_conversions
      
-     # Regex für URLs mit spitzen Klammern und Backticks: < `https://example.com/>`  www.example.com
+     # Regex für URLs mit spitzen Klammern und Backticks: < `https://example.com/>`  www.example.com -> [www.example.com](https://example.com/)
      angle_backtick_pattern = /<\s*`([^>]+)>`\s*([^\n]+)/
      angle_backtick_conversions = converted_text.scan(angle_backtick_pattern).count
      converted_text = converted_text.gsub(angle_backtick_pattern) do |match|
