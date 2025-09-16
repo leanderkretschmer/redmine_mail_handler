@@ -1856,6 +1856,15 @@ class MailHandlerService
      end
      total_conversions += quoted_conversions
      
+     # Regex für mehrzeilige URLs in Backticks: ( \n `url` \n ) - MUSS VOR backtick_url_pattern stehen!
+     multiline_backtick_pattern = /\(\s*\n\s*`([^`]+)`\s*\n\s*\)/m
+     multiline_conversions = converted_text.scan(multiline_backtick_pattern).count
+     converted_text = converted_text.gsub(multiline_backtick_pattern) do |match|
+       link_url = $1.strip
+       link_url
+     end
+     total_conversions += multiline_conversions
+     
      # Regex für URLs in Backticks ohne Alt-Text: ( `url` )
      backtick_url_pattern = /\(\s*`([^`]+)`\s*\)/
      backtick_conversions = converted_text.scan(backtick_url_pattern).count
@@ -1865,23 +1874,34 @@ class MailHandlerService
      end
      total_conversions += backtick_conversions
      
-     # Regex für mehrzeilige URLs in Backticks: ( \n `url` \n )
-     multiline_backtick_pattern = /\(\s*\n\s*`([^`]+)`\s*\n\s*\)/m
-     multiline_conversions = converted_text.scan(multiline_backtick_pattern).count
-     converted_text = converted_text.gsub(multiline_backtick_pattern) do |match|
-       link_url = $1.strip
-       link_url
-     end
-     total_conversions += multiline_conversions
-     
      # Regex für URLs in Backticks ohne Klammern: \n `url`
-     standalone_backtick_pattern = /\n\s*`([^`]+)`/
+     standalone_backtick_pattern = /\n\s*`([^`]+)`\s*(?=\n|$)/
      standalone_conversions = converted_text.scan(standalone_backtick_pattern).count
      converted_text = converted_text.gsub(standalone_backtick_pattern) do |match|
        link_url = $1.strip
        "\n#{link_url}"
      end
      total_conversions += standalone_conversions
+     
+     # Regex für Telefonnummern mit tel:-Links: Gsm: 386 (0) 40 90 30 22<tel:0038640903022>
+     tel_pattern = /([^<]+)<tel:([^>]+)>/
+     tel_conversions = converted_text.scan(tel_pattern).count
+     converted_text = converted_text.gsub(tel_pattern) do |match|
+       phone_text = $1.strip
+       tel_link = $2
+       "\"#{phone_text}\":tel:#{tel_link}"
+     end
+     total_conversions += tel_conversions
+     
+     # Regex für URLs mit spitzen Klammern und Backticks: www.example.com< `https://example.com/>`
+     angle_backtick_pattern = /([^<]+)<\s*`([^>]+)>`/
+     angle_backtick_conversions = converted_text.scan(angle_backtick_pattern).count
+     converted_text = converted_text.gsub(angle_backtick_pattern) do |match|
+       url_text = $1.strip
+       url_link = $2
+       "\"#{url_text}\":#{url_link}"
+     end
+     total_conversions += angle_backtick_conversions
      
      # Regex für Mailto-Links: <mailto:email>
      mailto_pattern = /<mailto:([^>]+)>/
@@ -1894,7 +1914,7 @@ class MailHandlerService
     
     # Log nur wenn Änderungen vorgenommen wurden
      if total_conversions > 0
-       @logger.debug("Markdown-Link-Filter angewendet: #{total_conversions} Links konvertiert (#{markdown_conversions} Markdown, #{quoted_conversions} Quoted, #{backtick_conversions} Backtick, #{multiline_conversions} Multiline, #{standalone_conversions} Standalone, #{mailto_conversions} Mailto)")
+       @logger.debug("Markdown-Link-Filter angewendet: #{total_conversions} Links konvertiert (#{markdown_conversions} Markdown, #{quoted_conversions} Quoted, #{backtick_conversions} Backtick, #{multiline_conversions} Multiline, #{standalone_conversions} Standalone, #{tel_conversions} Tel, #{angle_backtick_conversions} AngleBracket, #{mailto_conversions} Mailto)")
      end
     
     converted_text
