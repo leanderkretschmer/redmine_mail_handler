@@ -594,4 +594,18 @@ class MailHandlerServiceTest < ActiveSupport::TestCase
     result = @service.send(:apply_markdown_link_filter, text)
     assert_equal expected, result
   end
+
+  def test_apply_markdown_link_filter_standalone_backtick
+    text = "Abmelden \n `https://example.com/unsubscribe`"
+    expected = "Abmelden \nhttps://example.com/unsubscribe"
+    result = @service.send(:apply_markdown_link_filter, text)
+    assert_equal expected, result
+  end
+
+  def test_apply_markdown_link_filter_mailto_links
+    text = "E-mail: test@example.com<mailto:test@example.com>"
+    expected = "E-mail: test@example.comtest@example.com"
+    result = @service.send(:apply_markdown_link_filter, text)
+    assert_equal expected, result
+  end
 end

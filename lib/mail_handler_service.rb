@@ -1873,10 +1873,28 @@ class MailHandlerService
        link_url
      end
      total_conversions += multiline_conversions
+     
+     # Regex für URLs in Backticks ohne Klammern: \n `url`
+     standalone_backtick_pattern = /\n\s*`([^`]+)`/
+     standalone_conversions = converted_text.scan(standalone_backtick_pattern).count
+     converted_text = converted_text.gsub(standalone_backtick_pattern) do |match|
+       link_url = $1.strip
+       "\n#{link_url}"
+     end
+     total_conversions += standalone_conversions
+     
+     # Regex für Mailto-Links: <mailto:email>
+     mailto_pattern = /<mailto:([^>]+)>/
+     mailto_conversions = converted_text.scan(mailto_pattern).count
+     converted_text = converted_text.gsub(mailto_pattern) do |match|
+       email = $1
+       email
+     end
+     total_conversions += mailto_conversions
     
     # Log nur wenn Änderungen vorgenommen wurden
      if total_conversions > 0
-       @logger.debug("Markdown-Link-Filter angewendet: #{total_conversions} Links konvertiert (#{markdown_conversions} Markdown, #{quoted_conversions} Quoted, #{backtick_conversions} Backtick, #{multiline_conversions} Multiline)")
+       @logger.debug("Markdown-Link-Filter angewendet: #{total_conversions} Links konvertiert (#{markdown_conversions} Markdown, #{quoted_conversions} Quoted, #{backtick_conversions} Backtick, #{multiline_conversions} Multiline, #{standalone_conversions} Standalone, #{mailto_conversions} Mailto)")
      end
     
     converted_text
