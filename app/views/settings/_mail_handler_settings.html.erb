@@ -527,6 +527,24 @@ document.addEventListener('DOMContentLoaded', function() {
     <%= text_area_tag 'settings[regex_separators]', @settings['regex_separators'] || "Am .* schrieb .*:\nVon:\nGesendet:\nAn:\nBetreff:\n-----Original Message-----\n-------- Ursprüngliche Nachricht --------", :rows => 8, :cols => 60 %>
     <em class="info">Regex-Muster für E-Mail-Trenner. Text ab dem ersten gefundenen Trenner wird entfernt. Ein Muster pro Zeile.</em>
   </p>
+  
+  <p>
+    <label for="settings_remove_leading_whitespace_enabled">Führende Leerzeichen entfernen:</label>
+    <%= check_box_tag 'settings[remove_leading_whitespace_enabled]', '1', @settings['remove_leading_whitespace_enabled'] == '1' %>
+    <em class="info">Entfernt alle führenden Leerzeichen und Tabs am Anfang jeder Zeile.</em>
+  </p>
+  
+  <p>
+    <label for="settings_normalize_paragraphs_enabled">Absätze normalisieren:</label>
+    <%= check_box_tag 'settings[normalize_paragraphs_enabled]', '1', @settings['normalize_paragraphs_enabled'] == '1' %>
+    <em class="info">Reduziert mehrere aufeinanderfolgende Absätze auf die angegebene Anzahl.</em>
+  </p>
+  
+  <p>
+    <label for="settings_max_consecutive_paragraphs">Maximale aufeinanderfolgende Absätze:</label>
+    <%= number_field_tag 'settings[max_consecutive_paragraphs]', @settings['max_consecutive_paragraphs'] || '1', :min => 1, :max => 5, :step => 1 %>
+    <em class="info">Anzahl der maximal erlaubten aufeinanderfolgenden leeren Zeilen (Standard: 1).</em>
+  </p>
 </div>
 
 <div class="box tabular settings">

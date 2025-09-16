@@ -409,4 +409,73 @@ class MailHandlerServiceTest < ActiveSupport::TestCase
     assert_equal 'test.txt', attachment.filename
     assert_equal user, attachment.author
   end
+
+  def test_whitespace_filter
+    @service.instance_variable_set(:@settings, {'remove_leading_whitespace_enabled' => '1'})
+    
+    text = <<~TEXT
+      Normale Zeile
+        Zeile mit führenden Leerzeichen
+      \t\tZeile mit Tabs
+      \t   Zeile mit gemischten Whitespaces
+      Noch eine normale Zeile
+    TEXT
+    
+    result = @service.send(:apply_whitespace_filter, text)
+    lines = result.split("\n")
+    
+    assert_equal 'Normale Zeile', lines[0]
+    assert_equal 'Zeile mit führenden Leerzeichen', lines[1]
+    assert_equal 'Zeile mit Tabs', lines[2]
+    assert_equal 'Zeile mit gemischten Whitespaces', lines[3]
+    assert_equal 'Noch eine normale Zeile', lines[4]
+  end
+
+  def test_paragraph_normalization_filter
+    @service.instance_variable_set(:@settings, {
+      'normalize_paragraphs_enabled' => '1',
+      'max_consecutive_paragraphs' => '2'
+    })
+    
+    text = <<~TEXT
+      Erster Absatz
+      
+      
+      
+      
+      
+      Zweiter Absatz nach vielen Leerzeilen
+      
+      
+      Dritter Absatz
+    TEXT
+    
+    result = @service.send(:apply_paragraph_normalization_filter, text)
+    
+    # Sollte maximal 2 aufeinanderfolgende Newlines haben
+    assert_not_includes result, "\n\n\n"
+    assert_includes result, 'Erster Absatz'
+    assert_includes result, 'Zweiter Absatz nach vielen Leerzeilen'
+    assert_includes result, 'Dritter Absatz'
+  end
+
+  def test_whitespace_filter_disabled
+    @service.instance_variable_set(:@settings, {'remove_leading_whitespace_enabled' => '0'})
+    
+    text = "    Zeile mit führenden Leerzeichen"
+    result = @service.send(:apply_whitespace_filter, text)
+    
+    # Filter ist deaktiviert, Text sollte unverändert bleiben
+    assert_equal text, result
+  end
+
+  def test_paragraph_normalization_filter_disabled
+    @service.instance_variable_set(:@settings, {'normalize_paragraphs_enabled' => '0'})
+    
+    text = "Absatz 1\n\n\n\n\nAbsatz 2"
+    result = @service.send(:apply_paragraph_normalization_filter, text)
+    
+    # Filter ist deaktiviert, Text sollte unverändert bleiben
+    assert_equal text, result
+  end
 end

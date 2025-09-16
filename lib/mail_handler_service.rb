@@ -885,6 +885,16 @@ class MailHandlerService
         mail_body = apply_regex_filter(mail_body)
       end
       
+      # Whitespace-Filter anwenden wenn aktiviert
+      if @settings['remove_leading_whitespace_enabled'] == '1'
+        mail_body = apply_whitespace_filter(mail_body)
+      end
+      
+      # Absatz-Normalisierungs-Filter anwenden wenn aktiviert
+      if @settings['normalize_paragraphs_enabled'] == '1'
+        mail_body = apply_paragraph_normalization_filter(mail_body)
+      end
+      
       # Füge den bereinigten Inhalt hinzu
       content += mail_body
     end
@@ -937,6 +947,16 @@ class MailHandlerService
       # Regex-Filter anwenden wenn aktiviert
       if @settings['regex_filter_enabled'] == '1'
         mail_body = apply_regex_filter(mail_body)
+      end
+      
+      # Whitespace-Filter anwenden wenn aktiviert
+      if @settings['remove_leading_whitespace_enabled'] == '1'
+        mail_body = apply_whitespace_filter(mail_body)
+      end
+      
+      # Absatz-Normalisierungs-Filter anwenden wenn aktiviert
+      if @settings['normalize_paragraphs_enabled'] == '1'
+        mail_body = apply_paragraph_normalization_filter(mail_body)
       end
     end
     
@@ -1109,6 +1129,16 @@ class MailHandlerService
         # Regex-Filter anwenden wenn aktiviert
         if @settings['regex_filter_enabled'] == '1'
           mail_body = apply_regex_filter(mail_body)
+        end
+        
+        # Whitespace-Filter anwenden wenn aktiviert
+        if @settings['remove_leading_whitespace_enabled'] == '1'
+          mail_body = apply_whitespace_filter(mail_body)
+        end
+        
+        # Absatz-Normalisierungs-Filter anwenden wenn aktiviert
+        if @settings['normalize_paragraphs_enabled'] == '1'
+          mail_body = apply_paragraph_normalization_filter(mail_body)
         end
       end
       
@@ -1702,6 +1732,39 @@ class MailHandlerService
     end
     
     text
+  end
+
+  # Whitespace-Filter: Entferne führende Leerzeichen und Tabs
+  def apply_whitespace_filter(text)
+    return text if text.blank?
+    
+    # Entferne führende Leerzeichen und Tabs von jeder Zeile
+    lines = text.split("\n")
+    filtered_lines = lines.map { |line| line.lstrip }
+    filtered_text = filtered_lines.join("\n")
+    
+    @logger.debug("Whitespace-Filter angewendet: Führende Leerzeichen entfernt")
+    filtered_text
+  end
+
+  # Absatz-Normalisierungs-Filter: Reduziere aufeinanderfolgende leere Zeilen
+  def apply_paragraph_normalization_filter(text)
+    return text if text.blank?
+    
+    # Hole maximale Anzahl aufeinanderfolgender Absätze aus Einstellungen
+    max_paragraphs = (@settings['max_consecutive_paragraphs'] || '1').to_i
+    max_paragraphs = [max_paragraphs, 1].max  # Mindestens 1
+    max_paragraphs = [max_paragraphs, 5].min  # Maximal 5
+    
+    # Erstelle Regex-Pattern für mehr als max_paragraphs aufeinanderfolgende Newlines
+    pattern = "\\n{#{max_paragraphs + 1},}"
+    replacement = "\n" * max_paragraphs
+    
+    # Wende Filter an
+    filtered_text = text.gsub(Regexp.new(pattern), replacement)
+    
+    @logger.debug("Absatz-Normalisierungs-Filter angewendet: Maximal #{max_paragraphs} aufeinanderfolgende Absätze")
+    filtered_text
   end
 
   # Alias für Rückwärtskompatibilität

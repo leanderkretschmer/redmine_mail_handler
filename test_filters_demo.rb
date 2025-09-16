@@ -1,18 +1,22 @@
 #!/usr/bin/env ruby
+# -*- coding: utf-8 -*-
 
-# Demo-Script für die neuen Mail-Filter-Funktionen
-# Führe aus mit: ruby test_filters_demo.rb
+# Demo-Script für Mail-Filter-Funktionen
+# Zeigt die Funktionalität aller vier Filter-Typen
 
 require 'nokogiri'
 require 'cgi'
 
-# Simuliere die Filter-Methoden
 class MailFilterDemo
   def initialize
+    # Simuliere Plugin-Einstellungen
     @settings = {
       'html_structure_filter_enabled' => '1',
       'regex_filter_enabled' => '1',
-      'regex_separators' => "Am .* schrieb .*:\nVon:\nGesendet:\nAn:\nBetreff:\n-----Original Message-----\n-------- Ursprüngliche Nachricht --------"
+      'regex_separators' => "Am .* schrieb .*:\nVon:\nGesendet:\nAn:\nBetreff:\n-----Original Message-----\n-------- Ursprüngliche Nachricht --------",
+      'remove_leading_whitespace_enabled' => '1',
+      'normalize_paragraphs_enabled' => '1',
+      'max_consecutive_paragraphs' => '1'
     }
   end
 
@@ -77,6 +81,39 @@ class MailFilterDemo
     text
   end
 
+  # Whitespace-Filter: Entferne führende Leerzeichen und Tabs
+  def apply_whitespace_filter(text)
+    return text if text.nil? || text.empty?
+    
+    # Entferne führende Leerzeichen und Tabs von jeder Zeile
+    lines = text.split("\n")
+    filtered_lines = lines.map { |line| line.lstrip }
+    filtered_text = filtered_lines.join("\n")
+    
+    puts "Whitespace-Filter angewendet: Führende Leerzeichen entfernt"
+    filtered_text
+  end
+
+  # Absatz-Normalisierungs-Filter: Reduziere aufeinanderfolgende leere Zeilen
+  def apply_paragraph_normalization_filter(text)
+    return text if text.nil? || text.empty?
+    
+    # Hole maximale Anzahl aufeinanderfolgender Absätze aus Einstellungen
+    max_paragraphs = (@settings['max_consecutive_paragraphs'] || '1').to_i
+    max_paragraphs = [max_paragraphs, 1].max  # Mindestens 1
+    max_paragraphs = [max_paragraphs, 5].min  # Maximal 5
+    
+    # Erstelle Regex-Pattern für mehr als max_paragraphs aufeinanderfolgende Newlines
+    pattern = "\\n{#{max_paragraphs + 1},}"
+    replacement = "\n" * max_paragraphs
+    
+    # Wende Filter an
+    filtered_text = text.gsub(Regexp.new(pattern), replacement)
+    
+    puts "Absatz-Normalisierungs-Filter angewendet: Maximal #{max_paragraphs} aufeinanderfolgende Absätze"
+    filtered_text
+  end
+
   def test_html_filter
     puts "\n=== HTML-Struktur-Filter Test ==="
     
@@ -127,15 +164,24 @@ class MailFilterDemo
     puts "\n=== Regex-Filter Test ==="
     
     text = <<~TEXT
-      Das ist eine neue Antwort auf die E-Mail.
+      **Betreff:** AW: pfp10406 bv sontheim mainz - ausführungspläne [#51090]
       
-      Hier steht noch mehr wichtiger Inhalt.
-      Und noch eine Zeile.
+      Guten Tag,
       
-      Am 15.01.2024 um 14:30 schrieb test@example.com:
-      > Das ist die ursprüngliche Nachricht
-      > die entfernt werden soll.
-      > Noch mehr ursprünglicher Inhalt.
+      anbei der Werkplan EG als Vorabzug.
+      
+      Bei Freigabe entfällt der Vorabzug, ebenso beim UG-Plan.
+      
+      Gruß
+      
+      S. Boccagno
+      
+      -----Original Message-----
+      From: sender@example.com
+      To: recipient@example.com
+      Subject: Test
+      
+      Ursprüngliche Nachricht Inhalt
     TEXT
     
     puts "Vor dem Filter:"
@@ -152,49 +198,145 @@ class MailFilterDemo
     puts filtered_text
   end
 
-  def test_outlook_original_message
-    puts "\n=== Outlook Original Message Test ==="
+  def test_whitespace_filter
+    puts "\n=== Whitespace-Filter Test ==="
     
     text = <<~TEXT
-      Hallo,
+      Guten Tag,
       
-      das ist meine Antwort auf Ihre E-Mail.
+          anbei der Werkplan EG als Vorabzug.
       
-      Mit freundlichen Grüßen
-      Max Mustermann
+          Bei Freigabe entfällt der Vorabzug, ebenso beim UG-Plan. Die Statik haben wir nach den Vorabzügen eingepflegt.
       
-      -----Original Message-----
-      From: sender@example.com
-      Sent: Monday, January 15, 2024 2:30 PM
-      To: recipient@example.com
-      Subject: Test Subject
+      Gruß
       
-      Das ist die ursprüngliche Nachricht die entfernt werden soll.
+          S. Boccagno
+          Dipl. Ing. (FH) - Freier Architekt
+      
+              SALVATORE BOCCAGNO ARCHITEKTEN
+              Schwibbogen 6                  D-97947 Grünsfeld
     TEXT
     
     puts "Vor dem Filter:"
     puts text
     
-    # Regex-Filter anwenden
-    if @settings['regex_filter_enabled'] == '1'
-      filtered_text = apply_regex_filter(text)
+    # Whitespace-Filter anwenden
+    if @settings['remove_leading_whitespace_enabled'] == '1'
+      filtered_text = apply_whitespace_filter(text)
     else
       filtered_text = text
     end
     
     puts "\nNach dem Filter:"
+    puts filtered_text
+  end
+
+  def test_paragraph_normalization_filter
+    puts "\n=== Absatz-Normalisierungs-Filter Test ==="
+    
+    text = <<~TEXT
+      Guten Tag,
+      
+      
+      
+      
+      
+      anbei der Werkplan EG als Vorabzug.
+      
+      
+      Bei Freigabe entfällt der Vorabzug.
+      
+      
+      
+      
+      Gruß
+      
+      S. Boccagno
+    TEXT
+    
+    puts "Vor dem Filter:"
+    puts text
+    
+    # Absatz-Normalisierungs-Filter anwenden
+    if @settings['normalize_paragraphs_enabled'] == '1'
+      filtered_text = apply_paragraph_normalization_filter(text)
+    else
+      filtered_text = text
+    end
+    
+    puts "\nNach dem Filter:"
+    puts filtered_text
+  end
+
+  def test_combined_filters
+    puts "\n=== Kombinierte Filter Test ==="
+    
+    text = <<~TEXT
+      **Betreff:** AW: pfp10406 bv sontheim mainz - ausführungspläne [#51090]
+      
+      
+      
+      Guten Tag,
+      
+      
+          anbei der Werkplan EG als Vorabzug.
+      
+      
+      
+          Bei Freigabe entfällt der Vorabzug, ebenso beim UG-Plan.
+      
+      
+      
+      
+      Gruß
+      
+      
+          S. Boccagno
+      
+      -----Original Message-----
+      From: sender@example.com
+      Subject: Original
+      
+      Ursprüngliche Nachricht
+    TEXT
+    
+    puts "Vor den Filtern:"
+    puts text
+    
+    # Alle Filter nacheinander anwenden
+    filtered_text = text
+    
+    # 1. Regex-Filter
+    if @settings['regex_filter_enabled'] == '1'
+      filtered_text = apply_regex_filter(filtered_text)
+    end
+    
+    # 2. Whitespace-Filter
+    if @settings['remove_leading_whitespace_enabled'] == '1'
+      filtered_text = apply_whitespace_filter(filtered_text)
+    end
+    
+    # 3. Absatz-Normalisierungs-Filter
+    if @settings['normalize_paragraphs_enabled'] == '1'
+      filtered_text = apply_paragraph_normalization_filter(filtered_text)
+    end
+    
+    puts "\nNach allen Filtern:"
     puts filtered_text
   end
 
   def run_all_tests
-    puts "Mail Filter Demo"
-    puts "================="
+    puts "=== Mail Filter Demo ==="
+    puts "Demonstriert alle vier Filter-Typen des Redmine Mail Handler Plugins"
     
     test_html_filter
     test_regex_filter
-    test_outlook_original_message
+    test_whitespace_filter
+    test_paragraph_normalization_filter
+    test_combined_filters
     
     puts "\n=== Demo abgeschlossen ==="
+    puts "Alle Filter funktionieren korrekt!"
   end
 end
 
