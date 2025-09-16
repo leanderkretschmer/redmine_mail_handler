@@ -587,4 +587,11 @@ class MailHandlerServiceTest < ActiveSupport::TestCase
     result = @service.send(:apply_markdown_link_filter, text)
     assert_equal expected, result
   end
+
+  def test_apply_markdown_link_filter_multiline_backtick
+    text = "Online-Zugriff auf Toleranztabellen: ( \n `https://mail.weka.de/test` \n ) ."
+    expected = "Online-Zugriff auf Toleranztabellen: https://mail.weka.de/test ."
+    result = @service.send(:apply_markdown_link_filter, text)
+    assert_equal expected, result
+  end
 end

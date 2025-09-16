@@ -409,7 +409,9 @@ class MailHandlerAdminController < ApplicationController
          attachments_to_delete.each do |attachment|
            begin
              # Lösche die physische Datei
-             attachment.diskfile.delete if attachment.diskfile && File.exist?(attachment.diskfile)
+             if attachment.diskfile && File.exist?(attachment.diskfile)
+               File.delete(attachment.diskfile)
+             end
            rescue => e
              logger = MailHandlerLogger.new
              logger.warn("Could not delete physical file for attachment #{attachment.id}: #{e.message}")

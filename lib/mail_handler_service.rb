@@ -1864,10 +1864,19 @@ class MailHandlerService
        link_url
      end
      total_conversions += backtick_conversions
+     
+     # Regex für mehrzeilige URLs in Backticks: ( \n `url` \n )
+     multiline_backtick_pattern = /\(\s*\n\s*`([^`]+)`\s*\n\s*\)/m
+     multiline_conversions = converted_text.scan(multiline_backtick_pattern).count
+     converted_text = converted_text.gsub(multiline_backtick_pattern) do |match|
+       link_url = $1.strip
+       link_url
+     end
+     total_conversions += multiline_conversions
     
     # Log nur wenn Änderungen vorgenommen wurden
      if total_conversions > 0
-       @logger.debug("Markdown-Link-Filter angewendet: #{total_conversions} Links konvertiert (#{markdown_conversions} Markdown, #{quoted_conversions} Quoted, #{backtick_conversions} Backtick)")
+       @logger.debug("Markdown-Link-Filter angewendet: #{total_conversions} Links konvertiert (#{markdown_conversions} Markdown, #{quoted_conversions} Quoted, #{backtick_conversions} Backtick, #{multiline_conversions} Multiline)")
      end
     
     converted_text
