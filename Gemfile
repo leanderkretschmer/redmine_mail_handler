@@ -19,8 +19,8 @@ gem 'premailer', '~> 1.21.0'
 # Encoding-Unterstützung
 gem 'charlock_holmes', '~> 0.7.7'
 
-# Mail-Decoder für robusteres Charset-Handling
-gem 'mail-decoder', '~> 0.1.0'
+# Mail-Decoder entfernt - Redmine hat bereits robuste Mail-Handling-Funktionen
+# gem 'mail-decoder', '~> 0.1.0'
 
 # HTML zu Text Konvertierung
 gem 'html2text', '~> 0.2.0'
