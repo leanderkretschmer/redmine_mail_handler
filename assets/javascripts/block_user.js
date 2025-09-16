@@ -15,125 +15,62 @@
       return;
     }
     
-    console.log('Suche nach Journal-Einträgen...');
+    console.log('Block User: Suche nach Kommentaren und Benutzer-Links...');
     
-    // Erweiterte Selektoren für verschiedene Redmine-Versionen und HTML-Strukturen
-    const journalSelectors = [
-      '.journal',
-      '#history .journal',
-      '.journal.has-notes',
-      '.journal.has-details',
-      'div[id^="change-"]',
-      '.changeset'
-    ];
+    // Suche nach allen Benutzer-Links auf der Seite
+    const userLinks = document.querySelectorAll('a[href*="/users/"]');
+    console.log(`Block User: ${userLinks.length} Benutzer-Links gefunden`);
     
-    let journals = [];
-    journalSelectors.forEach(selector => {
-      const found = document.querySelectorAll(selector);
-      found.forEach(journal => {
-        if (!journals.includes(journal)) {
-          journals.push(journal);
-        }
-      });
-    });
-    
-    console.log(`Gefundene Journals: ${journals.length}`);
-    
-    journals.forEach(function(journal) {
-      // Prüfe ob bereits ein Block-Button existiert
-      if (journal.querySelector('.block-user-btn')) {
-        return;
-      }
-      
-      // Erweiterte Suche nach Benutzer-Links mit verschiedenen Selektoren
-      const userLinkSelectors = [
-        '.journal-link a[href*="/users/"]',
-        'h4 a[href*="/users/"]',
-        '.user a[href*="/users/"]',
-        'a[href*="/users/"]',
-        '.author a[href*="/users/"]',
-        '.journal-user a[href*="/users/"]'
-      ];
-      
-      let userLink = null;
-      for (const selector of userLinkSelectors) {
-        userLink = journal.querySelector(selector);
-        if (userLink) {
-          console.log(`Benutzer-Link gefunden mit Selektor: ${selector}`);
-          break;
-        }
-      }
-      
-      if (!userLink) {
-        console.log('Kein Benutzer-Link gefunden in Journal:', journal);
+    userLinks.forEach(userLink => {
+      // Prüfe ob bereits ein Block-Link existiert
+      if (userLink.parentNode.querySelector('.block-user-link')) {
         return;
       }
       
       // Extrahiere Benutzer-ID aus dem Link
       const userIdMatch = userLink.href.match(/\/users\/(\d+)/);
-      if (!userIdMatch) {
-        console.log('Keine Benutzer-ID gefunden in Link:', userLink.href);
-        return;
-      }
-      
-      const userId = userIdMatch[1];
-      const userName = userLink.textContent.trim();
-      
-      console.log(`Füge Block-Button für Benutzer hinzu: ${userName} (ID: ${userId})`);
-      
-      // Erstelle Block-Button
-      const blockButton = document.createElement('button');
-      blockButton.className = 'block-user-btn';
-      blockButton.textContent = '🚫 Block';
-      blockButton.title = `Benutzer ${userName} blockieren`;
-      blockButton.setAttribute('data-user-id', userId);
-      blockButton.setAttribute('data-user-name', userName);
-      
-      // Event-Listener für Block-Button
-      blockButton.addEventListener('click', function(e) {
-        e.preventDefault();
-        blockUser(userId, userName, blockButton);
-      });
-      
-      // Finde den besten Platz für den Button mit erweiterten Selektoren
-      const insertionTargets = [
-        journal.querySelector('.journal-link'),
-        journal.querySelector('h4'),
-        journal.querySelector('.user'),
-        journal.querySelector('.author'),
-        journal.querySelector('.journal-user'),
-        userLink.parentNode
-      ];
-      
-      let insertionTarget = null;
-      for (const target of insertionTargets) {
-        if (target) {
-          insertionTarget = target;
-          break;
-        }
-      }
-      
-      if (insertionTarget) {
-        insertionTarget.appendChild(document.createTextNode(' '));
-        insertionTarget.appendChild(blockButton);
-        console.log('Block-Button erfolgreich hinzugefügt');
-      } else {
-        console.log('Kein geeigneter Platz für Block-Button gefunden');
+      if (userIdMatch) {
+        const userId = userIdMatch[1];
+        console.log(`Block User: Erstelle Block-Link für Benutzer ${userId}`);
+        
+        // Erstelle einfachen Text-Link "blockieren"
+        const blockLink = document.createElement('a');
+        blockLink.href = '#';
+        blockLink.className = 'block-user-link';
+        blockLink.textContent = 'blockieren';
+        blockLink.title = 'Benutzer blockieren und von Import-Liste ausschließen';
+        blockLink.style.marginLeft = '10px';
+        blockLink.style.color = '#dc3545';
+        blockLink.style.fontSize = '11px';
+        blockLink.style.textDecoration = 'underline';
+        
+        // Event-Listener für Block-Aktion
+        blockLink.addEventListener('click', function(e) {
+          e.preventDefault();
+          if (confirm(`Benutzer wirklich blockieren? Dies löscht den Benutzer aus Redmine und setzt ihn auf die Do-Not-Import-Liste.`)) {
+            blockUser(userId, userLink.textContent.trim(), blockLink);
+          }
+        });
+        
+        // Füge den Link direkt nach dem Benutzer-Link ein
+        userLink.parentNode.insertBefore(document.createTextNode(' '), userLink.nextSibling);
+        userLink.parentNode.insertBefore(blockLink, userLink.nextSibling.nextSibling);
+        
+        console.log(`Block User: Block-Link hinzugefügt für Benutzer ${userId}`);
       }
     });
   }
   
   // Blockiere einen Benutzer
-  function blockUser(userId, userName, buttonElement) {
-    if (!confirm(`Sind Sie sicher, dass Sie den Benutzer "${userName}" blockieren möchten?\n\nDies wird:\n- Den Benutzer löschen\n- Alle E-Mail-Adressen des Benutzers zur Ignore-Liste hinzufügen`)) {
-      return;
-    }
+  function blockUser(userId, userName, linkElement) {
+    console.log(`Blockiere Benutzer: ${userName} (ID: ${userId})`);
     
-    // Deaktiviere Button während der Anfrage
-    buttonElement.disabled = true;
-    buttonElement.textContent = 'Blockiere...';
+    // Ändere Link-Text während der Anfrage
+    const originalText = linkElement.textContent;
+    linkElement.textContent = 'blockiere...';
+    linkElement.style.pointerEvents = 'none';
     
-    // AJAX-Anfrage zum Blockieren des Benutzers
+    // AJAX-Anfrage an den Server
     fetch('/admin/mail_handler_admin/block_user', {
       method: 'POST',
       headers: {
@@ -141,50 +78,54 @@
         'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
       },
       body: JSON.stringify({
-        user_id: userId
+        user_id: userId,
+        user_name: userName
       })
     })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        // Erfolgsmeldung anzeigen
-        alert(`Benutzer erfolgreich blockiert:\n${data.message}`);
-        
-        // Entferne den Block-Button und markiere den Kommentar
-        buttonElement.remove();
-        
-        // Markiere das Journal als blockiert
-        const journal = buttonElement.closest('.journal');
-        if (journal) {
-          journal.classList.add('blocked-user');
-          const userLink = journal.querySelector('.journal-link a[href*="/users/"]');
-          if (userLink) {
-            userLink.style.textDecoration = 'line-through';
-            userLink.style.color = '#999';
-            userLink.title = 'Benutzer wurde blockiert';
-          }
-        }
-        
-        // Seite neu laden um Änderungen zu reflektieren
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
-        
+    .then(response => {
+      if (response.ok) {
+        return response.json();
       } else {
-        alert(`Fehler beim Blockieren des Benutzers:\n${data.error}`);
-        
-        // Button wieder aktivieren
-        buttonElement.disabled = false;
-        buttonElement.textContent = '🚫 Block';
+        throw new Error('Fehler beim Blockieren des Benutzers');
       }
     })
-    .catch(error => {
-      console.error('Fehler beim Blockieren des Benutzers:', error);
-      alert('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.');
+    .then(data => {
+      console.log('Benutzer erfolgreich blockiert:', data);
       
-      // Button wieder aktivieren
-      buttonElement.disabled = false;
-      buttonElement.textContent = '🚫 Block';
+      // Entferne den Block-Link
+      linkElement.remove();
+      
+      // Markiere den Benutzer als blockiert
+      const userLink = linkElement.parentNode.querySelector('a[href*="/users/"]');
+      if (userLink) {
+        userLink.style.textDecoration = 'line-through';
+        userLink.style.color = '#999';
+        userLink.title = 'Benutzer wurde blockiert';
+        
+        // Füge "(Blockiert)" Text hinzu
+        const blockedText = document.createElement('span');
+        blockedText.textContent = ' (Blockiert)';
+        blockedText.style.color = '#dc3545';
+        blockedText.style.fontSize = '11px';
+        userLink.parentNode.insertBefore(blockedText, userLink.nextSibling);
+      }
+      
+      // Zeige Erfolgsmeldung
+      alert(`Benutzer ${userName} wurde erfolgreich blockiert und von der Import-Liste ausgeschlossen.`);
+      
+      // Lade die Seite nach kurzer Verzögerung neu
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    })
+    .catch(error => {
+      console.error('Fehler beim Blockieren:', error);
+      
+      // Stelle ursprünglichen Link-Text wieder her
+      linkElement.textContent = originalText;
+      linkElement.style.pointerEvents = 'auto';
+      
+      alert('Fehler beim Blockieren des Benutzers. Bitte versuchen Sie es erneut.');
     });
   }
   
