@@ -534,4 +534,36 @@ class MailHandlerServiceTest < ActiveSupport::TestCase
     # Gültiges Pattern sollte funktionieren
     assert @service.send(:should_exclude_attachment?, 'valid.txt')
   end
+
+  def test_apply_markdown_link_filter_basic
+    text = 'Hier ist ein [Link](https://example.com) im Text.'
+    expected = 'Hier ist ein "Link":https://example.com im Text.'
+    result = @service.send(:apply_markdown_link_filter, text)
+    assert_equal expected, result
+  end
+
+  def test_apply_markdown_link_filter_multiple_links
+    text = 'Erste [Link](https://example.com) und zweite [Seite](http://test.org) Links.'
+    expected = 'Erste "Link":https://example.com und zweite "Seite":http://test.org Links.'
+    result = @service.send(:apply_markdown_link_filter, text)
+    assert_equal expected, result
+  end
+
+  def test_apply_markdown_link_filter_no_links
+    text = 'Normaler Text ohne Links.'
+    result = @service.send(:apply_markdown_link_filter, text)
+    assert_equal text, result
+  end
+
+  def test_apply_markdown_link_filter_empty_text
+    assert_equal '', @service.send(:apply_markdown_link_filter, '')
+    assert_nil @service.send(:apply_markdown_link_filter, nil)
+  end
+
+  def test_apply_markdown_link_filter_complex_alt_text
+    text = 'Link mit [komplexem Alt-Text mit Leerzeichen](https://example.com/path?param=value) hier.'
+    expected = 'Link mit "komplexem Alt-Text mit Leerzeichen":https://example.com/path?param=value hier.'
+    result = @service.send(:apply_markdown_link_filter, text)
+    assert_equal expected, result
+  end
 end

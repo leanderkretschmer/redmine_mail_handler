@@ -547,6 +547,12 @@ document.addEventListener('DOMContentLoaded', function() {
   </p>
   
   <p>
+    <label for="settings_markdown_link_filter_enabled">Markdown-Links konvertieren:</label>
+    <%= check_box_tag 'settings[markdown_link_filter_enabled]', '1', @settings['markdown_link_filter_enabled'] == '1' %>
+    <em class="info">Konvertiert Markdown-Links [alt-text](link) zu "alt-text":link Format.</em>
+  </p>
+  
+  <p>
     <label for="settings_exclude_attachments_enabled">Datei-Ausschluss aktivieren:</label>
     <%= check_box_tag 'settings[exclude_attachments_enabled]', '1', @settings['exclude_attachments_enabled'] == '1' %>
     <em class="info">Aktiviert den Ausschluss bestimmter Dateien von der Anhang-Verarbeitung.</em>

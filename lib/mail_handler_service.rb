@@ -901,6 +901,11 @@ class MailHandlerService
         mail_body = apply_paragraph_normalization_filter(mail_body)
       end
       
+      # Markdown-Link-Filter anwenden wenn aktiviert
+      if @settings['markdown_link_filter_enabled'] == '1'
+        mail_body = apply_markdown_link_filter(mail_body)
+      end
+      
       # Füge den bereinigten Inhalt hinzu
       content += mail_body
     end
@@ -963,6 +968,11 @@ class MailHandlerService
       # Absatz-Normalisierungs-Filter anwenden wenn aktiviert
       if @settings['normalize_paragraphs_enabled'] == '1'
         mail_body = apply_paragraph_normalization_filter(mail_body)
+      end
+      
+      # Markdown-Link-Filter anwenden wenn aktiviert
+      if @settings['markdown_link_filter_enabled'] == '1'
+        mail_body = apply_markdown_link_filter(mail_body)
       end
     end
     
@@ -1145,6 +1155,11 @@ class MailHandlerService
         # Absatz-Normalisierungs-Filter anwenden wenn aktiviert
         if @settings['normalize_paragraphs_enabled'] == '1'
           mail_body = apply_paragraph_normalization_filter(mail_body)
+        end
+        
+        # Markdown-Link-Filter anwenden wenn aktiviert
+        if @settings['markdown_link_filter_enabled'] == '1'
+          mail_body = apply_markdown_link_filter(mail_body)
         end
       end
       
@@ -1812,6 +1827,30 @@ class MailHandlerService
     end
     
     false
+  end
+
+  # Markdown-Link-Filter: Konvertiere [alt-text](link) zu "alt-text":link
+  def apply_markdown_link_filter(text)
+    return text if text.blank?
+    
+    # Regex für Markdown-Links: [alt-text](link)
+    markdown_link_pattern = /\[([^\]]+)\]\(([^\)]+)\)/
+    
+    # Ersetze alle Markdown-Links
+    converted_text = text.gsub(markdown_link_pattern) do |match|
+      alt_text = $1
+      link_url = $2
+      
+      # Konvertiere zu "alt-text":link Format
+      "\"#{alt_text}\":#{link_url}"
+    end
+    
+    # Log nur wenn Änderungen vorgenommen wurden
+    if converted_text != text
+      @logger.debug("Markdown-Link-Filter angewendet: #{text.scan(markdown_link_pattern).count} Links konvertiert")
+    end
+    
+    converted_text
   end
 
   # Alias für Rückwärtskompatibilität
