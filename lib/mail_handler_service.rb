@@ -1899,7 +1899,7 @@ class MailHandlerService
      converted_text = converted_text.gsub(angle_backtick_pattern) do |match|
        url_link = $1
        url_text = $2.strip
-       "\"#{url_text}\":#{url_link}"
+       "[#{url_text}](#{url_link})"
      end
      total_conversions += angle_backtick_conversions
      
