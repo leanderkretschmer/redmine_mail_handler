@@ -509,6 +509,24 @@ document.addEventListener('DOMContentLoaded', function() {
     <%= check_box_tag 'settings[mail_decoder_enabled]', '1', @settings['mail_decoder_enabled'] == '1' %>
     <em class="info">Aktiviert robusteres Charset-Handling und bessere HTML-zu-Text-Konvertierung mit mail-decoder und html2text</em>
   </p>
+  
+  <p>
+    <label for="settings_html_structure_filter_enabled">HTML-Struktur-Filter aktivieren:</label>
+    <%= check_box_tag 'settings[html_structure_filter_enabled]', '1', @settings['html_structure_filter_enabled'] == '1' %>
+    <em class="info">Entfernt störende HTML-Elemente wie Zitate, Signaturen und E-Mail-Client-spezifische Tags vor der Text-Konvertierung.</em>
+  </p>
+  
+  <p>
+    <label for="settings_regex_filter_enabled">Regex-Filter aktivieren:</label>
+    <%= check_box_tag 'settings[regex_filter_enabled]', '1', @settings['regex_filter_enabled'] == '1' %>
+    <em class="info">Entfernt Text ab typischen E-Mail-Trennern wie "Am ... schrieb" oder "-----Original Message-----".</em>
+  </p>
+  
+  <p>
+    <label for="settings_regex_separators">Regex-Trenner (einer pro Zeile):</label>
+    <%= text_area_tag 'settings[regex_separators]', @settings['regex_separators'] || "Am .* schrieb .*:\nVon:\nGesendet:\nAn:\nBetreff:\n-----Original Message-----\n-------- Ursprüngliche Nachricht --------", :rows => 8, :cols => 60 %>
+    <em class="info">Regex-Muster für E-Mail-Trenner. Text ab dem ersten gefundenen Trenner wird entfernt. Ein Muster pro Zeile.</em>
+  </p>
 </div>
 
 <div class="box tabular settings">

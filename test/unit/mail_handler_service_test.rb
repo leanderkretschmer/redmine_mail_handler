@@ -259,7 +259,88 @@ class MailHandlerServiceTest < ActiveSupport::TestCase
     assert_includes result, '*Mit freundlichen Grüßen*'
   end
 
-  def test_decode_mail_content_with_line_breaks
+  def test_html_structure_filter
+    @service.instance_variable_set(:@settings, {'html_structure_filter_enabled' => '1'})
+    
+    html = <<~HTML
+      <p>Wichtiger Inhalt</p>
+      <blockquote>Das ist ein Zitat</blockquote>
+      <div class="gmail_quote">Gmail Zitat</div>
+      <div class="apple-msg-attachment">Apple Anhang</div>
+      <p>Mehr wichtiger Inhalt</p>
+    HTML
+    
+    result = @service.send(:convert_html_to_text, html)
+    assert_includes result, 'Wichtiger Inhalt'
+    assert_includes result, 'Mehr wichtiger Inhalt'
+    refute_includes result, 'Das ist ein Zitat'
+    refute_includes result, 'Gmail Zitat'
+    refute_includes result, 'Apple Anhang'
+  end
+
+  def test_regex_filter
+    @service.instance_variable_set(:@settings, {
+      'regex_filter_enabled' => '1',
+      'regex_separators' => "Am .* schrieb .*:\n-----Original Message-----"
+    })
+    
+    text = <<~TEXT
+      Das ist der wichtige Inhalt.
+      Hier steht noch mehr.
+      
+      Am 15.01.2024 schrieb test@example.com:
+      > Das ist die ursprüngliche Nachricht
+      > die entfernt werden soll.
+    TEXT
+    
+    result = @service.send(:apply_regex_filter, text)
+    assert_includes result, 'Das ist der wichtige Inhalt'
+    assert_includes result, 'Hier steht noch mehr'
+    refute_includes result, 'Am 15.01.2024 schrieb'
+    refute_includes result, 'ursprüngliche Nachricht'
+  end
+
+  def test_regex_filter_with_original_message
+    @service.instance_variable_set(:@settings, {
+      'regex_filter_enabled' => '1',
+      'regex_separators' => "-----Original Message-----"
+    })
+    
+    text = <<~TEXT
+      Neue Antwort hier.
+      
+      -----Original Message-----
+      From: sender@example.com
+      To: recipient@example.com
+      Subject: Test
+      
+      Ursprüngliche Nachricht Inhalt
+    TEXT
+    
+    result = @service.send(:apply_regex_filter, text)
+    assert_includes result, 'Neue Antwort hier'
+    refute_includes result, 'Original Message'
+    refute_includes result, 'sender@example.com'
+  end
+
+  def test_filters_disabled
+    @service.instance_variable_set(:@settings, {
+      'html_structure_filter_enabled' => '0',
+      'regex_filter_enabled' => '0'
+    })
+    
+    html = '<p>Inhalt</p><blockquote>Zitat</blockquote>'
+    text = "Inhalt\n\nAm 15.01.2024 schrieb test@example.com:\nZitat"
+    
+    html_result = @service.send(:convert_html_to_text, html)
+    text_result = @service.send(:apply_regex_filter, text)
+    
+    # Filter sind deaktiviert, also sollten Zitate erhalten bleiben
+     assert_includes html_result, 'Zitat'
+     assert_includes text_result, 'Am 15.01.2024 schrieb'
+   end
+
+   def test_decode_mail_content_with_line_breaks
     # Test verschiedene Zeilenumbruch-Formate
     mail = Mail.new do
       from 'test@example.com'

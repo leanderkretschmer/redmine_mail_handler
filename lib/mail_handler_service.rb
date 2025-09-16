@@ -880,6 +880,11 @@ class MailHandlerService
       # Behandle quoted-printable Encoding-Artefakte
       mail_body = mail_body.gsub(/=\n/, "")  # Entferne soft line breaks
       
+      # Regex-Filter anwenden wenn aktiviert
+      if @settings['regex_filter_enabled'] == '1'
+        mail_body = apply_regex_filter(mail_body)
+      end
+      
       # Füge den bereinigten Inhalt hinzu
       content += mail_body
     end
@@ -928,6 +933,11 @@ class MailHandlerService
       mail_body = mail_body.gsub(/\r/, "\n")    # Mac CR -> LF
       mail_body = mail_body.gsub(/\n{3,}/, "\n\n")  # Reduziere übermäßige Leerzeilen
       mail_body = mail_body.gsub(/=\n/, "")  # Entferne soft line breaks
+      
+      # Regex-Filter anwenden wenn aktiviert
+      if @settings['regex_filter_enabled'] == '1'
+        mail_body = apply_regex_filter(mail_body)
+      end
     end
     
     mail_body
@@ -940,6 +950,11 @@ class MailHandlerService
     begin
       # Verwende Nokogiri für minimale HTML-Bereinigung
       doc = Nokogiri::HTML::DocumentFragment.parse(html_content)
+      
+      # HTML-Struktur-Filter anwenden wenn aktiviert
+      if @settings['html_structure_filter_enabled'] == '1'
+        apply_html_structure_filter(doc)
+      end
       
       # Entferne Script und Style Tags komplett
       doc.css('script, style').remove
@@ -989,6 +1004,11 @@ class MailHandlerService
       
       # Nokogiri-Fallback für robuste HTML-Verarbeitung
       doc = Nokogiri::HTML::DocumentFragment.parse(html_content)
+      
+      # HTML-Struktur-Filter anwenden wenn aktiviert
+      if @settings['html_structure_filter_enabled'] == '1'
+        apply_html_structure_filter(doc)
+      end
       
       # Entferne alle style-Attribute und CSS-spezifische Elemente
       doc.search('*').each do |element|
@@ -1085,6 +1105,11 @@ class MailHandlerService
         mail_body = mail_body.gsub(/\r/, "\n")    # Mac CR -> LF
         mail_body = mail_body.gsub(/\n{3,}/, "\n\n")  # Reduziere übermäßige Leerzeilen
         mail_body = mail_body.gsub(/=\n/, "")  # Entferne soft line breaks
+        
+        # Regex-Filter anwenden wenn aktiviert
+        if @settings['regex_filter_enabled'] == '1'
+          mail_body = apply_regex_filter(mail_body)
+        end
       end
       
       return mail_body
@@ -1101,6 +1126,13 @@ class MailHandlerService
     return "" if html_content.blank?
     
     begin
+      # HTML-Struktur-Filter anwenden wenn aktiviert
+      if @settings['html_structure_filter_enabled'] == '1'
+        doc = Nokogiri::HTML::DocumentFragment.parse(html_content)
+        apply_html_structure_filter(doc)
+        html_content = doc.to_html
+      end
+      
       # Prüfe ob html2text verfügbar ist
       if defined?(Html2Text)
         # Verwende html2text für bessere Formatierung (Links in Klammern etc.)
@@ -1609,6 +1641,67 @@ class MailHandlerService
       # Fallback auf Redmine's Standard-Absender
       return Setting.mail_from
     end
+  end
+
+  # HTML-Struktur-Filter: Entferne störende HTML-Elemente
+  def apply_html_structure_filter(doc)
+    # Entferne Blockquote-Elemente (Zitate)
+    doc.css('blockquote').remove
+    
+    # Entferne Gmail-spezifische Elemente
+    doc.css('.gmail_quote, .gmail_attr').remove
+    doc.css('[class*="gmail_quote"], [class*="gmail_attr"]').remove
+    
+    # Entferne Apple Mail-spezifische Elemente
+    doc.css('.apple-msg-attachment, .Apple-converted-space').remove
+    doc.css('[class*="apple-msg-attachment"], [class*="Apple-converted-space"]').remove
+    
+    # Entferne Outlook-spezifische Elemente
+    doc.css('.WordSection1, .OutlookMessageHeader, .x_QuotedText').remove
+    doc.css('[class*="WordSection"], [class*="OutlookMessageHeader"], [class*="QuotedText"]').remove
+    
+    # Entferne Yahoo-spezifische Elemente
+    doc.css('.yahoo_quoted, .yahoo_quote').remove
+    doc.css('[class*="yahoo_quoted"], [class*="yahoo_quote"]').remove
+    
+    # Entferne Android Mail-spezifische Elemente
+    doc.css('.mail_android_quote').remove
+    doc.css('[class*="mail_android_quote"]').remove
+    
+    @logger.debug("HTML-Struktur-Filter angewendet")
+  end
+
+  # Regex-Filter: Entferne Text ab typischen E-Mail-Trennern
+  def apply_regex_filter(text)
+    return text if text.blank?
+    
+    # Hole Regex-Trenner aus Einstellungen
+    separators = @settings['regex_separators'] || "Am .* schrieb .*:\nVon:\nGesendet:\nAn:\nBetreff:\n-----Original Message-----\n-------- Ursprüngliche Nachricht --------"
+    
+    # Teile Trenner in einzelne Zeilen auf
+    separator_patterns = separators.split("\n").map(&:strip).reject(&:blank?)
+    
+    # Durchsuche Text nach Trennern
+    separator_patterns.each do |pattern|
+      begin
+        # Erstelle Regex-Pattern (case-insensitive und multiline)
+        regex = Regexp.new(pattern, Regexp::IGNORECASE | Regexp::MULTILINE)
+        
+        # Finde erste Übereinstimmung
+        match = text.match(regex)
+        if match
+          # Schneide Text ab der ersten Übereinstimmung ab
+          text = text[0, match.begin(0)].strip
+          @logger.debug("Regex-Filter angewendet: Text ab '#{pattern}' entfernt")
+          break  # Stoppe nach dem ersten gefundenen Trenner
+        end
+      rescue RegexpError => e
+        @logger.warn("Ungültiges Regex-Pattern '#{pattern}': #{e.message}")
+        next
+      end
+    end
+    
+    text
   end
 
   # Alias für Rückwärtskompatibilität
