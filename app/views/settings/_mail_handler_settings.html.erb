@@ -547,9 +547,9 @@ document.addEventListener('DOMContentLoaded', function() {
   </p>
   
   <p>
-    <label for="settings_markdown_link_filter_enabled">Markdown-Links konvertieren:</label>
+    <label for="settings_markdown_link_filter_enabled">Link-Formate konvertieren:</label>
     <%= check_box_tag 'settings[markdown_link_filter_enabled]', '1', @settings['markdown_link_filter_enabled'] == '1' %>
-    <em class="info">Konvertiert Markdown-Links [alt-text](link) zu "alt-text":link Format.</em>
+    <em class="info">Konvertiert verschiedene Link-Formate: [alt-text](link) → "alt-text":link und "text" ( `url` ) → "text":url</em>
   </p>
   
   <p>

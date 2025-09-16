@@ -1829,26 +1829,46 @@ class MailHandlerService
     false
   end
 
-  # Markdown-Link-Filter: Konvertiere [alt-text](link) zu "alt-text":link
+  # Markdown-Link-Filter: Konvertiere verschiedene Link-Formate zu "alt-text":link
   def apply_markdown_link_filter(text)
     return text if text.blank?
     
+    converted_text = text.dup
+    total_conversions = 0
+    
     # Regex für Markdown-Links: [alt-text](link)
     markdown_link_pattern = /\[([^\]]+)\]\(([^\)]+)\)/
-    
-    # Ersetze alle Markdown-Links
-    converted_text = text.gsub(markdown_link_pattern) do |match|
+    markdown_conversions = converted_text.scan(markdown_link_pattern).count
+    converted_text = converted_text.gsub(markdown_link_pattern) do |match|
       alt_text = $1
       link_url = $2
-      
-      # Konvertiere zu "alt-text":link Format
       "\"#{alt_text}\":#{link_url}"
     end
+    total_conversions += markdown_conversions
+    
+    # Regex für Text in Anführungszeichen mit URL in Backticks: "text" ( `url` )
+     quoted_text_pattern = /"([^"]+)"\s*\(\s*`([^`]+)`\s*\)/
+     quoted_conversions = converted_text.scan(quoted_text_pattern).count
+     converted_text = converted_text.gsub(quoted_text_pattern) do |match|
+       alt_text = $1
+       link_url = $2
+       "\"#{alt_text}\":#{link_url}"
+     end
+     total_conversions += quoted_conversions
+     
+     # Regex für URLs in Backticks ohne Alt-Text: ( `url` )
+     backtick_url_pattern = /\(\s*`([^`]+)`\s*\)/
+     backtick_conversions = converted_text.scan(backtick_url_pattern).count
+     converted_text = converted_text.gsub(backtick_url_pattern) do |match|
+       link_url = $1
+       link_url
+     end
+     total_conversions += backtick_conversions
     
     # Log nur wenn Änderungen vorgenommen wurden
-    if converted_text != text
-      @logger.debug("Markdown-Link-Filter angewendet: #{text.scan(markdown_link_pattern).count} Links konvertiert")
-    end
+     if total_conversions > 0
+       @logger.debug("Markdown-Link-Filter angewendet: #{total_conversions} Links konvertiert (#{markdown_conversions} Markdown, #{quoted_conversions} Quoted, #{backtick_conversions} Backtick)")
+     end
     
     converted_text
   end

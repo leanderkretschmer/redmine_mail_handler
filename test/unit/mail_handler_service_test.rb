@@ -566,4 +566,25 @@ class MailHandlerServiceTest < ActiveSupport::TestCase
     result = @service.send(:apply_markdown_link_filter, text)
     assert_equal expected, result
   end
+
+  def test_apply_markdown_link_filter_quoted_format
+    text = 'Mit "Maßtoleranzen und Normen im Hochbau" ( `https://example.com/link` ) haben Sie alles.'
+    expected = 'Mit "Maßtoleranzen und Normen im Hochbau":https://example.com/link haben Sie alles.'
+    result = @service.send(:apply_markdown_link_filter, text)
+    assert_equal expected, result
+  end
+
+  def test_apply_markdown_link_filter_mixed_formats
+    text = 'Erste [Link](https://example.com) und "Zweiter Link" ( `http://test.org` ) hier.'
+    expected = 'Erste "Link":https://example.com und "Zweiter Link":http://test.org hier.'
+    result = @service.send(:apply_markdown_link_filter, text)
+    assert_equal expected, result
+  end
+
+  def test_apply_markdown_link_filter_multiple_quoted_links
+    text = 'Text "Link1" ( `https://example.com` ) und "Link2" ( `http://test.org` ) Ende.'
+    expected = 'Text "Link1":https://example.com und "Link2":http://test.org Ende.'
+    result = @service.send(:apply_markdown_link_filter, text)
+    assert_equal expected, result
+  end
 end
