@@ -2,13 +2,28 @@ class MailHandlerLogsController < ApplicationController
   before_action :require_admin
   
   def index
-    @logs = MailHandlerLog.includes([])
-                         .by_level(params[:level])
-                         .recent
-                         .limit(50)
+    # Paginierung Parameter
+    @per_page = params[:per_page].to_i
+    @per_page = 50 if @per_page <= 0 || !valid_per_page_options.include?(@per_page)
+    @page = [params[:page].to_i, 1].max
+    
+    # Basis Query
+    logs_query = MailHandlerLog.includes([])
+                              .by_level(params[:level])
+                              .recent
+    
+    # Gesamtanzahl für Paginierung
+    @total_count = logs_query.count
+    @total_pages = (@total_count.to_f / @per_page).ceil
+    @page = [@page, @total_pages].min if @total_pages > 0
+    
+    # Logs mit Paginierung laden
+    offset = (@page - 1) * @per_page
+    @logs = logs_query.limit(@per_page).offset(offset)
     
     @levels = MailHandlerLog.levels
     @selected_level = params[:level]
+    @per_page_options = valid_per_page_options
     
     # Statistiken für Dashboard
     @stats = {
@@ -37,6 +52,10 @@ class MailHandlerLogsController < ApplicationController
   end
 
   private
+
+  def valid_per_page_options
+    [10, 20, 50, 100, 200]
+  end
 
   def generate_csv(logs)
     require 'csv'

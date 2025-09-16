@@ -66,4 +66,86 @@ class MailHandlerLog < ActiveRecord::Base
     return nil unless mail_subject.present?
     mail_subject.length > length ? "#{mail_subject[0..length-3]}..." : mail_subject
   end
+
+  # Automatische Log-Bereinigung
+  def self.cleanup_logs
+    settings = Setting.plugin_redmine_mail_handler || {}
+    return unless settings['log_cleanup_enabled'] == '1'
+
+    method = settings['log_cleanup_method'] || 'count'
+    
+    case method
+    when 'count'
+      cleanup_by_count(settings)
+    when 'days'
+      cleanup_by_age(settings)
+    end
+  end
+
+  def self.cleanup_by_count(settings)
+    max_entries = (settings['log_max_entries'] || '1000').to_i
+    return if max_entries <= 0
+
+    total_count = count
+    return if total_count <= max_entries
+
+    # Lösche die ältesten Einträge
+    entries_to_delete = total_count - max_entries
+    oldest_entries = order(:created_at).limit(entries_to_delete)
+    
+    deleted_count = oldest_entries.delete_all
+    Rails.logger.info "Mail Handler Log Cleanup: #{deleted_count} alte Einträge gelöscht (Methode: Anzahl, behalten: #{max_entries})"
+    
+    deleted_count
+  end
+
+  def self.cleanup_by_age(settings)
+    retention_days = (settings['log_retention_days'] || '30').to_i
+    return if retention_days <= 0
+
+    cutoff_date = retention_days.days.ago
+    old_entries = where('created_at < ?', cutoff_date)
+    
+    deleted_count = old_entries.delete_all
+    Rails.logger.info "Mail Handler Log Cleanup: #{deleted_count} alte Einträge gelöscht (Methode: Alter, älter als #{retention_days} Tage)"
+    
+    deleted_count
+  end
+
+  def self.should_run_cleanup?
+    settings = Setting.plugin_redmine_mail_handler || {}
+    return false unless settings['log_cleanup_enabled'] == '1'
+
+    schedule = settings['log_cleanup_schedule'] || 'weekly'
+    last_cleanup = settings['last_log_cleanup']
+    
+    return true if last_cleanup.blank?
+    
+    last_cleanup_time = Time.parse(last_cleanup) rescue nil
+    return true if last_cleanup_time.nil?
+    
+    case schedule
+    when 'daily'
+      last_cleanup_time < 1.day.ago
+    when 'weekly'
+      last_cleanup_time < 1.week.ago
+    when 'monthly'
+      last_cleanup_time < 1.month.ago
+    else
+      false
+    end
+  end
+
+  def self.run_scheduled_cleanup
+    return unless should_run_cleanup?
+    
+    deleted_count = cleanup_logs
+    
+    # Aktualisiere den Zeitstempel der letzten Bereinigung
+    settings = Setting.plugin_redmine_mail_handler || {}
+    settings['last_log_cleanup'] = Time.current.to_s
+    Setting.plugin_redmine_mail_handler = settings
+    
+    deleted_count
+  end
 end

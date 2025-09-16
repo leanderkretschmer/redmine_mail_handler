@@ -575,6 +575,52 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <div class="box">
+  <h3>Log-Verwaltung</h3>
+  <p>
+    <label for="settings_log_cleanup_enabled">Log-Bereinigung aktivieren:</label>
+    <%= check_box_tag 'settings[log_cleanup_enabled]', '1', @settings['log_cleanup_enabled'] == '1' %>
+    <em class="info">Aktiviert die automatische Bereinigung alter Log-Einträge</em>
+  </p>
+  
+  <p>
+    <label for="settings_log_cleanup_method">Bereinigungsmethode:</label>
+    <%= select_tag 'settings[log_cleanup_method]',
+                   options_for_select([
+                     ['Nach Anzahl (behalte X neueste Einträge)', 'count'],
+                     ['Nach Alter (lösche Einträge älter als X Tage)', 'days']
+                   ], @settings['log_cleanup_method'] || 'count') %>
+    <em class="info">Wählen Sie die Methode für die Log-Bereinigung</em>
+  </p>
+  
+  <p>
+    <label for="settings_log_max_entries">Maximale Anzahl Log-Einträge:</label>
+    <%= number_field_tag 'settings[log_max_entries]', 
+                         @settings['log_max_entries'] || '1000',
+                         :min => 100, :max => 50000, :step => 100 %>
+    <em class="info">Anzahl der neuesten Log-Einträge, die behalten werden (nur bei Methode 'Nach Anzahl')</em>
+  </p>
+  
+  <p>
+    <label for="settings_log_retention_days">Log-Aufbewahrungszeit (Tage):</label>
+    <%= number_field_tag 'settings[log_retention_days]', 
+                         @settings['log_retention_days'] || '30',
+                         :min => 1, :max => 365, :step => 1 %>
+    <em class="info">Anzahl der Tage, für die Log-Einträge aufbewahrt werden (nur bei Methode 'Nach Alter')</em>
+  </p>
+  
+  <p>
+    <label for="settings_log_cleanup_schedule">Bereinigungsintervall:</label>
+    <%= select_tag 'settings[log_cleanup_schedule]',
+                   options_for_select([
+                     ['Täglich', 'daily'],
+                     ['Wöchentlich', 'weekly'],
+                     ['Monatlich', 'monthly']
+                   ], @settings['log_cleanup_schedule'] || 'weekly') %>
+    <em class="info">Wie oft die automatische Log-Bereinigung ausgeführt wird</em>
+  </p>
+</div>
+
+<div class="box">
   <h3>Hilfe</h3>
   <p>
     <strong>IMAP-Einstellungen:</strong> Konfigurieren Sie hier die Verbindung zu Ihrem E-Mail-Server.
@@ -596,5 +642,8 @@ document.addEventListener('DOMContentLoaded', function() {
   </p>
   <p>
     <strong>E-Mail-Filter:</strong> E-Mails von den hier konfigurierten Adressen werden automatisch in den zurückgestellt Ordner verschoben und nach 30 Tagen archiviert. Wildcards (*) sind erlaubt, z.B. *@system.example.com für alle E-Mails von system.example.com oder automation@* für alle E-Mails von automation, unabhängig von der Domain.
+  </p>
+  <p>
+    <strong>Log-Verwaltung:</strong> Konfigurieren Sie hier die automatische Bereinigung der Mail Handler Logs. Sie können wählen zwischen der Begrenzung nach Anzahl (behalte die X neuesten Einträge) oder nach Alter (lösche Einträge älter als X Tage). Die Bereinigung läuft automatisch im konfigurierten Intervall.
   </p>
 </div>

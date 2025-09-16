@@ -370,25 +370,75 @@ code {
    Pagination
 ------------------------- */
 .pagination {
-  text-align: center;
   margin: 20px 0;
+  overflow: hidden;
 }
 
-.pagination a {
+.pagination-info {
+  float: left;
+  margin: 8px 0;
+  color: #666;
+}
+
+.pagination-links {
+  float: right;
+  text-align: right;
+}
+
+.pagination-links a,
+.pagination-links .current {
   display: inline-block;
-  padding: 8px 12px;
+  padding: 6px 12px;
   margin: 0 2px;
   text-decoration: none;
   border: 1px solid #dee2e6;
   border-radius: 4px;
+  color: #007bff;
+  background-color: #fff;
+  transition: all 0.2s ease;
 }
 
-.pagination a:hover {
+.pagination-links a:hover {
   background-color: #e9ecef;
+  border-color: #adb5bd;
+  text-decoration: none;
 }
 
-.pagination .current {
+.pagination-links .current {
   background-color: #007bff;
   color: white;
   border-color: #007bff;
+  font-weight: bold;
+}
+
+.pagination-links .first,
+.pagination-links .last,
+.pagination-links .prev,
+.pagination-links .next {
+  font-weight: bold;
+}
+
+.pagination-links .first:hover,
+.pagination-links .last:hover,
+.pagination-links .prev:hover,
+.pagination-links .next:hover {
+  background-color: #007bff;
+  color: white;
+}
+
+/* Responsive Paginierung */
+@media (max-width: 768px) {
+  .pagination-info,
+  .pagination-links {
+    float: none;
+    text-align: center;
+    margin: 10px 0;
+  }
+  
+  .pagination-links a,
+  .pagination-links .current {
+    padding: 4px 8px;
+    margin: 0 1px;
+    font-size: 12px;
+  }
 }

@@ -72,6 +72,9 @@ class MailHandlerService
 
       @logger.info("Processed #{processed_count} messages successfully")
       
+      # Automatische Log-Bereinigung nach Mail-Import
+      MailHandlerLog.run_scheduled_cleanup
+      
       imap.disconnect
       true
     rescue => e
@@ -129,6 +132,9 @@ class MailHandlerService
       end
       
       @logger.info("Deferred processing completed: #{processed_count} processed, #{expired_count} expired")
+      
+      # Automatische Log-Bereinigung nach Zurückgestellt-Verarbeitung
+      MailHandlerLog.run_scheduled_cleanup
       
     rescue => e
       @logger.error("Deferred processing failed: #{e.class.name} - #{e.message}")
