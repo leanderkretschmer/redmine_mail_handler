@@ -1836,8 +1836,8 @@ class MailHandlerService
     converted_text = text.dup
     total_conversions = 0
     
-    # Regex für mailto-Links: text <mailto:email> -> [text](mailto:email) - MUSS VOR anderen Patterns stehen!
-    mailto_pattern = /([^<]+)<\s*mailto:([^>]+)\s*>/
+    # Regex für mailto-Links: email@domain <mailto:email> -> [email@domain](mailto:email) - MUSS VOR anderen Patterns stehen!
+    mailto_pattern = /([\w\.-]+@[\w\.-]+)\s*<\s*mailto:([^>]+)\s*>/
     mailto_conversions = converted_text.scan(mailto_pattern).count
     converted_text = converted_text.gsub(mailto_pattern) do
       email_text = $1.strip
@@ -1893,8 +1893,8 @@ class MailHandlerService
     end
     total_conversions += standalone_conversions
      
-    # Regex für Telefonnummern mit tel:-Links
-    tel_pattern = /([^<]+)<\s*tel:([^>]+)\s*>/
+    # Regex für Telefonnummern mit tel:-Links (erfasst nur Telefonnummer vor <tel:>)
+    tel_pattern = /([\d\s\(\)\+\-\.]+)\s*<\s*tel:([^>]+)\s*>/
     tel_conversions = converted_text.scan(tel_pattern).count
     converted_text = converted_text.gsub(tel_pattern) do
       phone_text = $1.strip
