@@ -1925,9 +1925,19 @@ class MailHandlerService
     end
     total_conversions += angle_backtick_conversions
     
+    # Regex für mailto-Links: text <mailto:email> -> [text](mailto:email)
+    mailto_pattern = /([^<]+)<\s*mailto:([^>]+)\s*>/
+    mailto_conversions = converted_text.scan(mailto_pattern).count
+    converted_text = converted_text.gsub(mailto_pattern) do
+      email_text = $1.strip
+      email_address = $2.strip
+      "[#{email_text}](mailto:#{email_address})"
+    end
+    total_conversions += mailto_conversions
+    
     # Log nur wenn Änderungen vorgenommen wurden
      if total_conversions > 0
-       @logger.debug("Markdown-Link-Filter angewendet: #{total_conversions} Links konvertiert (#{markdown_conversions} Markdown, #{quoted_conversions} Quoted, #{backtick_conversions} Backtick, #{multiline_conversions} Multiline, #{standalone_conversions} Standalone, #{tel_conversions} Tel, #{url_conversions} URL, #{angle_backtick_conversions} AngleBracket)")
+       @logger.debug("Markdown-Link-Filter angewendet: #{total_conversions} Links konvertiert (#{markdown_conversions} Markdown, #{quoted_conversions} Quoted, #{backtick_conversions} Backtick, #{multiline_conversions} Multiline, #{standalone_conversions} Standalone, #{tel_conversions} Tel, #{url_conversions} URL, #{angle_backtick_conversions} AngleBracket, #{mailto_conversions} Mailto)")
      end
     
     converted_text
