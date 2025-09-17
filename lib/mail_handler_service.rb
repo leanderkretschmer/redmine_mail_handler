@@ -1836,8 +1836,18 @@ class MailHandlerService
     converted_text = text.dup
     total_conversions = 0
     
-    # Regex für Markdown-Links: [alt-text](link)
-    markdown_link_pattern = /\[([^\]]+)\]\(([^\)]+)\)/
+    # Regex für mailto-Links: text <mailto:email> -> [text](mailto:email) - MUSS VOR anderen Patterns stehen!
+    mailto_pattern = /([^<]+)<\s*mailto:([^>]+)\s*>/
+    mailto_conversions = converted_text.scan(mailto_pattern).count
+    converted_text = converted_text.gsub(mailto_pattern) do
+      email_text = $1.strip
+      email_address = $2.strip
+      "[#{email_text}](mailto:#{email_address})"
+    end
+    total_conversions += mailto_conversions
+    
+    # Regex für Markdown-Links: [alt-text](link) - aber nur für nicht-mailto Links
+    markdown_link_pattern = /\[([^\]]+)\]\((?!mailto:)([^\)]+)\)/
     markdown_conversions = converted_text.scan(markdown_link_pattern).count
     converted_text = converted_text.gsub(markdown_link_pattern) do |match|
       alt_text = $1
@@ -1924,16 +1934,6 @@ class MailHandlerService
       "[#{url_text}](#{url_link})"
     end
     total_conversions += angle_backtick_conversions
-    
-    # Regex für mailto-Links: text <mailto:email> -> [text](mailto:email)
-    mailto_pattern = /([^<]+)<\s*mailto:([^>]+)\s*>/
-    mailto_conversions = converted_text.scan(mailto_pattern).count
-    converted_text = converted_text.gsub(mailto_pattern) do
-      email_text = $1.strip
-      email_address = $2.strip
-      "[#{email_text}](mailto:#{email_address})"
-    end
-    total_conversions += mailto_conversions
     
     # Log nur wenn Änderungen vorgenommen wurden
      if total_conversions > 0
