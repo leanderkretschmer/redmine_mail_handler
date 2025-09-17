@@ -1915,9 +1915,19 @@ class MailHandlerService
     end
     total_conversions += url_conversions
     
+    # Regex für URLs mit spitzen Klammern und Backticks: < `https://example.com/>`  www.example.com -> [www.example.com](https://example.com/)
+    angle_backtick_pattern = /<\s*`([^>]+)>`\s*([^\n]+)/
+    angle_backtick_conversions = converted_text.scan(angle_backtick_pattern).count
+    converted_text = converted_text.gsub(angle_backtick_pattern) do
+      url_link = $1.strip
+      url_text = $2.strip
+      "[#{url_text}](#{url_link})"
+    end
+    total_conversions += angle_backtick_conversions
+    
     # Log nur wenn Änderungen vorgenommen wurden
      if total_conversions > 0
-       @logger.debug("Markdown-Link-Filter angewendet: #{total_conversions} Links konvertiert (#{markdown_conversions} Markdown, #{quoted_conversions} Quoted, #{backtick_conversions} Backtick, #{multiline_conversions} Multiline, #{standalone_conversions} Standalone, #{tel_conversions} Tel, #{angle_backtick_conversions} AngleBracket, #{mailto_conversions} Mailto)")
+       @logger.debug("Markdown-Link-Filter angewendet: #{total_conversions} Links konvertiert (#{markdown_conversions} Markdown, #{quoted_conversions} Quoted, #{backtick_conversions} Backtick, #{multiline_conversions} Multiline, #{standalone_conversions} Standalone, #{tel_conversions} Tel, #{url_conversions} URL, #{angle_backtick_conversions} AngleBracket)")
      end
     
     converted_text
