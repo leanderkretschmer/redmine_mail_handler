@@ -1,18 +1,54 @@
-<%# Eingabefeld für Journal-Verschiebung %>
-<div class="journal-move-dialog" style="display: none;">
-  <div class="journal-move-form">
-    <h4>Kommentar verschieben</h4>
-    <p>Ziel-Ticket ID eingeben:</p>
-    <%= form_with url: '/admin/mail_handler_logs/move_journal', method: :post, local: false, class: 'journal-move-ajax-form' do |form| %>
-      <%= form.hidden_field :journal_id, value: '', class: 'journal-id-field' %>
-      <%= form.number_field :target_issue_id, placeholder: 'z.B. 123', min: 1, class: 'target-ticket-input', required: true %>
-      <div class="journal-move-buttons">
-        <%= form.submit 'Verschieben', class: 'btn-primary move-confirm-btn' %>
-        <button type="button" class="btn-secondary move-cancel-btn">Abbrechen</button>
-      </div>
-    <% end %>
-  </div>
-</div>
+<%# Eingabefeld für Journal-Verschiebung - Direkt sichtbar bei jedem Kommentar %>
+<style>
+  .journal-move-inline {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin: 8px 0;
+    font-size: 12px;
+  }
+  
+  .journal-move-inline .move-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  
+  .journal-move-inline .move-label {
+    font-weight: bold;
+    color: #495057;
+    margin-right: 4px;
+  }
+  
+  .journal-move-inline .target-input {
+    width: 80px;
+    padding: 2px 6px;
+    border: 1px solid #ced4da;
+    border-radius: 3px;
+    font-size: 12px;
+  }
+  
+  .journal-move-inline .move-btn {
+    padding: 2px 8px;
+    font-size: 11px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .journal-move-inline .move-btn:hover {
+    background-color: #0056b3;
+  }
+  
+  .journal-move-inline .move-btn:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+  }
+</style>
 
 <%= content_for :header_tags do %>
   <%= stylesheet_link_tag 'simple_journal_move', plugin: 'redmine_mail_handler' %>
@@ -21,83 +57,120 @@
 
 <script type="text/javascript">
   document.addEventListener('DOMContentLoaded', function() {
-    // Initialisiere Move-Buttons für alle Journals
-    addMoveButtonsToJournals();
-    
-    // Event-Handler für das Formular
-    const form = document.querySelector('.journal-move-ajax-form');
-    if (form) {
-      form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const formData = new FormData(form);
-        const journalId = formData.get('journal_id');
-        const targetIssueId = formData.get('target_issue_id');
-        
-        if (!targetIssueId) {
-          alert('Bitte geben Sie eine gültige Ticket-ID ein.');
-          return;
-        }
-        
-        // AJAX-Request
-        fetch(form.action, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-          },
-          body: JSON.stringify({
-            journal_id: journalId,
-            target_issue_id: targetIssueId
-          })
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            alert('Kommentar erfolgreich verschoben!');
-            location.reload();
-          } else {
-            alert('Fehler: ' + (data.message || data.error));
-          }
-        })
-        .catch(error => {
-          console.error('Error:', error);
-          alert('Ein Fehler ist aufgetreten.');
-        });
-        
-        // Dialog schließen
-        document.querySelector('.journal-move-dialog').style.display = 'none';
-      });
-    }
-    
-    // Event-Handler für Abbrechen-Button
-    const cancelBtn = document.querySelector('.move-cancel-btn');
-    if (cancelBtn) {
-      cancelBtn.addEventListener('click', function() {
-        document.querySelector('.journal-move-dialog').style.display = 'none';
-      });
-    }
+    // Füge Move-Formulare zu allen Journals hinzu
+    addInlineMoveFormsToJournals();
   });
   
-  // Überschreibe die showMoveDialog Funktion für ERB-Integration
-  function showMoveDialog(journalId, journalElement) {
-    const dialog = document.querySelector('.journal-move-dialog');
-    const journalIdField = document.querySelector('.journal-id-field');
-    const targetInput = document.querySelector('.target-ticket-input');
+  function addInlineMoveFormsToJournals() {
+    // Finde alle Journal-Elemente
+    const journals = document.querySelectorAll('#history .journal');
     
-    if (dialog && journalIdField && targetInput) {
-      // Setze Journal-ID
-      journalIdField.value = journalId;
+    journals.forEach(function(journal) {
+      // Extrahiere Journal-ID aus dem Element
+      const journalId = extractJournalId(journal);
+      if (!journalId) return;
       
-      // Zeige Dialog
-      dialog.style.display = 'block';
+      // Prüfe ob bereits ein Move-Formular existiert
+      if (journal.querySelector('.journal-move-inline')) return;
       
-      // Positioniere Dialog nach dem Journal-Element
-      journalElement.appendChild(dialog);
+      // Erstelle inline Move-Formular
+      const moveForm = createInlineMoveForm(journalId);
       
-      // Focus auf Eingabefeld
-      targetInput.focus();
-      targetInput.value = '';
-    }
+      // Füge das Formular nach dem Journal-Inhalt hinzu
+      const journalContent = journal.querySelector('.journal-notes, .wiki');
+      if (journalContent) {
+        journalContent.parentNode.insertBefore(moveForm, journalContent.nextSibling);
+      } else {
+        journal.appendChild(moveForm);
+      }
+    });
   }
+  
+  function extractJournalId(journalElement) {
+    // Versuche Journal-ID aus verschiedenen Attributen zu extrahieren
+    const id = journalElement.id;
+    if (id && id.startsWith('change-')) {
+      return id.replace('change-', '');
+    }
+    
+    // Fallback: Suche nach Journal-ID in Links
+    const editLink = journalElement.querySelector('a[href*="/journals/"]');
+    if (editLink) {
+      const match = editLink.href.match(/\/journals\/(\d+)/);
+      if (match) return match[1];
+    }
+    
+    return null;
+  }
+  
+  function createInlineMoveForm(journalId) {
+    const formContainer = document.createElement('div');
+    formContainer.className = 'journal-move-inline';
+    
+    formContainer.innerHTML = `
+      <div class="move-form">
+        <span class="move-label">Verschieben nach Ticket:</span>
+        <input type="number" class="target-input" placeholder="ID" min="1" data-journal-id="${journalId}">
+        <button type="button" class="move-btn" onclick="performJournalMove(${journalId}, this)">Verschieben</button>
+      </div>
+    `;
+    
+    return formContainer;
+  }
+  
+  function performJournalMove(journalId, buttonElement) {
+    const input = buttonElement.parentNode.querySelector('.target-input');
+    const targetIssueId = input.value.trim();
+    
+    if (!targetIssueId || targetIssueId < 1) {
+      alert('Bitte geben Sie eine gültige Ticket-ID ein.');
+      input.focus();
+      return;
+    }
+    
+    // Button deaktivieren während der Anfrage
+    buttonElement.disabled = true;
+    buttonElement.textContent = 'Verschiebe...';
+    
+    // AJAX-Request
+    fetch('/admin/mail_handler_logs/move_journal', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+      },
+      body: JSON.stringify({
+        journal_id: journalId,
+        target_issue_id: targetIssueId
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert('Kommentar und Dateien erfolgreich verschoben!');
+        location.reload();
+      } else {
+        alert('Fehler: ' + (data.message || data.error));
+        buttonElement.disabled = false;
+        buttonElement.textContent = 'Verschieben';
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('Ein Fehler ist aufgetreten.');
+      buttonElement.disabled = false;
+      buttonElement.textContent = 'Verschieben';
+    });
+  }
+  
+  // Enter-Taste Support für Eingabefelder
+  document.addEventListener('keypress', function(e) {
+    if (e.target.classList.contains('target-input') && e.key === 'Enter') {
+      const journalId = e.target.getAttribute('data-journal-id');
+      const button = e.target.parentNode.querySelector('.move-btn');
+      if (button && journalId) {
+        performJournalMove(parseInt(journalId), button);
+      }
+    }
+  });
 </script>

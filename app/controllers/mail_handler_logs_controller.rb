@@ -84,6 +84,7 @@ class MailHandlerLogsController < ApplicationController
     ActiveRecord::Base.transaction do
       # 1. Verschiebe nur diesen einen Kommentar
       original_issue_id = journal.journalized_id
+      original_issue = Issue.find_by(id: original_issue_id)
       journal.update!(journalized_id: target_issue.id)
       
       Rails.logger.info "Moved single journal #{journal.id} from issue #{original_issue_id} to #{target_issue.id}"
@@ -96,6 +97,37 @@ class MailHandlerLogsController < ApplicationController
       journal_attachments = Attachment.where(container_id: journal.id, container_type: 'Journal')
       journal_attachments.find_each do |attachment|
         Rails.logger.info "Journal attachment automatically moved: #{attachment.filename}"
+      end
+      
+      # 4. Verschiebe alle Anhänge vom ursprünglichen Issue zum Ziel-Issue
+      # Dies ist analog zum Import-Prozess und stellt sicher, dass alle Dateien migriert werden
+      if original_issue
+        issue_attachments = Attachment.where(container_id: original_issue_id, container_type: 'Issue')
+        moved_attachments_count = 0
+        
+        issue_attachments.find_each do |attachment|
+          # Erstelle eine Kopie des Attachments für das Ziel-Issue
+          new_attachment = attachment.dup
+          new_attachment.container_id = target_issue.id
+          new_attachment.container_type = 'Issue'
+          
+          if new_attachment.save
+            # Kopiere die physische Datei
+            if File.exist?(attachment.diskfile)
+              FileUtils.cp(attachment.diskfile, new_attachment.diskfile)
+              Rails.logger.info "Copied attachment file: #{attachment.filename} to issue #{target_issue.id}"
+            end
+            
+            # Entferne das ursprüngliche Attachment
+            attachment.destroy
+            moved_attachments_count += 1
+            Rails.logger.info "Moved attachment: #{attachment.filename} from issue #{original_issue_id} to #{target_issue.id}"
+          else
+            Rails.logger.error "Failed to move attachment: #{attachment.filename} - #{new_attachment.errors.full_messages.join(', ')}"
+          end
+        end
+        
+        Rails.logger.info "Successfully moved #{moved_attachments_count} attachments from issue #{original_issue_id} to #{target_issue.id}"
       end
       
       Rails.logger.info "Successfully moved journal #{journal.id} with #{journal_details_count} details and #{journal_attachments.count} attachments"
