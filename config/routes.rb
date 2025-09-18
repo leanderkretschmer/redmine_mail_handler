@@ -35,4 +35,11 @@ RedmineApp::Application.routes.draw do
       end
     end
   end
+  
+  # Öffentliche Route für Journal-Verschiebung (außerhalb von /admin)
+  resources :mail_handler_logs, :only => [] do
+    collection do
+      post :move_journal
+    end
+  end
 end

@@ -60,16 +60,16 @@ class MailHandlerLogsController < ApplicationController
       target_issue = Issue.find_by(id: target_issue_id)
       
       if journal && target_issue
-        # Direkte Verschiebung aller Journals und Anhänge des ursprünglichen Issues
-        success = perform_manual_journal_move(journal, target_issue)
+        # Verschiebung nur des einzelnen Kommentars
+        success = perform_single_journal_move(journal, target_issue)
         
         if success
-          render json: { success: true, message: 'Alle Journals und Anhänge erfolgreich verschoben' }
+          render json: { success: true, message: 'Kommentar erfolgreich verschoben' }
         else
-          render json: { success: false, message: 'Fehler beim Verschieben der Journals' }
+          render json: { success: false, message: 'Fehler beim Verschieben des Kommentars' }
         end
       else
-        render json: { success: false, message: 'Journal oder Ziel-Issue nicht gefunden' }
+        render json: { success: false, message: 'Kommentar oder Ziel-Issue nicht gefunden' }
       end
     else
       render json: { success: false, message: 'Fehlende Parameter' }
@@ -78,8 +78,37 @@ class MailHandlerLogsController < ApplicationController
 
   private
 
+  def perform_single_journal_move(journal, target_issue)
+    return false unless journal && target_issue
+    
+    ActiveRecord::Base.transaction do
+      # 1. Verschiebe nur diesen einen Kommentar
+      original_issue_id = journal.journalized_id
+      journal.update!(journalized_id: target_issue.id)
+      
+      Rails.logger.info "Moved single journal #{journal.id} from issue #{original_issue_id} to #{target_issue.id}"
+      
+      # 2. Journal Details werden automatisch mitbewegt (foreign key journal_id bleibt gleich)
+      journal_details_count = journal.details.count
+      Rails.logger.info "Journal details automatically moved: #{journal_details_count}"
+      
+      # 3. Verschiebe Anhänge die an diesem Journal hängen
+      journal_attachments = Attachment.where(container_id: journal.id, container_type: 'Journal')
+      journal_attachments.find_each do |attachment|
+        Rails.logger.info "Journal attachment automatically moved: #{attachment.filename}"
+      end
+      
+      Rails.logger.info "Successfully moved journal #{journal.id} with #{journal_details_count} details and #{journal_attachments.count} attachments"
+    end
+    
+    true
+    
+  rescue => e
+    Rails.logger.error "Single journal move failed: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
+    false
+  end
 
-  
   def perform_manual_journal_move(journal, target_issue)
     return false unless journal && target_issue
     

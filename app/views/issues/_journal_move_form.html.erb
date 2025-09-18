@@ -1,0 +1,103 @@
+<%# Eingabefeld für Journal-Verschiebung %>
+<div class="journal-move-dialog" style="display: none;">
+  <div class="journal-move-form">
+    <h4>Kommentar verschieben</h4>
+    <p>Ziel-Ticket ID eingeben:</p>
+    <%= form_with url: '/admin/mail_handler_logs/move_journal', method: :post, local: false, class: 'journal-move-ajax-form' do |form| %>
+      <%= form.hidden_field :journal_id, value: '', class: 'journal-id-field' %>
+      <%= form.number_field :target_issue_id, placeholder: 'z.B. 123', min: 1, class: 'target-ticket-input', required: true %>
+      <div class="journal-move-buttons">
+        <%= form.submit 'Verschieben', class: 'btn-primary move-confirm-btn' %>
+        <button type="button" class="btn-secondary move-cancel-btn">Abbrechen</button>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<%= content_for :header_tags do %>
+  <%= stylesheet_link_tag 'simple_journal_move', plugin: 'redmine_mail_handler' %>
+  <%= javascript_include_tag 'simple_journal_move', plugin: 'redmine_mail_handler' %>
+<% end %>
+
+<script type="text/javascript">
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialisiere Move-Buttons für alle Journals
+    addMoveButtonsToJournals();
+    
+    // Event-Handler für das Formular
+    const form = document.querySelector('.journal-move-ajax-form');
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        const journalId = formData.get('journal_id');
+        const targetIssueId = formData.get('target_issue_id');
+        
+        if (!targetIssueId) {
+          alert('Bitte geben Sie eine gültige Ticket-ID ein.');
+          return;
+        }
+        
+        // AJAX-Request
+        fetch(form.action, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+          },
+          body: JSON.stringify({
+            journal_id: journalId,
+            target_issue_id: targetIssueId
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            alert('Kommentar erfolgreich verschoben!');
+            location.reload();
+          } else {
+            alert('Fehler: ' + (data.message || data.error));
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          alert('Ein Fehler ist aufgetreten.');
+        });
+        
+        // Dialog schließen
+        document.querySelector('.journal-move-dialog').style.display = 'none';
+      });
+    }
+    
+    // Event-Handler für Abbrechen-Button
+    const cancelBtn = document.querySelector('.move-cancel-btn');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function() {
+        document.querySelector('.journal-move-dialog').style.display = 'none';
+      });
+    }
+  });
+  
+  // Überschreibe die showMoveDialog Funktion für ERB-Integration
+  function showMoveDialog(journalId, journalElement) {
+    const dialog = document.querySelector('.journal-move-dialog');
+    const journalIdField = document.querySelector('.journal-id-field');
+    const targetInput = document.querySelector('.target-ticket-input');
+    
+    if (dialog && journalIdField && targetInput) {
+      // Setze Journal-ID
+      journalIdField.value = journalId;
+      
+      // Zeige Dialog
+      dialog.style.display = 'block';
+      
+      // Positioniere Dialog nach dem Journal-Element
+      journalElement.appendChild(dialog);
+      
+      // Focus auf Eingabefeld
+      targetInput.focus();
+      targetInput.value = '';
+    }
+  }
+</script>

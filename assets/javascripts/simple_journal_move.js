@@ -25,7 +25,7 @@ function addMoveButtonsToJournals() {
     
     moveBtn.addEventListener('click', function(e) {
       e.preventDefault();
-      moveJournal(journalId);
+      showMoveDialog(journalId, journal);
     });
     
     // Füge Button zu Journal-Aktionen hinzu
@@ -36,15 +36,67 @@ function addMoveButtonsToJournals() {
   });
 }
 
-function moveJournal(journalId) {
-  const targetTicketId = prompt('Ziel-Ticket ID eingeben:');
-  
-  if (!targetTicketId || targetTicketId.trim() === '') {
-    return;
+function showMoveDialog(journalId, journalElement) {
+  // Entferne eventuell bereits existierende Dialoge
+  const existingDialog = document.querySelector('.journal-move-dialog');
+  if (existingDialog) {
+    existingDialog.remove();
   }
   
+  // Erstelle Dialog-Container
+  const dialog = document.createElement('div');
+  dialog.className = 'journal-move-dialog';
+  dialog.innerHTML = `
+    <div class="journal-move-form">
+      <h4>Kommentar verschieben</h4>
+      <p>Ziel-Ticket ID eingeben:</p>
+      <input type="number" id="target-ticket-id" placeholder="z.B. 123" min="1" />
+      <div class="journal-move-buttons">
+        <button id="move-confirm-btn" class="btn-primary">Verschieben</button>
+        <button id="move-cancel-btn" class="btn-secondary">Abbrechen</button>
+      </div>
+    </div>
+  `;
+  
+  // Füge Dialog nach dem Journal-Element hinzu
+  journalElement.appendChild(dialog);
+  
+  // Event-Listener für Buttons
+  const confirmBtn = dialog.querySelector('#move-confirm-btn');
+  const cancelBtn = dialog.querySelector('#move-cancel-btn');
+  const inputField = dialog.querySelector('#target-ticket-id');
+  
+  // Focus auf Eingabefeld
+  inputField.focus();
+  
+  // Enter-Taste im Eingabefeld
+  inputField.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      confirmBtn.click();
+    }
+  });
+  
+  // Bestätigen-Button
+  confirmBtn.addEventListener('click', function() {
+    const targetTicketId = inputField.value.trim();
+    if (!targetTicketId) {
+      alert('Bitte geben Sie eine gültige Ticket-ID ein.');
+      return;
+    }
+    
+    dialog.remove();
+    moveJournal(journalId, targetTicketId);
+  });
+  
+  // Abbrechen-Button
+  cancelBtn.addEventListener('click', function() {
+    dialog.remove();
+  });
+}
+
+function moveJournal(journalId, targetTicketId) {
   // AJAX-Request zum Verschieben
-  fetch('/admin/mail_handler_logs/move_journal', {
+  fetch('/mail_handler_logs/move_journal', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -52,7 +104,7 @@ function moveJournal(journalId) {
     },
     body: JSON.stringify({
       journal_id: journalId,
-      target_ticket_id: targetTicketId
+      target_issue_id: targetTicketId
     })
   })
   .then(response => response.json())
@@ -61,7 +113,7 @@ function moveJournal(journalId) {
       alert('Kommentar erfolgreich verschoben!');
       location.reload();
     } else {
-      alert('Fehler: ' + data.error);
+      alert('Fehler: ' + (data.message || data.error));
     }
   })
   .catch(error => {

@@ -110,12 +110,16 @@ class MailHandlerModelHooks < Redmine::Hook::Listener
     end
   end
 
-  # Einfacher Hook für Journal-Verschiebung
+  # Hook für Journal-Verschiebung mit ERB-Partial
   def view_issues_show_description_bottom(context = {})
-    css_path = "/plugin_assets/redmine_mail_handler/stylesheets/simple_journal_move.css"
-    js_path = "/plugin_assets/redmine_mail_handler/javascripts/simple_journal_move.js"
-    
-    "<link rel='stylesheet' type='text/css' href='#{css_path}' />" +
-    "<script type='text/javascript' src='#{js_path}'></script>"
+    controller = context[:controller]
+    if controller
+      controller.render_to_string(
+        partial: 'issues/journal_move_form',
+        locals: {}
+      )
+    else
+      ''
+    end
   end
 end
