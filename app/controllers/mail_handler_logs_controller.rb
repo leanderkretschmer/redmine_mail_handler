@@ -76,6 +76,10 @@ class MailHandlerLogsController < ApplicationController
     
     if journal_id.blank? || target_issue_id.blank?
       Rails.logger.error "[JOURNAL-MOVE] Parameter fehlen: journal_id=#{journal_id}, target_issue_id=#{target_issue_id}"
+      MailHandlerLog.create!(
+        level: 'error',
+        message: "[JOURNAL-MOVE] Fehler: Fehlende Parameter - journal_id=#{journal_id}, target_issue_id=#{target_issue_id}"
+      )
       render json: { success: false, message: 'Journal ID und Target Issue ID sind erforderlich' }
       return
     end
@@ -85,12 +89,20 @@ class MailHandlerLogsController < ApplicationController
     
     if journal.nil?
       Rails.logger.error "[JOURNAL-MOVE] Journal nicht gefunden: ID #{journal_id}"
+      MailHandlerLog.create!(
+        level: 'error',
+        message: "[JOURNAL-MOVE] Fehler: Journal ##{journal_id} nicht gefunden"
+      )
       render json: { success: false, message: 'Journal nicht gefunden' }
       return
     end
     
     if target_issue.nil?
       Rails.logger.error "[JOURNAL-MOVE] Ziel-Issue nicht gefunden: ID #{target_issue_id}"
+      MailHandlerLog.create!(
+        level: 'error',
+        message: "[JOURNAL-MOVE] Fehler: Ziel-Issue ##{target_issue_id} nicht gefunden"
+      )
       render json: { success: false, message: 'Ziel-Issue nicht gefunden' }
       return
     end
@@ -98,24 +110,56 @@ class MailHandlerLogsController < ApplicationController
     # Prüfe ob Journal Kommentar-Text hat
     if journal.notes.blank?
       Rails.logger.warn "[JOURNAL-MOVE] Journal #{journal_id} hat keinen Kommentar-Text - Verschiebung abgelehnt"
+      MailHandlerLog.create!(
+        level: 'warn',
+        message: "[JOURNAL-MOVE] Warnung: Journal ##{journal_id} hat keinen Kommentar-Text - Verschiebung abgelehnt"
+      )
       render json: { success: false, message: 'Nur Journals mit Kommentar-Text können verschoben werden' }
       return
     end
     
     Rails.logger.info "[JOURNAL-MOVE] Validierung erfolgreich - starte Verschiebung von Journal #{journal_id} (Issue #{journal.journalized_id}) zu Issue #{target_issue_id}"
     
+    # Erstelle detaillierten Log-Eintrag vor der Verschiebung
+    original_issue = Issue.find_by(id: journal.journalized_id)
+    MailHandlerLog.create!(
+      level: 'info',
+      message: "[JOURNAL-MOVE] Starte Verschiebung: Journal ##{journal_id} von Issue ##{journal.journalized_id} (#{original_issue&.subject || 'Unbekannt'}) zu Issue ##{target_issue_id} (#{target_issue.subject})"
+    )
+    
     result = perform_single_journal_move(journal, target_issue)
     
     if result[:success]
       Rails.logger.info "[JOURNAL-MOVE] Erfolgreich abgeschlossen: Journal #{journal_id} verschoben"
+      
+      # Detaillierter Erfolgs-Log mit Attachment-Info
+      attachment_info = result[:moved_attachments] ? " (#{result[:moved_attachments]} Dateien verschoben)" : " (keine Dateien)"
+      MailHandlerLog.create!(
+        level: 'info',
+        message: "[JOURNAL-MOVE] Erfolgreich: Journal ##{journal_id} von Issue ##{journal.journalized_id} zu Issue ##{target_issue_id} verschoben#{attachment_info}"
+      )
+      
       render json: { success: true, message: 'Journal und Dateien erfolgreich verschoben' }
     else
       Rails.logger.error "[JOURNAL-MOVE] Fehlgeschlagen: #{result[:error]}"
+      
+      # Fehler-Log
+      MailHandlerLog.create!(
+        level: 'error',
+        message: "[JOURNAL-MOVE] Fehler: Journal ##{journal_id} konnte nicht verschoben werden - #{result[:error]}"
+      )
+      
       render json: { success: false, message: result[:error] }
     end
   rescue => e
     Rails.logger.error "[JOURNAL-MOVE] Unerwarteter Fehler: #{e.message}"
     Rails.logger.error "[JOURNAL-MOVE] Backtrace: #{e.backtrace.join("\n")}"
+    
+    MailHandlerLog.create!(
+      level: 'error',
+      message: "[JOURNAL-MOVE] Kritischer Fehler: #{e.message} (#{e.class.name})"
+    )
+    
     render json: { success: false, message: "Fehler beim Verschieben: #{e.message}" }
   end
 
@@ -201,7 +245,7 @@ class MailHandlerLogsController < ApplicationController
     end
     
     Rails.logger.info "[JOURNAL-MOVE] perform_single_journal_move erfolgreich abgeschlossen"
-    { success: true }
+    { success: true, moved_attachments: moved_attachments_count }
     
   rescue => e
     Rails.logger.error "[JOURNAL-MOVE] perform_single_journal_move fehlgeschlagen: #{e.message}"
