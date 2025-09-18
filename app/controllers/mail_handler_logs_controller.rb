@@ -60,9 +60,14 @@ class MailHandlerLogsController < ApplicationController
       target_issue = Issue.find_by(id: target_issue_id)
       
       if journal && target_issue
-        # Direkte Verschiebung der Journals und Anhänge
-        perform_manual_journal_move(journal, target_issue)
-        render json: { success: true, message: 'Journal und Dateien erfolgreich verschoben' }
+        # Direkte Verschiebung aller Journals und Anhänge des ursprünglichen Issues
+        success = perform_manual_journal_move(journal, target_issue)
+        
+        if success
+          render json: { success: true, message: 'Alle Journals und Anhänge erfolgreich verschoben' }
+        else
+          render json: { success: false, message: 'Fehler beim Verschieben der Journals' }
+        end
       else
         render json: { success: false, message: 'Journal oder Ziel-Issue nicht gefunden' }
       end
