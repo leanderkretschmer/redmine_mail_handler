@@ -1965,26 +1965,7 @@ class MailHandlerService
     converted_text
   end
 
-  # Einfache Funktion zum Verschieben eines Journals zu einem anderen Ticket
-  def move_journal_to_ticket(journal_id, target_ticket_id)
-    begin
-      journal = Journal.find(journal_id)
-      target_ticket = Issue.find(target_ticket_id)
-      
-      # Ändere nur die journalized_id
-      journal.journalized_id = target_ticket_id
-      
-      if journal.save
-        @logger.info("Journal #{journal_id} erfolgreich zu Ticket #{target_ticket_id} verschoben")
-        return { success: true, message: "Kommentar erfolgreich verschoben" }
-      else
-        return { success: false, error: "Fehler beim Speichern des Journals" }
-      end
-    rescue => e
-      @logger.error("Fehler beim Verschieben des Journals: #{e.message}")
-      return { success: false, error: e.message }
-    end
-  end
+
 
 
 

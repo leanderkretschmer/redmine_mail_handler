@@ -113,7 +113,7 @@ class MailHandlerScheduler
     if mails_per_hour <= 0
       @@scheduler.every '5m' do
         begin
-          @@logger.info("Starting load-balanced mail import (unlimited)")
+          @@logger.info_load_balanced("Starting mail import (unlimited)")
           
           ActiveRecord::Base.connection_pool.with_connection do
             service = MailHandlerService.new
@@ -143,7 +143,7 @@ class MailHandlerScheduler
     
     @@scheduler.every "#{interval_seconds}s" do
       begin
-        @@logger.info("Starting load-balanced mail import (max #{batch_size} mails)")
+        @@logger.info_load_balanced("Starting mail import (max #{batch_size} mails)")
         
         ActiveRecord::Base.connection_pool.with_connection do
           service = MailHandlerService.new

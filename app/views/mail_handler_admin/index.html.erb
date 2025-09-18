@@ -103,6 +103,22 @@
       <td><strong>Load-Balancing:</strong></td>
       <td><%= @load_balanced_enabled ? 'Aktiviert' : 'Deaktiviert' %></td>
     </tr>
+    <% if @load_balanced_enabled %>
+    <tr>
+      <td><strong>Mails pro Stunde:</strong></td>
+      <td><%= @mails_per_hour %></td>
+    </tr>
+    <tr>
+      <td><strong>Aktueller Stunden-Counter:</strong></td>
+      <td>
+        <span style="font-weight: bold; color: <%= @current_hour_count >= @mails_per_hour ? '#d9534f' : '#5cb85c' %>;">
+          <%= @current_hour_count %> / <%= @mails_per_hour %>
+        </span>
+        <br>
+        <small style="color: #666;">Reset alle Stunde (nächster Reset: <%= @next_reset_time.strftime('%H:%M') %>)</small>
+      </td>
+    </tr>
+    <% end %>
     <tr>
       <td><strong>Max. parallele Imports:</strong></td>
       <td><%= @max_parallel_imports %></td>

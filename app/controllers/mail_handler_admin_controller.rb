@@ -11,6 +11,11 @@ class MailHandlerAdminController < ApplicationController
     @import_batch_size = @settings['import_batch_size'] || '50'
     @worker_timeout = @settings['worker_timeout'] || '300'
     @recent_logs = MailHandlerLog.recent.limit(10)
+    
+    # Load Balancing Counter
+    @mails_per_hour = (@settings['mails_per_hour'] || '60').to_i
+    @current_hour_count = get_current_hour_mail_count
+    @next_reset_time = get_next_reset_time
   end
 
   def test_connection
@@ -452,27 +457,28 @@ class MailHandlerAdminController < ApplicationController
 
 
 
-  # Einfache Funktion zum Verschieben eines Journals
-  def move_journal
-    journal_id = params[:journal_id]
-    target_ticket_id = params[:target_ticket_id]
-    
-    if journal_id.blank? || target_ticket_id.blank?
-      render json: { success: false, error: 'Journal ID und Ziel-Ticket ID sind erforderlich' }
-      return
-    end
-    
-    result = @service.move_journal_to_ticket(journal_id, target_ticket_id)
-    render json: result
-  end
+
 
   private
 
   def require_admin
     render_403 unless User.current.admin?
   end
+  
+  private
 
   def init_service
     @service = MailHandlerService.new
+  end
+  
+  def get_current_hour_mail_count
+    current_hour_start = Time.current.beginning_of_hour
+    MailHandlerLog.where(
+      created_at: current_hour_start..Time.current
+    ).where("message LIKE ?", "%[LOAD-BALANCED]%").count
+  end
+  
+  def get_next_reset_time
+    Time.current.beginning_of_hour + 1.hour
   end
 end

@@ -60,22 +60,21 @@ class MailHandlerLogsController < ApplicationController
       target_issue = Issue.find_by(id: target_issue_id)
       
       if journal && target_issue
-        # Ursprüngliche Issue-ID speichern
+        # Ursprüngliche Issue-ID speichern für Attachment-Verschiebung
         original_issue_id = journal.journalized_id
+        original_issue = Issue.find_by(id: original_issue_id)
         
         # Journal verschieben
         journal.update(journalized_id: target_issue_id)
         
-        # Attachments des ursprünglichen Issues finden und verschieben
-        original_issue = Issue.find_by(id: original_issue_id)
+        # Attachments verschieben
         if original_issue
-          # Alle Attachments des ursprünglichen Issues zum Ziel-Issue verschieben
           original_issue.attachments.each do |attachment|
             attachment.update(container: target_issue)
           end
         end
         
-        render json: { success: true, message: 'Journal und Attachments erfolgreich verschoben' }
+        render json: { success: true, message: 'Kommentar und Dateien erfolgreich verschoben' }
       else
         render json: { success: false, message: 'Journal oder Ziel-Issue nicht gefunden' }
       end

@@ -50,6 +50,12 @@ class MailHandlerLogger
   def debug_mail(message, mail = nil, ticket_id = nil)
     log_with_details('debug', message, mail, ticket_id)
   end
+  
+  # Spezielle Methode für Load-Balanced Import Logging
+  def info_load_balanced(message, mail = nil, ticket_id = nil)
+    enhanced_message = "[LOAD-BALANCED] #{message}"
+    log_with_details('info', enhanced_message, mail, ticket_id)
+  end
 
   # Hole Logs mit Paginierung
   def self.get_logs(page = 1, per_page = 50, level = nil)
