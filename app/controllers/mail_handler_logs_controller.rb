@@ -55,31 +55,46 @@ class MailHandlerLogsController < ApplicationController
     journal_id = params[:journal_id]
     target_issue_id = params[:target_issue_id]
     
-    if journal_id.present? && target_issue_id.present?
-      journal = Journal.find_by(id: journal_id)
-      target_issue = Issue.find_by(id: target_issue_id)
-      
-      if journal && target_issue
-        # Verschiebung nur des einzelnen Kommentars
-        success = perform_single_journal_move(journal, target_issue)
-        
-        if success
-          render json: { success: true, message: 'Kommentar erfolgreich verschoben' }
-        else
-          render json: { success: false, message: 'Fehler beim Verschieben des Kommentars' }
-        end
-      else
-        render json: { success: false, message: 'Kommentar oder Ziel-Issue nicht gefunden' }
-      end
-    else
-      render json: { success: false, message: 'Fehlende Parameter' }
+    if journal_id.blank? || target_issue_id.blank?
+      render json: { success: false, message: 'Journal ID und Target Issue ID sind erforderlich' }
+      return
     end
+    
+    journal = Journal.find_by(id: journal_id)
+    target_issue = Issue.find_by(id: target_issue_id)
+    
+    if journal.nil?
+      render json: { success: false, message: 'Journal nicht gefunden' }
+      return
+    end
+    
+    if target_issue.nil?
+      render json: { success: false, message: 'Ziel-Issue nicht gefunden' }
+      return
+    end
+    
+    # Prüfe ob Journal Kommentar-Text hat
+    if journal.notes.blank?
+      render json: { success: false, message: 'Nur Journals mit Kommentar-Text können verschoben werden' }
+      return
+    end
+    
+    result = perform_single_journal_move(journal, target_issue)
+    
+    if result[:success]
+      render json: { success: true, message: 'Journal und Dateien erfolgreich verschoben' }
+    else
+      render json: { success: false, message: result[:error] }
+    end
+  rescue => e
+    Rails.logger.error "Fehler beim Journal-Move: #{e.message}\n#{e.backtrace.join("\n")}"
+    render json: { success: false, message: "Fehler beim Verschieben: #{e.message}" }
   end
 
   private
 
   def perform_single_journal_move(journal, target_issue)
-    return false unless journal && target_issue
+    return { success: false, error: 'Journal oder Target Issue fehlt' } unless journal && target_issue
     
     ActiveRecord::Base.transaction do
       # 1. Verschiebe nur diesen einen Kommentar
@@ -124,6 +139,7 @@ class MailHandlerLogsController < ApplicationController
             Rails.logger.info "Moved attachment: #{attachment.filename} from issue #{original_issue_id} to #{target_issue.id}"
           else
             Rails.logger.error "Failed to move attachment: #{attachment.filename} - #{new_attachment.errors.full_messages.join(', ')}"
+            raise "Attachment-Migration fehlgeschlagen: #{new_attachment.errors.full_messages.join(', ')}"
           end
         end
         
@@ -133,12 +149,12 @@ class MailHandlerLogsController < ApplicationController
       Rails.logger.info "Successfully moved journal #{journal.id} with #{journal_details_count} details and #{journal_attachments.count} attachments"
     end
     
-    true
+    { success: true }
     
   rescue => e
     Rails.logger.error "Single journal move failed: #{e.message}"
     Rails.logger.error e.backtrace.join("\n")
-    false
+    { success: false, error: e.message }
   end
 
   def perform_manual_journal_move(journal, target_issue)
