@@ -1993,37 +1993,36 @@ class MailHandlerService
     
     begin
       ActiveRecord::Base.transaction do
-        # Debug: Zeige alle Anhänge des Tickets
-        all_attachments = journal.journalized.attachments
-        @logger.info("Total attachments in source ticket: #{all_attachments.count}")
-        all_attachments.each do |att|
-          @logger.info("  - #{att.filename} (ID: #{att.id}, created: #{att.created_on})")
-        end
-        
-        # Sammle nur die Anhänge die zeitlich zum Journal gehören
-        # Da Redmine keine direkte Journal-Attachment-Verknüpfung hat, verwenden wir einen Zeitbereich
-        @logger.info("Journal created_on: #{journal.created_on}")
-        @logger.info("Looking for attachments between #{journal.created_on - 5.minutes} and #{journal.created_on + 5.minutes}")
-        
-        journal_attachments = journal.journalized.attachments.where(
-          'created_on >= ? AND created_on <= ?',
-          journal.created_on - 5.minutes,
-          journal.created_on + 5.minutes
-        )
-        
-        @logger.info("Found #{journal_attachments.count} attachments matching time criteria")
+        # Sammle alle Anhänge des Quell-Tickets
+        source_attachments = journal.journalized.attachments
+        @logger.info("Total attachments in source ticket: #{source_attachments.count}")
         attachments_moved = 0
         
-        # Verschiebe Anhänge zum Ziel-Ticket (nur DB-Eintrag ändern)
-        journal_attachments.each do |attachment|
-          @logger.info("Processing attachment: #{attachment.filename} (ID: #{attachment.id}, created: #{attachment.created_on})")
+        # Kopiere Anhänge zum Ziel-Ticket (neue Attachment-Objekte erstellen)
+        source_attachments.each do |attachment|
+          @logger.info("Processing attachment: #{attachment.filename} (ID: #{attachment.id})")
           
-          attachment.container = target_ticket
-          if attachment.save
-            attachments_moved += 1
-            @logger.info("Successfully moved attachment '#{attachment.filename}' from ticket ##{journal.journalized_id} to ticket ##{target_ticket.id}")
-          else
-            @logger.error("Failed to move attachment '#{attachment.filename}': #{attachment.errors.full_messages.join(', ')}")
+          begin
+            # Kopiere die Datei anstatt den Datenbankeinträge zu verschieben
+            new_attachment = Attachment.new(
+              container: target_ticket,
+              file: attachment.file,
+              filename: attachment.filename,
+              filesize: attachment.filesize,
+              content_type: attachment.content_type,
+              digest: attachment.digest,
+              author: attachment.author,
+              description: attachment.description
+            )
+            
+            if new_attachment.save
+              attachments_moved += 1
+              @logger.info("Successfully copied attachment '#{attachment.filename}' from ticket ##{journal.journalized_id} to ticket ##{target_ticket.id}")
+            else
+              @logger.error("Failed to copy attachment '#{attachment.filename}': #{new_attachment.errors.full_messages.join(', ')}")
+            end
+          rescue => e
+            @logger.error("Error copying attachment '#{attachment.filename}': #{e.message}")
           end
         end
         
