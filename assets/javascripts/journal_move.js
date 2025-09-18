@@ -18,56 +18,139 @@
   });
   
   function initJournalMoveFeature() {
-    // Finde das Journal-Edit-Formular
+    // Finde alle bestehenden Journal-Einträge und füge Move-Funktionalität hinzu
+    addMoveButtonsToExistingJournals();
+    
+    // Finde das Journal-Edit-Formular für neue Kommentare
     const journalForm = document.querySelector('form#issue-form');
-    if (!journalForm) {
-      console.log('Journal Move: Kein Journal-Formular gefunden');
+    if (journalForm) {
+      console.log('Journal Move: Journal-Formular gefunden, füge Event-Listener hinzu');
+      
+      // Füge Submit-Event-Listener hinzu
+      journalForm.addEventListener('submit', function(event) {
+        const targetTicketInput = document.getElementById('target_ticket_id');
+        if (!targetTicketInput) {
+          console.log('Journal Move: Target-Ticket-Input nicht gefunden');
+          return; // Normaler Submit
+        }
+        
+        const targetTicketId = targetTicketInput.value.trim();
+        if (!targetTicketId) {
+          console.log('Journal Move: Keine Ziel-Ticket-ID angegeben, normaler Submit');
+          return; // Normaler Submit
+        }
+        
+        // Verhindere normalen Submit
+        event.preventDefault();
+        console.log('Journal Move: Ziel-Ticket-ID angegeben:', targetTicketId);
+        
+        // Validiere Ticket-ID
+        if (!/^\d+$/.test(targetTicketId)) {
+          alert('Bitte geben Sie eine gültige Ticket-ID (nur Zahlen) ein.');
+          return;
+        }
+        
+        // Hole Journal-Text
+        const notesTextarea = document.getElementById('issue_notes');
+        if (!notesTextarea || !notesTextarea.value.trim()) {
+          alert('Bitte geben Sie einen Kommentar ein, bevor Sie ihn verschieben.');
+          return;
+        }
+        
+        const journalText = notesTextarea.value.trim();
+        
+        // Bestätigungsdialog
+        if (!confirm(`Sind Sie sicher, dass Sie diesen Kommentar zu Ticket #${targetTicketId} verschieben möchten?\n\nDer Kommentar und alle Anhänge des aktuellen Tickets werden verschoben.\n\nDiese Aktion kann nicht rückgängig gemacht werden!`)) {
+          return;
+        }
+        
+        // Führe Move-Operation aus
+        moveJournalToTicket(targetTicketId, journalText, journalForm);
+      });
+    }
+  }
+  
+  function addMoveButtonsToExistingJournals() {
+    // Finde alle Journal-Einträge auf der Seite
+    const journals = document.querySelectorAll('.journal');
+    
+    journals.forEach(function(journal) {
+      // Prüfe ob Journal Notizen hat
+      const notesDiv = journal.querySelector('.journal-notes');
+      if (!notesDiv || !notesDiv.textContent.trim()) {
+        return; // Kein Kommentar-Text
+      }
+      
+      // Extrahiere Journal-ID aus dem Journal-Element
+      const journalId = journal.id ? journal.id.replace('change-', '') : null;
+      if (!journalId) {
+        return; // Keine Journal-ID gefunden
+      }
+      
+      // Prüfe ob bereits ein Move-Button existiert
+      if (journal.querySelector('.journal-move-button')) {
+        return; // Button bereits vorhanden
+      }
+      
+      // Erstelle Move-Button
+      const moveButton = document.createElement('a');
+      moveButton.href = '#';
+      moveButton.className = 'journal-move-button';
+      moveButton.textContent = 'Verschieben';
+      moveButton.style.marginLeft = '10px';
+      moveButton.style.fontSize = '11px';
+      
+      // Füge Click-Event hinzu
+      moveButton.addEventListener('click', function(event) {
+        event.preventDefault();
+        showMoveDialog(journalId, notesDiv.textContent.trim());
+      });
+      
+      // Füge Button zu Journal-Actions hinzu
+      const journalActions = journal.querySelector('.journal-actions');
+      if (journalActions) {
+        journalActions.appendChild(moveButton);
+      }
+    });
+  }
+  
+  function showMoveDialog(journalId, journalText) {
+    const targetTicketId = prompt('Geben Sie die Ziel-Ticket-ID ein:');
+    
+    if (!targetTicketId) {
+      return; // Abgebrochen
+    }
+    
+    // Validiere Ticket-ID
+    if (!/^\d+$/.test(targetTicketId.trim())) {
+      alert('Bitte geben Sie eine gültige Ticket-ID (nur Zahlen) ein.');
       return;
     }
     
-    console.log('Journal Move: Journal-Formular gefunden, füge Event-Listener hinzu');
+    // Bestätigungsdialog
+    if (!confirm(`Sind Sie sicher, dass Sie diesen Kommentar zu Ticket #${targetTicketId} verschieben möchten?\n\nDer Kommentar und alle Anhänge werden verschoben.\n\nDiese Aktion kann nicht rückgängig gemacht werden!`)) {
+      return;
+    }
     
-    // Füge Submit-Event-Listener hinzu
-    journalForm.addEventListener('submit', function(event) {
-      const targetTicketInput = document.getElementById('target_ticket_id');
-      if (!targetTicketInput) {
-        console.log('Journal Move: Target-Ticket-Input nicht gefunden');
-        return; // Normaler Submit
-      }
-      
-      const targetTicketId = targetTicketInput.value.trim();
-      if (!targetTicketId) {
-        console.log('Journal Move: Keine Ziel-Ticket-ID angegeben, normaler Submit');
-        return; // Normaler Submit
-      }
-      
-      // Verhindere normalen Submit
-      event.preventDefault();
-      console.log('Journal Move: Ziel-Ticket-ID angegeben:', targetTicketId);
-      
-      // Validiere Ticket-ID
-      if (!/^\d+$/.test(targetTicketId)) {
-        alert('Bitte geben Sie eine gültige Ticket-ID (nur Zahlen) ein.');
-        return;
-      }
-      
-      // Hole Journal-Text
-      const notesTextarea = document.getElementById('issue_notes');
-      if (!notesTextarea || !notesTextarea.value.trim()) {
-        alert('Bitte geben Sie einen Kommentar ein, bevor Sie ihn verschieben.');
-        return;
-      }
-      
-      const journalText = notesTextarea.value.trim();
-      
-      // Bestätigungsdialog
-      if (!confirm(`Sind Sie sicher, dass Sie diesen Kommentar zu Ticket #${targetTicketId} verschieben möchten?\n\nDer Kommentar und alle Anhänge des aktuellen Tickets werden verschoben.\n\nDiese Aktion kann nicht rückgängig gemacht werden!`)) {
-        return;
-      }
-      
-      // Führe Move-Operation aus
-      moveJournalToTicket(targetTicketId, journalText, journalForm);
-    });
+    // Führe direkte Move-Operation aus
+    moveExistingJournal(journalId, targetTicketId.trim());
+  }
+  
+  function moveExistingJournal(journalId, targetTicketId) {
+    console.log('Journal Move: Verschiebe bestehendes Journal', journalId, 'zu Ticket', targetTicketId);
+    
+    // Direkte Move-Operation ohne temporäres Journal
+    moveJournalWithAttachments(journalId, targetTicketId)
+      .then(function(result) {
+        console.log('Journal Move: Move-Operation erfolgreich:', result);
+        alert('Kommentar wurde erfolgreich verschoben!');
+        // Leite zur Ziel-Ticket-Seite weiter
+        window.location.href = `/issues/${targetTicketId}`;
+      })
+      .catch(function(error) {
+        console.error('Journal Move: Fehler bei Move-Operation:', error);
+        alert('Fehler beim Verschieben des Kommentars: ' + error.message);
+      });
   }
   
   function moveJournalToTicket(targetTicketId, journalText, originalForm) {
