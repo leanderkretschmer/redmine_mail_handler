@@ -45,6 +45,13 @@ en:
   label_logging_settings: "Logging Settings"
   label_log_level: "Log Level"
   
+  # Journal-Move Settings
+  label_journal_move_settings: "Journal-Move Settings"
+  label_journal_move_copy_mode: "Copy journal instead of moving"
+  label_journal_move_copy_mode_info: "When enabled, the journal will be copied instead of moved. The original journal remains intact."
+  label_journal_copy_delete_original: "Delete original journal after copying"
+  label_journal_copy_delete_original_info: "When enabled, the original journal will be deleted after copying (equivalent to moving)."
+  
   # Actions
   button_test_connection: "Test IMAP Connection"
   button_send_test_mail: "Send Test Mail"

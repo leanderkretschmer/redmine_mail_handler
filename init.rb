@@ -41,6 +41,8 @@ Redmine::Plugin.register :redmine_mail_handler do
       'backdate_comments' => '0',
       'show_block_user' => '0',
       'mail_decoder_enabled' => '0',
+      'journal_move_copy_mode' => '0',
+    'journal_copy_delete_original' => '0',
       'enable_attachment_move' => '0'
   }, :partial => 'settings/mail_handler_settings'
 
