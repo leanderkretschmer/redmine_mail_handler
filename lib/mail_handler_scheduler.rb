@@ -43,6 +43,13 @@ class MailHandlerScheduler
   end
 
   private
+  
+  def self.get_current_hour_mail_count
+    current_hour_start = Time.current.beginning_of_hour
+    MailHandlerLog.where(
+      created_at: current_hour_start..Time.current
+    ).where("message LIKE ?", "%[LOAD-BALANCED]%").count
+  end
 
   def self.schedule_mail_import
     settings = Setting.plugin_redmine_mail_handler
@@ -143,7 +150,16 @@ class MailHandlerScheduler
     
     @@scheduler.every "#{interval_seconds}s" do
       begin
-        @@logger.info_load_balanced("Starting mail import (max #{batch_size} mails)")
+        # Prüfe ob das Stunden-Limit bereits erreicht ist
+        current_hour_count = get_current_hour_mail_count
+        
+        if current_hour_count >= mails_per_hour
+          next_reset = Time.current.beginning_of_hour + 1.hour
+          @@logger.info_load_balanced("Hourly limit reached (#{current_hour_count}/#{mails_per_hour}). Skipping import until reset at #{next_reset.strftime('%H:%M')}")
+          next
+        end
+        
+        @@logger.info_load_balanced("Starting mail import (max #{batch_size} mails, current: #{current_hour_count}/#{mails_per_hour})")
         
         ActiveRecord::Base.connection_pool.with_connection do
           service = MailHandlerService.new
