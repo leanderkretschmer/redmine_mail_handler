@@ -51,6 +51,39 @@ class MailHandlerLogsController < ApplicationController
     end
   end
 
+  def move_journal
+    journal_id = params[:journal_id]
+    target_issue_id = params[:target_issue_id]
+    
+    if journal_id.present? && target_issue_id.present?
+      journal = Journal.find_by(id: journal_id)
+      target_issue = Issue.find_by(id: target_issue_id)
+      
+      if journal && target_issue
+        # Ursprüngliche Issue-ID speichern
+        original_issue_id = journal.journalized_id
+        
+        # Journal verschieben
+        journal.update(journalized_id: target_issue_id)
+        
+        # Attachments des ursprünglichen Issues finden und verschieben
+        original_issue = Issue.find_by(id: original_issue_id)
+        if original_issue
+          # Alle Attachments des ursprünglichen Issues zum Ziel-Issue verschieben
+          original_issue.attachments.each do |attachment|
+            attachment.update(container: target_issue)
+          end
+        end
+        
+        render json: { success: true, message: 'Journal und Attachments erfolgreich verschoben' }
+      else
+        render json: { success: false, message: 'Journal oder Ziel-Issue nicht gefunden' }
+      end
+    else
+      render json: { success: false, message: 'Fehlende Parameter' }
+    end
+  end
+
   private
 
   def valid_per_page_options

@@ -44,7 +44,7 @@ function moveJournal(journalId) {
   }
   
   // AJAX-Request zum Verschieben
-  fetch('/admin/mail_handler_admin/move_journal', {
+  fetch('/admin/mail_handler_logs/move_journal', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -24,7 +24,6 @@ RedmineApp::Application.routes.draw do
         post :process_deferred_mail
         post :block_user
         post :delete_all_comments
-        post :move_journal
       get :deferred_status
       end
     end
@@ -32,6 +31,7 @@ RedmineApp::Application.routes.draw do
     resources :mail_handler_logs, :only => [:index, :show] do
       collection do
         get :export
+        post :move_journal
       end
     end
   end
