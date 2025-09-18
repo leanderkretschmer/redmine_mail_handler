@@ -12,6 +12,11 @@ class MailHandlerLogsController < ApplicationController
                               .by_level(params[:level])
                               .recent
     
+    # Journal-Move Filter
+    if params[:filter] == 'journal_move'
+      logs_query = logs_query.where("message LIKE ?", "%[JOURNAL-MOVE]%")
+    end
+    
     # Gesamtanzahl für Paginierung
     @total_count = logs_query.count
     @total_pages = (@total_count.to_f / @per_page).ceil
@@ -39,7 +44,14 @@ class MailHandlerLogsController < ApplicationController
   end
 
   def export
-    @logs = MailHandlerLog.by_level(params[:level]).recent.limit(1000)
+    logs_query = MailHandlerLog.by_level(params[:level]).recent
+    
+    # Journal-Move Filter für Export
+    if params[:filter] == 'journal_move'
+      logs_query = logs_query.where("message LIKE ?", "%[JOURNAL-MOVE]%")
+    end
+    
+    @logs = logs_query.limit(1000)
     
     respond_to do |format|
       format.csv do

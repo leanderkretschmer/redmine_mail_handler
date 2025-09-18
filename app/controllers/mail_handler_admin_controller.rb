@@ -11,6 +11,7 @@ class MailHandlerAdminController < ApplicationController
     @import_batch_size = @settings['import_batch_size'] || '50'
     @worker_timeout = @settings['worker_timeout'] || '300'
     @recent_logs = MailHandlerLog.recent.limit(10)
+    @journal_move_logs = MailHandlerLog.where("message LIKE ?", "%[JOURNAL-MOVE]%").recent.limit(5)
     
     # Load Balancing Counter
     @mails_per_hour = (@settings['mails_per_hour'] || '60').to_i

@@ -4,7 +4,7 @@
 
 <div class="contextual">
   <%= link_to 'Zurück zur Administration', { :controller => 'mail_handler_admin', :action => 'index' }, :class => 'icon icon-back' %>
-  <%= link_to 'CSV Export', { :action => 'export', :level => @selected_level, :format => 'csv' }, :class => 'icon icon-save' %>
+  <%= link_to 'CSV Export', { :action => 'export', :level => @selected_level, :filter => params[:filter], :format => 'csv' }, :class => 'icon icon-save' %>
 </div>
 
 <h2>Mail Handler Logs</h2>
@@ -41,6 +41,11 @@
       <label for="level">Log-Level:</label>
       <%= select_tag 'level', 
                      options_for_select([['Alle', '']] + @levels.map { |l| [l.upcase, l] }, @selected_level),
+                     :onchange => 'this.form.submit();' %>
+      
+      <label for="filter" style="margin-left: 20px;">Filter:</label>
+      <%= select_tag 'filter',
+                     options_for_select([['Alle Logs', ''], ['Journal-Move Logs', 'journal_move']], params[:filter]),
                      :onchange => 'this.form.submit();' %>
       
       <label for="per_page" style="margin-left: 20px;">Einträge pro Seite:</label>
