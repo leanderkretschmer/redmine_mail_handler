@@ -366,6 +366,58 @@ class MailHandlerAdminController < ApplicationController
     end
   end
 
+  def move_comment
+    begin
+      journal_id = params[:journal_id].to_i
+      target_ticket_id = params[:target_ticket_id].to_i
+      
+      if journal_id <= 0 || target_ticket_id <= 0
+        render json: { success: false, error: 'Ungültige Journal-ID oder Ziel-Ticket-ID.' }
+        return
+      end
+      
+      # Finde das Journal (Kommentar)
+      journal = Journal.find_by(id: journal_id)
+      unless journal
+        render json: { success: false, error: "Kommentar ##{journal_id} nicht gefunden." }
+        return
+      end
+      
+      # Finde das Ziel-Ticket
+      target_ticket = Issue.find_by(id: target_ticket_id)
+      unless target_ticket
+        render json: { success: false, error: "Ziel-Ticket ##{target_ticket_id} nicht gefunden." }
+        return
+      end
+      
+      # Prüfe ob es sich um das Posteingang-Ticket handelt
+      settings = Setting.plugin_redmine_mail_handler
+      inbox_ticket_id = settings['inbox_ticket_id'].to_i
+      
+      if journal.journalized_id != inbox_ticket_id
+        render json: { success: false, error: 'Kommentare können nur aus dem Posteingang-Ticket verschoben werden.' }
+        return
+      end
+      
+      # Verschiebe den Kommentar mit Anhängen
+      result = @service.move_comment_with_attachments(journal, target_ticket)
+      
+      if result[:success]
+        render json: { 
+          success: true, 
+          message: "Kommentar wurde erfolgreich zu Ticket ##{target_ticket_id} verschoben. #{result[:attachments_moved]} Anhänge übertragen."
+        }
+      else
+        render json: { success: false, error: result[:error] }
+      end
+      
+    rescue => e
+      logger = MailHandlerLogger.new
+      logger.error("Error moving comment: #{e.message}")
+      render json: { success: false, error: "Fehler beim Verschieben des Kommentars: #{e.message}" }
+    end
+  end
+
   def delete_all_comments
     begin
       settings = Setting.plugin_redmine_mail_handler
@@ -446,6 +498,58 @@ class MailHandlerAdminController < ApplicationController
     end
     
     redirect_to :action => 'index'
+  end
+
+  def move_attachment
+    begin
+      attachment_id = params[:attachment_id].to_i
+      target_ticket_id = params[:target_ticket_id].to_i
+      
+      if attachment_id <= 0 || target_ticket_id <= 0
+        render json: { success: false, error: 'Ungültige Attachment-ID oder Ziel-Ticket-ID.' }
+        return
+      end
+      
+      # Finde den Anhang
+      attachment = Attachment.find_by(id: attachment_id)
+      unless attachment
+        render json: { success: false, error: "Anhang ##{attachment_id} nicht gefunden." }
+        return
+      end
+      
+      # Finde das Ziel-Ticket
+      target_ticket = Issue.find_by(id: target_ticket_id)
+      unless target_ticket
+        render json: { success: false, error: "Ziel-Ticket ##{target_ticket_id} nicht gefunden." }
+        return
+      end
+      
+      # Prüfe ob Attachment Move Feature aktiviert ist
+      settings = Setting.plugin_redmine_mail_handler
+      unless settings && settings['enable_attachment_move'] == '1' && Rails.env.development?
+        render json: { success: false, error: 'Attachment-Verschiebung ist nicht aktiviert oder nicht in Entwicklungsumgebung.' }
+        return
+      end
+      
+      # Verschiebe den Anhang
+      result = @service.move_single_attachment(attachment, target_ticket)
+      
+      if result[:success]
+        render json: { 
+          success: true, 
+          message: result[:message],
+          attachment_id: attachment_id,
+          target_ticket_id: target_ticket_id
+        }
+      else
+        render json: { success: false, error: result[:error] }
+      end
+      
+    rescue => e
+      logger = MailHandlerLogger.new
+      logger.error("Error moving attachment: #{e.message}")
+      render json: { success: false, error: "Fehler beim Verschieben des Anhangs: #{e.message}" }
+    end
   end
 
   private

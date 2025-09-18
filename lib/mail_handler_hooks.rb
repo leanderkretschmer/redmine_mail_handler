@@ -44,6 +44,20 @@ class MailHandlerHooks < Redmine::Hook::ViewListener
         html += content_tag(:script, 
           "console.log('Block User Feature ist deaktiviert in den Einstellungen');".html_safe)
       end
+      
+      # Attachment Move Funktionalität
+      if settings && settings['enable_attachment_move'] == '1' && Rails.env.development?
+        # Lade CSS und JavaScript für Attachment Move
+        html += stylesheet_link_tag('attachment_move', :plugin => 'redmine_mail_handler')
+        html += javascript_include_tag('attachment_move', :plugin => 'redmine_mail_handler')
+        
+        # Setze JavaScript-Variable für Feature-Aktivierung
+        html += content_tag(:script, 
+          "console.log('Attachment Move Feature aktiviert für Entwicklungsumgebung'); " +
+          "window.mailHandlerAttachmentMoveEnabled = true;".html_safe)
+        
+        Rails.logger.info "Attachment Move Hook: Assets und JavaScript-Variable gesetzt"
+      end
     end
     
     html.html_safe

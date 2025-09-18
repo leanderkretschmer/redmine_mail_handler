@@ -1836,14 +1836,36 @@ class MailHandlerService
     converted_text = text.dup
     total_conversions = 0
     
-    # Regex für mailto-Links: email@domain <mailto:email> -> [email@domain](mailto:email) - MUSS VOR anderen Patterns stehen!
-    mailto_pattern = /([\w\.-]+@[\w\.-]+)\s*<\s*mailto:([^>]+)\s*>/
-    mailto_conversions = converted_text.scan(mailto_pattern).count
-    converted_text = converted_text.gsub(mailto_pattern) do
-      email_text = $1.strip
-      email_address = $2.strip
-      "[#{email_text}](mailto:#{email_address})"
+    # Regex für mailto-Links mit Duplikat-Erkennung - MUSS VOR anderen Patterns stehen!
+    # Behandelt sowohl: <mailto:email> email als auch email <mailto:email>
+    
+    # Erst umgekehrte Reihenfolge: <mailto:email> email
+    reverse_mailto_pattern = /<\s*mailto:([^>]+)\s*>\s*([\w\.-]+@[\w\.-]+)/
+    reverse_conversions = converted_text.scan(reverse_mailto_pattern).count
+    converted_text = converted_text.gsub(reverse_mailto_pattern) do
+      email_in_mailto = $1.strip
+      email_after = $2.strip
+      if email_in_mailto == email_after
+        email_after  # Duplikat - nur E-Mail behalten
+      else
+        "[#{email_after}](mailto:#{email_in_mailto})"  # Link erstellen
+      end
     end
+    
+    # Dann normale Reihenfolge: email <mailto:email>
+    mailto_pattern = /([\w\.-]+@[\w\.-]+)\s*<\s*mailto:([^>]+)\s*>/
+    normal_conversions = converted_text.scan(mailto_pattern).count
+    converted_text = converted_text.gsub(mailto_pattern) do
+      email_before = $1.strip
+      email_in_mailto = $2.strip
+      if email_before == email_in_mailto
+        email_before  # Duplikat - nur E-Mail behalten
+      else
+        "[#{email_before}](mailto:#{email_in_mailto})"  # Link erstellen
+      end
+    end
+    
+    mailto_conversions = reverse_conversions + normal_conversions
     total_conversions += mailto_conversions
     
     # Regex für Markdown-Links: [alt-text](link) - aber nur für nicht-mailto Links
@@ -1941,6 +1963,135 @@ class MailHandlerService
      end
     
     converted_text
+  end
+
+  # Verschiebe einen Kommentar mit allen Anhängen zu einem anderen Ticket
+  def move_comment_with_attachments(journal, target_ticket)
+    # Validierungen
+    unless journal.is_a?(Journal)
+      return { success: false, error: "Ungültiges Journal-Objekt" }
+    end
+    
+    unless target_ticket.is_a?(Issue)
+      return { success: false, error: "Ungültiges Ziel-Ticket-Objekt" }
+    end
+    
+    # Prüfe ob Journal Notizen hat (ist ein Kommentar)
+    if journal.notes.blank?
+      return { success: false, error: "Journal enthält keinen Kommentar-Text" }
+    end
+    
+    # Prüfe ob Ziel-Ticket nicht das gleiche ist wie das Quell-Ticket
+    if journal.journalized_id == target_ticket.id
+      return { success: false, error: "Ziel-Ticket kann nicht das gleiche wie das Quell-Ticket sein" }
+    end
+    
+    # Prüfe Berechtigungen für Ziel-Ticket
+    unless target_ticket.visible?
+      return { success: false, error: "Keine Berechtigung für Ziel-Ticket" }
+    end
+    
+    begin
+      ActiveRecord::Base.transaction do
+        # Sammle alle Anhänge des Journals
+        journal_attachments = journal.journalized.attachments.where(
+          'created_on >= ? AND created_on <= ?', 
+          journal.created_on - 1.minute, 
+          journal.created_on + 1.minute
+        )
+        
+        attachments_moved = 0
+        
+        # Verschiebe Anhänge zum Ziel-Ticket (nur DB-Eintrag ändern)
+        journal_attachments.each do |attachment|
+          attachment.container = target_ticket
+          if attachment.save
+            attachments_moved += 1
+            @logger.info("Moved attachment #{attachment.filename} from ticket ##{journal.journalized_id} to ticket ##{target_ticket.id}")
+          else
+            @logger.error("Failed to move attachment: #{attachment.errors.full_messages.join(', ')}")
+          end
+        end
+        
+        # Erstelle neuen Journal-Eintrag im Ziel-Ticket
+        new_journal = target_ticket.init_journal(journal.user, journal.notes)
+        new_journal.created_on = journal.created_on
+        
+        if target_ticket.save
+          # Lösche das ursprüngliche Journal und seine Details
+          JournalDetail.where(journal_id: journal.id).delete_all
+          journal.destroy
+          
+          @logger.info("Successfully moved comment from ticket ##{journal.journalized_id} to ticket ##{target_ticket.id} with #{attachments_moved} attachments")
+          
+          return {
+            success: true,
+            attachments_moved: attachments_moved,
+            message: "Kommentar erfolgreich verschoben"
+          }
+        else
+          raise "Failed to save target ticket: #{target_ticket.errors.full_messages.join(', ')}"
+        end
+      end
+      
+    rescue => e
+      @logger.error("Error moving comment with attachments: #{e.message}")
+      return {
+        success: false,
+        error: e.message
+      }
+    end
+  end
+
+  # Verschiebe einen einzelnen Anhang zu einem anderen Ticket
+  def move_single_attachment(attachment, target_ticket)
+    # Validierungen
+    unless attachment.is_a?(Attachment)
+      return { success: false, error: "Ungültiges Attachment-Objekt" }
+    end
+    
+    unless target_ticket.is_a?(Issue)
+      return { success: false, error: "Ungültiges Ziel-Ticket-Objekt" }
+    end
+    
+    # Prüfe ob Ziel-Ticket nicht das gleiche ist wie das Quell-Ticket
+    if attachment.container_id == target_ticket.id && attachment.container_type == 'Issue'
+      return { success: false, error: "Ziel-Ticket kann nicht das gleiche wie das Quell-Ticket sein" }
+    end
+    
+    # Prüfe Berechtigungen für Ziel-Ticket
+    unless target_ticket.visible?
+      return { success: false, error: "Keine Berechtigung für Ziel-Ticket" }
+    end
+    
+    # Speichere ursprüngliche Container-Informationen für Logging
+    original_container_type = attachment.container_type
+    original_container_id = attachment.container_id
+    
+    begin
+      ActiveRecord::Base.transaction do
+        # Ändere den Container des Anhangs zum Ziel-Ticket
+        attachment.container = target_ticket
+        
+        if attachment.save
+          @logger.info("Successfully moved attachment #{attachment.filename} (ID: #{attachment.id}) from #{original_container_type} ##{original_container_id} to ticket ##{target_ticket.id}")
+          
+          return {
+            success: true,
+            message: "Anhang '#{attachment.filename}' erfolgreich zu Ticket ##{target_ticket.id} verschoben"
+          }
+        else
+          raise "Failed to save attachment: #{attachment.errors.full_messages.join(', ')}"
+        end
+      end
+      
+    rescue => e
+      @logger.error("Error moving single attachment: #{e.message}")
+      return {
+        success: false,
+        error: e.message
+      }
+    end
   end
 
   # Alias für Rückwärtskompatibilität

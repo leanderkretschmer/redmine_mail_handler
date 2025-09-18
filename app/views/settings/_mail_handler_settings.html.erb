@@ -566,6 +566,16 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <div class="box tabular settings">
+  <h3>Entwickler-Einstellungen</h3>
+  
+  <p>
+    <label for="settings_enable_attachment_move">Einzelne Anhänge verschieben (Dev):</label>
+    <%= check_box_tag 'settings[enable_attachment_move]', '1', @settings['enable_attachment_move'] == '1' %>
+    <em class="info">Aktiviert die Funktion zum Verschieben einzelner Anhänge zwischen Tickets. Nur für Entwicklungsumgebung gedacht.</em>
+  </p>
+</div>
+
+<div class="box tabular settings">
   <h3>Logging-Einstellungen</h3>
   
   <p>
