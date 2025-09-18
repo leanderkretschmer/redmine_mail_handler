@@ -1993,54 +1993,43 @@ class MailHandlerService
     
     begin
       ActiveRecord::Base.transaction do
+        # Speichere ursprüngliche Ticket-ID für Logging
+        original_ticket_id = journal.journalized_id
+        
         # Sammle alle Anhänge des Quell-Tickets
         source_attachments = journal.journalized.attachments
         @logger.info("Total attachments in source ticket: #{source_attachments.count}")
         attachments_moved = 0
         
-        # Kopiere Anhänge zum Ziel-Ticket (neue Attachment-Objekte erstellen)
+        # Verschiebe Anhänge zum Ziel-Ticket (ändere container)
         source_attachments.each do |attachment|
-          @logger.info("Processing attachment: #{attachment.filename} (ID: #{attachment.id})")
+          @logger.info("Moving attachment: #{attachment.filename} (ID: #{attachment.id})")
           
           begin
-            # Kopiere die physische Datei
-            source_path = attachment.diskfile
-            if File.exist?(source_path)
-              # Erstelle neuen Attachment mit kopierter Datei
-              File.open(source_path, 'rb') do |file|
-                new_attachment = Attachment.new(
-                  container: target_ticket,
-                  filename: attachment.filename,
-                  author: attachment.author,
-                  description: attachment.description
-                )
-                new_attachment.file = file
-                
-                if new_attachment.save
-                  attachments_moved += 1
-                  @logger.info("Successfully copied attachment '#{attachment.filename}' from ticket ##{journal.journalized_id} to ticket ##{target_ticket.id}")
-                else
-                  @logger.error("Failed to copy attachment '#{attachment.filename}': #{new_attachment.errors.full_messages.join(', ')}")
-                end
-              end
+            # Ändere den Container des Anhangs zum Ziel-Ticket
+            attachment.container = target_ticket
+            
+            if attachment.save
+              attachments_moved += 1
+              @logger.info("Successfully moved attachment '#{attachment.filename}' from ticket ##{original_ticket_id} to ticket ##{target_ticket.id}")
             else
-              @logger.error("Source file not found for attachment '#{attachment.filename}': #{source_path}")
+              @logger.error("Failed to move attachment '#{attachment.filename}': #{attachment.errors.full_messages.join(', ')}")
             end
           rescue => e
-            @logger.error("Error copying attachment '#{attachment.filename}': #{e.message}")
+            @logger.error("Error moving attachment '#{attachment.filename}': #{e.message}")
           end
         end
         
-        # Erstelle neuen Journal-Eintrag im Ziel-Ticket
-        new_journal = target_ticket.init_journal(journal.user, journal.notes)
-        new_journal.created_on = journal.created_on
+        # Verschiebe das Journal zum Ziel-Ticket (ändere journalized_id)
+        journal.journalized_id = target_ticket.id
+        journal.journalized_type = 'Issue'
         
-        if target_ticket.save
-          # Lösche das ursprüngliche Journal und seine Details
-          JournalDetail.where(journal_id: journal.id).delete_all
-          journal.destroy
+        if journal.save
+          # Aktualisiere beide Tickets (updated_on)
+          target_ticket.touch
+          Issue.find_by(id: original_ticket_id)&.touch
           
-          @logger.info("Successfully moved comment from ticket ##{journal.journalized_id} to ticket ##{target_ticket.id} with #{attachments_moved} attachments")
+          @logger.info("Successfully moved comment from ticket ##{original_ticket_id} to ticket ##{target_ticket.id} with #{attachments_moved} attachments")
           
           return {
             success: true,
@@ -2048,7 +2037,7 @@ class MailHandlerService
             message: "Kommentar erfolgreich verschoben"
           }
         else
-          raise "Failed to save target ticket: #{target_ticket.errors.full_messages.join(', ')}"
+          raise "Failed to move journal: #{journal.errors.full_messages.join(', ')}"
         end
       end
       
