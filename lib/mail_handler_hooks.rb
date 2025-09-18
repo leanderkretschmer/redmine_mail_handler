@@ -112,7 +112,10 @@ class MailHandlerModelHooks < Redmine::Hook::Listener
 
   # Einfacher Hook für Journal-Verschiebung
   def view_issues_show_description_bottom(context = {})
-    stylesheet_link_tag('simple_journal_move', :plugin => 'redmine_mail_handler') +
-    javascript_include_tag('simple_journal_move', :plugin => 'redmine_mail_handler')
+    css_path = "/plugin_assets/redmine_mail_handler/stylesheets/simple_journal_move.css"
+    js_path = "/plugin_assets/redmine_mail_handler/javascripts/simple_journal_move.js"
+    
+    "<link rel='stylesheet' type='text/css' href='#{css_path}' />" +
+    "<script type='text/javascript' src='#{js_path}'></script>"
   end
 end
