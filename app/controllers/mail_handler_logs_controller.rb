@@ -60,27 +60,9 @@ class MailHandlerLogsController < ApplicationController
       target_issue = Issue.find_by(id: target_issue_id)
       
       if journal && target_issue
-        # Finde den Log-Eintrag für dieses Journal
-        log_entry = find_log_entry_for_journal(journal)
-        
-        if log_entry && log_entry.mail_message_id.present?
-          # Versuche Mail aus Archiv zu re-importieren
-          success = reimport_mail_from_archive(log_entry.mail_message_id, target_issue_id)
-          
-          if success
-            # Lösche das alte Journal nach erfolgreichem Re-Import
-            journal.destroy
-            render json: { success: true, message: 'Mail erfolgreich aus Archiv re-importiert und Journal verschoben' }
-          else
-            # Fallback: Normale Journal-Verschiebung
-            perform_manual_journal_move(journal, target_issue)
-            render json: { success: true, message: 'Journal verschoben (Archiv-Import fehlgeschlagen, manuelle Verschiebung durchgeführt)' }
-          end
-        else
-          # Fallback: Normale Journal-Verschiebung
-          perform_manual_journal_move(journal, target_issue)
-          render json: { success: true, message: 'Journal und Dateien erfolgreich verschoben' }
-        end
+        # Direkte Verschiebung der Journals und Anhänge
+        perform_manual_journal_move(journal, target_issue)
+        render json: { success: true, message: 'Journal und Dateien erfolgreich verschoben' }
       else
         render json: { success: false, message: 'Journal oder Ziel-Issue nicht gefunden' }
       end
@@ -91,85 +73,58 @@ class MailHandlerLogsController < ApplicationController
 
   private
 
-  def find_log_entry_for_journal(journal)
-    # Suche Log-Eintrag basierend auf Zeitstempel und Ticket-ID
-    # Journal created_on ist normalerweise sehr nah am Log-Zeitstempel
-    time_range = (journal.created_on - 5.minutes)..(journal.created_on + 5.minutes)
-    
-    MailHandlerLog.where(
-      ticket_id: journal.journalized_id,
-      created_at: time_range
-    ).where.not(mail_message_id: nil).first
-  end
-  
-  def reimport_mail_from_archive(message_id, target_issue_id)
-    begin
-      service = MailHandlerService.new
-      
-      # Verbinde zu IMAP und suche Mail im Archiv
-      imap = service.send(:connect_to_imap)
-      return false unless imap
-      
-      settings = Setting.plugin_redmine_mail_handler
-      archive_folder = settings['archive_folder']
-      return false unless archive_folder.present?
-      
-      # Wähle Archiv-Ordner
-      begin
-        imap.select(archive_folder)
-      rescue Net::IMAP::NoResponseError
-        imap.disconnect
-        return false
-      end
-      
-      # Suche Mail anhand Message-ID
-      message_ids = imap.search(['HEADER', 'Message-ID', message_id])
-      
-      if message_ids.empty?
-        imap.disconnect
-        return false
-      end
-      
-      # Hole Mail-Daten
-      msg_id = message_ids.first
-      msg_data = imap.fetch(msg_id, 'RFC822')[0].attr['RFC822']
-      mail = Mail.read_from_string(msg_data)
-      
-      imap.disconnect
-      
-      # Finde Benutzer
-      from_address = mail.from&.first
-      return false unless from_address
-      
-      user = service.send(:find_existing_user, from_address)
-      return false unless user
-      
-      # Re-importiere Mail zum neuen Ticket
-      service.send(:add_mail_to_ticket, mail, target_issue_id, user)
-      
-      return true
-      
-    rescue => e
-      Rails.logger.error "Failed to reimport mail from archive: #{e.message}"
-      return false
-    end
-  end
+
   
   def perform_manual_journal_move(journal, target_issue)
-    # Ursprüngliche Issue-ID speichern für Attachment-Verschiebung
+    return false unless journal && target_issue
+    
     original_issue_id = journal.journalized_id
-    original_issue = Issue.find_by(id: original_issue_id)
+    moved_journals = 0
+    moved_attachments = 0
     
-    # Journal verschieben
-    journal.update(journalized_id: target_issue.id)
-    
-    # Attachments verschieben
-    if original_issue
-      original_issue.attachments.each do |attachment|
-        attachment.update(container: target_issue)
+    ActiveRecord::Base.transaction do
+      # 1. Verschiebe alle Journals (Kommentare) des ursprünglichen Issues
+      journals = Journal.where(journalized_id: original_issue_id, journalized_type: 'Issue')
+      
+      journals.find_each do |j|
+        # Update journalized_id zum neuen Issue
+        j.update!(journalized_id: target_issue.id)
+        moved_journals += 1
+        
+        # Journal Details werden automatisch mitbewegt (foreign key journal_id bleibt gleich)
+        Rails.logger.info "Moved journal #{j.id} from issue #{original_issue_id} to #{target_issue.id}"
       end
+      
+      # 2. Verschiebe alle direkten Issue-Anhänge
+      issue_attachments = Attachment.where(container_id: original_issue_id, container_type: 'Issue')
+      
+      issue_attachments.find_each do |attachment|
+        attachment.update!(container_id: target_issue.id)
+        moved_attachments += 1
+        Rails.logger.info "Moved issue attachment #{attachment.filename} from issue #{original_issue_id} to #{target_issue.id}"
+      end
+      
+      # 3. Anhänge die an Journals hängen werden automatisch mitbewegt,
+      # da sie über container_type='Journal' und container_id=journal.id verknüpft sind
+      journal_attachments = Attachment.joins(
+        "INNER JOIN journals ON attachments.container_id = journals.id AND attachments.container_type = 'Journal'"
+      ).where(
+        journals: { journalized_id: target_issue.id, journalized_type: 'Issue' }
+      )
+      
+      Rails.logger.info "Journal attachments automatically moved: #{journal_attachments.count}"
     end
+    
+    Rails.logger.info "Successfully moved #{moved_journals} journals and #{moved_attachments} attachments from issue #{original_issue_id} to #{target_issue.id}"
+    true
+    
+  rescue => e
+    Rails.logger.error "Manual journal move failed: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
+    false
   end
+
+
 
   def valid_per_page_options
     [10, 20, 50, 100, 200]
