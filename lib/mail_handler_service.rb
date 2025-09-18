@@ -2003,23 +2003,28 @@ class MailHandlerService
           @logger.info("Processing attachment: #{attachment.filename} (ID: #{attachment.id})")
           
           begin
-            # Kopiere die Datei anstatt den Datenbankeinträge zu verschieben
-            new_attachment = Attachment.new(
-              container: target_ticket,
-              file: attachment.file,
-              filename: attachment.filename,
-              filesize: attachment.filesize,
-              content_type: attachment.content_type,
-              digest: attachment.digest,
-              author: attachment.author,
-              description: attachment.description
-            )
-            
-            if new_attachment.save
-              attachments_moved += 1
-              @logger.info("Successfully copied attachment '#{attachment.filename}' from ticket ##{journal.journalized_id} to ticket ##{target_ticket.id}")
+            # Kopiere die physische Datei
+            source_path = attachment.diskfile
+            if File.exist?(source_path)
+              # Erstelle neuen Attachment mit kopierter Datei
+              File.open(source_path, 'rb') do |file|
+                new_attachment = Attachment.new(
+                  container: target_ticket,
+                  filename: attachment.filename,
+                  author: attachment.author,
+                  description: attachment.description
+                )
+                new_attachment.file = file
+                
+                if new_attachment.save
+                  attachments_moved += 1
+                  @logger.info("Successfully copied attachment '#{attachment.filename}' from ticket ##{journal.journalized_id} to ticket ##{target_ticket.id}")
+                else
+                  @logger.error("Failed to copy attachment '#{attachment.filename}': #{new_attachment.errors.full_messages.join(', ')}")
+                end
+              end
             else
-              @logger.error("Failed to copy attachment '#{attachment.filename}': #{new_attachment.errors.full_messages.join(', ')}")
+              @logger.error("Source file not found for attachment '#{attachment.filename}': #{source_path}")
             end
           rescue => e
             @logger.error("Error copying attachment '#{attachment.filename}': #{e.message}")

@@ -76,6 +76,42 @@ class MailHandlerHooks < Redmine::Hook::ViewListener
   def view_projects_settings_members_table_header(context = {})
     # Hier könnten projektspezifische Mail-Handler-Einstellungen hinzugefügt werden
   end
+  
+  # Hook für Journal-Edit-Formulare - fügt Ticket-Auswahl hinzu
+  def view_issues_edit_notes_bottom(context = {})
+    html = ''
+    
+    # Nur für Posteingang-Ticket anzeigen
+    settings = Setting.plugin_redmine_mail_handler
+    if settings && settings['inbox_ticket_id'].present?
+      inbox_ticket_id = settings['inbox_ticket_id'].to_i
+      current_issue = context[:issue]
+      
+      if current_issue && current_issue.id == inbox_ticket_id
+        # CSS und JavaScript für Journal-Move-Funktionalität laden
+        html += stylesheet_link_tag('journal_move', :plugin => 'redmine_mail_handler')
+        html += javascript_include_tag('journal_move', :plugin => 'redmine_mail_handler')
+        
+        # Ticket-Auswahl-Feld hinzufügen
+        html += content_tag(:div, :class => 'journal-move-section', :style => 'margin-top: 10px; padding: 10px; border: 1px solid #ddd; background-color: #f9f9f9;') do
+          content_tag(:h4, 'Kommentar verschieben') +
+          content_tag(:p, 'Wenn Sie diesen Kommentar zu einem anderen Ticket verschieben möchten, geben Sie die Ziel-Ticket-ID ein. Alle Anhänge werden automatisch mitverschoben.', :style => 'font-size: 12px; color: #666;') +
+          content_tag(:div, :class => 'form-group') do
+            label_tag('target_ticket_id', 'Ziel-Ticket-ID:', :style => 'display: inline-block; width: 120px;') +
+            text_field_tag('target_ticket_id', '', :placeholder => 'z.B. 123', :style => 'width: 100px; margin-left: 10px;') +
+            content_tag(:span, ' (leer lassen, um Kommentar nicht zu verschieben)', :style => 'font-size: 11px; color: #999; margin-left: 10px;')
+          end
+        end
+        
+        # JavaScript-Variable für Feature-Aktivierung
+        html += content_tag(:script, 
+          "console.log('Journal Move Feature aktiviert für Posteingang-Ticket #{inbox_ticket_id}'); " +
+          "window.mailHandlerJournalMoveEnabled = true;".html_safe)
+      end
+    end
+    
+    html.html_safe
+  end
 end
 
 class MailHandlerModelHooks < Redmine::Hook::Listener
