@@ -110,13 +110,15 @@ class MailHandlerModelHooks < Redmine::Hook::Listener
     end
   end
 
-  # Hook für Journal-Verschiebung mit ERB-Partial
-  def view_issues_show_description_bottom(context = {})
+  # Hook für Journal-Verschiebung - Eingabefeld im Bearbeitungsmodus
+  def view_journals_notes_form_after(context = {})
     controller = context[:controller]
-    if controller
+    journal = context[:journal]
+    
+    if controller && journal
       controller.render_to_string(
-        partial: 'issues/journal_move_form',
-        locals: {}
+        partial: 'issues/journal_move_edit_form',
+        locals: { journal: journal }
       )
     else
       ''

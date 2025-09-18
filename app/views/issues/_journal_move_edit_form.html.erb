@@ -1,0 +1,104 @@
+<%# Eingabefeld für Journal-Verschiebung im Bearbeitungsmodus %>
+<div class="journal-move-edit-field" style="margin-top: 10px; padding: 8px; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 3px;">
+  <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px;">
+    <%= l(:label_journal_move_target_ticket) %>
+  </label>
+  
+  <div style="display: flex; align-items: center; gap: 8px;">
+    <input type="number" 
+           id="journal_move_target_<%= journal.id %>" 
+           name="journal_move_target" 
+           placeholder="<%= l(:label_journal_move_target_placeholder) %>" 
+           min="1" 
+           style="width: 80px; padding: 3px 6px; border: 1px solid #ccc; border-radius: 2px; font-size: 11px;" />
+    
+    <button type="button" 
+            class="journal-move-btn" 
+            data-journal-id="<%= journal.id %>"
+            style="padding: 3px 8px; background: #fff; color: #666; border: 1px solid #ccc; border-radius: 2px; cursor: pointer; font-size: 11px; text-decoration: none;">
+      <%= l(:button_move) %>
+    </button>
+    
+    <span style="font-size: 10px; color: #999;">
+      <%= l(:label_journal_move_edit_info) %>
+    </span>
+  </div>
+</div>
+
+<%= content_for :header_tags do %>
+  <script type="text/javascript">
+    document.addEventListener('DOMContentLoaded', function() {
+      // Event-Listener für Journal-Move Buttons im Bearbeitungsmodus
+      document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('journal-move-btn')) {
+          e.preventDefault();
+          
+          const journalId = e.target.getAttribute('data-journal-id');
+          const targetInput = document.getElementById('journal_move_target_' + journalId);
+          const targetTicketId = targetInput.value.trim();
+          
+          if (!targetTicketId) {
+            alert('<%= l(:error_journal_move_no_target) %>');
+            targetInput.focus();
+            return;
+          }
+          
+          if (confirm('<%= l(:confirm_journal_move) %>')) {
+            performJournalMoveFromEdit(journalId, targetTicketId, e.target);
+          }
+        }
+      });
+      
+      // Enter-Taste in Eingabefeldern
+      document.addEventListener('keypress', function(e) {
+        if (e.target.name === 'journal_move_target' && e.key === 'Enter') {
+          e.preventDefault();
+          const journalId = e.target.id.replace('journal_move_target_', '');
+          const moveBtn = document.querySelector('.journal-move-btn[data-journal-id="' + journalId + '"]');
+          if (moveBtn) {
+            moveBtn.click();
+          }
+        }
+      });
+    });
+    
+    function performJournalMoveFromEdit(journalId, targetTicketId, button) {
+      // Button deaktivieren
+      button.disabled = true;
+      button.textContent = '<%= l(:button_moving) %>';
+      
+      // AJAX-Request
+      fetch('/admin/mail_handler_logs/move_journal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        },
+        body: JSON.stringify({
+          journal_id: parseInt(journalId),
+          target_issue_id: parseInt(targetTicketId)
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert('<%= l(:notice_journal_moved_successfully) %>');
+          // Seite neu laden um Änderungen zu zeigen
+          window.location.reload();
+        } else {
+          alert('<%= l(:error_journal_move_failed) %>: ' + (data.message || '<%= l(:error_unknown) %>'));
+          // Button wieder aktivieren
+          button.disabled = false;
+          button.textContent = '<%= l(:button_move) %>';
+        }
+      })
+      .catch(error => {
+        console.error('Journal move error:', error);
+        alert('<%= l(:error_journal_move_failed) %>: ' + error.message);
+        // Button wieder aktivieren
+        button.disabled = false;
+        button.textContent = '<%= l(:button_move) %>';
+      });
+    }
+  </script>
+<% end %>

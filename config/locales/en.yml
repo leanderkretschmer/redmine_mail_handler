@@ -49,8 +49,20 @@ en:
   label_journal_move_settings: "Journal-Move Settings"
   label_journal_move_copy_mode: "Copy journal instead of moving"
   label_journal_move_copy_mode_info: "When enabled, the journal will be copied instead of moved. The original journal remains intact."
-  label_journal_copy_delete_original: "Delete original journal after copying"
-  label_journal_copy_delete_original_info: "When enabled, the original journal will be deleted after copying (equivalent to moving)."
+  label_journal_copy_delete_original: "Delete original after copying"
+   label_journal_copy_delete_original_info: "If enabled, the original journal will be deleted after copying (equivalent to moving)."
+   
+   # Journal Move - Edit Mode
+   label_journal_move_target_ticket: "Target Ticket ID:"
+   label_journal_move_target_placeholder: "e.g. 123"
+   label_journal_move_edit_info: "Move comment to another ticket"
+   button_move: "Move"
+   button_moving: "Moving..."
+   error_journal_move_no_target: "Please enter a valid ticket ID."
+   confirm_journal_move: "Do you really want to move this comment?"
+   notice_journal_moved_successfully: "Comment was moved successfully."
+   error_journal_move_failed: "Error moving comment"
+   error_unknown: "Unknown error"
   
   # Actions
   button_test_connection: "Test IMAP Connection"
