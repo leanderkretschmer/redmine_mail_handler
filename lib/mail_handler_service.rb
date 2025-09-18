@@ -1965,141 +1965,28 @@ class MailHandlerService
     converted_text
   end
 
-  # Verschiebe einen Kommentar mit allen Anhängen zu einem anderen Ticket
-  def move_comment_with_attachments(journal, target_ticket)
-    # Validierungen
-    unless journal.is_a?(Journal)
-      return { success: false, error: "Ungültiges Journal-Objekt" }
-    end
-    
-    unless target_ticket.is_a?(Issue)
-      return { success: false, error: "Ungültiges Ziel-Ticket-Objekt" }
-    end
-    
-    # Prüfe ob Journal Notizen hat (ist ein Kommentar)
-    if journal.notes.blank?
-      return { success: false, error: "Journal enthält keinen Kommentar-Text" }
-    end
-    
-    # Prüfe ob Ziel-Ticket nicht das gleiche ist wie das Quell-Ticket
-    if journal.journalized_id == target_ticket.id
-      return { success: false, error: "Ziel-Ticket kann nicht das gleiche wie das Quell-Ticket sein" }
-    end
-    
-    # Prüfe Berechtigungen für Ziel-Ticket
-    unless target_ticket.visible?
-      return { success: false, error: "Keine Berechtigung für Ziel-Ticket" }
-    end
-    
+  # Einfache Funktion zum Verschieben eines Journals zu einem anderen Ticket
+  def move_journal_to_ticket(journal_id, target_ticket_id)
     begin
-      ActiveRecord::Base.transaction do
-        # Speichere ursprüngliche Ticket-ID für Logging
-        original_ticket_id = journal.journalized_id
-        
-        # Sammle alle Anhänge des Quell-Tickets
-        source_attachments = journal.journalized.attachments
-        @logger.info("Total attachments in source ticket: #{source_attachments.count}")
-        attachments_moved = 0
-        
-        # Verschiebe Anhänge zum Ziel-Ticket (ändere container)
-        source_attachments.each do |attachment|
-          @logger.info("Moving attachment: #{attachment.filename} (ID: #{attachment.id})")
-          
-          begin
-            # Ändere den Container des Anhangs zum Ziel-Ticket
-            attachment.container = target_ticket
-            
-            if attachment.save
-              attachments_moved += 1
-              @logger.info("Successfully moved attachment '#{attachment.filename}' from ticket ##{original_ticket_id} to ticket ##{target_ticket.id}")
-            else
-              @logger.error("Failed to move attachment '#{attachment.filename}': #{attachment.errors.full_messages.join(', ')}")
-            end
-          rescue => e
-            @logger.error("Error moving attachment '#{attachment.filename}': #{e.message}")
-          end
-        end
-        
-        # Verschiebe das Journal zum Ziel-Ticket (ändere journalized_id)
-        journal.journalized_id = target_ticket.id
-        journal.journalized_type = 'Issue'
-        
-        if journal.save
-          # Aktualisiere beide Tickets (updated_on)
-          target_ticket.touch
-          Issue.find_by(id: original_ticket_id)&.touch
-          
-          @logger.info("Successfully moved comment from ticket ##{original_ticket_id} to ticket ##{target_ticket.id} with #{attachments_moved} attachments")
-          
-          return {
-            success: true,
-            attachments_moved: attachments_moved,
-            message: "Kommentar erfolgreich verschoben"
-          }
-        else
-          raise "Failed to move journal: #{journal.errors.full_messages.join(', ')}"
-        end
-      end
+      journal = Journal.find(journal_id)
+      target_ticket = Issue.find(target_ticket_id)
       
+      # Ändere nur die journalized_id
+      journal.journalized_id = target_ticket_id
+      
+      if journal.save
+        @logger.info("Journal #{journal_id} erfolgreich zu Ticket #{target_ticket_id} verschoben")
+        return { success: true, message: "Kommentar erfolgreich verschoben" }
+      else
+        return { success: false, error: "Fehler beim Speichern des Journals" }
+      end
     rescue => e
-      @logger.error("Error moving comment with attachments: #{e.message}")
-      return {
-        success: false,
-        error: e.message
-      }
+      @logger.error("Fehler beim Verschieben des Journals: #{e.message}")
+      return { success: false, error: e.message }
     end
   end
 
-  # Verschiebe einen einzelnen Anhang zu einem anderen Ticket
-  def move_single_attachment(attachment, target_ticket)
-    # Validierungen
-    unless attachment.is_a?(Attachment)
-      return { success: false, error: "Ungültiges Attachment-Objekt" }
-    end
-    
-    unless target_ticket.is_a?(Issue)
-      return { success: false, error: "Ungültiges Ziel-Ticket-Objekt" }
-    end
-    
-    # Prüfe ob Ziel-Ticket nicht das gleiche ist wie das Quell-Ticket
-    if attachment.container_id == target_ticket.id && attachment.container_type == 'Issue'
-      return { success: false, error: "Ziel-Ticket kann nicht das gleiche wie das Quell-Ticket sein" }
-    end
-    
-    # Prüfe Berechtigungen für Ziel-Ticket
-    unless target_ticket.visible?
-      return { success: false, error: "Keine Berechtigung für Ziel-Ticket" }
-    end
-    
-    # Speichere ursprüngliche Container-Informationen für Logging
-    original_container_type = attachment.container_type
-    original_container_id = attachment.container_id
-    
-    begin
-      ActiveRecord::Base.transaction do
-        # Ändere den Container des Anhangs zum Ziel-Ticket
-        attachment.container = target_ticket
-        
-        if attachment.save
-          @logger.info("Successfully moved attachment #{attachment.filename} (ID: #{attachment.id}) from #{original_container_type} ##{original_container_id} to ticket ##{target_ticket.id}")
-          
-          return {
-            success: true,
-            message: "Anhang '#{attachment.filename}' erfolgreich zu Ticket ##{target_ticket.id} verschoben"
-          }
-        else
-          raise "Failed to save attachment: #{attachment.errors.full_messages.join(', ')}"
-        end
-      end
-      
-    rescue => e
-      @logger.error("Error moving single attachment: #{e.message}")
-      return {
-        success: false,
-        error: e.message
-      }
-    end
-  end
+
 
   # Alias für Rückwärtskompatibilität
   alias_method :get_smtp_settings, :get_smtp_configuration

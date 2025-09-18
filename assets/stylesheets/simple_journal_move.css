@@ -1,0 +1,16 @@
+/* Einfache Styles für Journal Move Buttons */
+.move-journal-btn {
+  color: #169 !important;
+  text-decoration: none;
+  font-size: 11px;
+  margin-left: 10px;
+}
+
+.move-journal-btn:hover {
+  color: #106 !important;
+  text-decoration: underline;
+}
+
+.move-journal-btn:active {
+  color: #084 !important;
+}

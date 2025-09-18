@@ -450,59 +450,27 @@ class MailHandlerAdminController < ApplicationController
     redirect_to :action => 'index'
   end
 
-  # Verschiebe Journal mit Anhängen (für Journal-Edit-Funktionalität)
-  def move_journal_with_attachments
-    begin
-      journal_id = params[:journal_id].to_i
-      target_ticket_id = params[:target_ticket_id].to_i
-      
-      # Validierungen
-      if journal_id <= 0
-        render :json => { :success => false, :error => 'Ungültige Journal-ID' }
-        return
-      end
-      
-      if target_ticket_id <= 0
-        render :json => { :success => false, :error => 'Ungültige Ziel-Ticket-ID' }
-        return
-      end
-      
-      # Finde Journal und Ziel-Ticket
-      journal = Journal.find_by(id: journal_id)
-      unless journal
-        render :json => { :success => false, :error => 'Journal nicht gefunden' }
-        return
-      end
-      
-      target_ticket = Issue.find_by(id: target_ticket_id)
-      unless target_ticket
-        render :json => { :success => false, :error => 'Ziel-Ticket nicht gefunden' }
-        return
-      end
-      
-      # Führe Move-Operation aus
-      result = @service.move_comment_with_attachments(journal, target_ticket)
-      
-      if result[:success]
-        render :json => {
-          :success => true,
-          :message => result[:message],
-          :attachments_moved => result[:attachments_moved]
-        }
-      else
-        render :json => { :success => false, :error => result[:error] }
-      end
-      
-    rescue => e
-      logger = MailHandlerLogger.new
-      logger.error("Error in move_journal_with_attachments: #{e.message}")
-      logger.error("Backtrace: #{e.backtrace.join("\n")}")
-      
-      render :json => { :success => false, :error => e.message }
+
+
+  # Einfache Funktion zum Verschieben eines Journals
+  def move_journal
+    journal_id = params[:journal_id]
+    target_ticket_id = params[:target_ticket_id]
+    
+    if journal_id.blank? || target_ticket_id.blank?
+      render json: { success: false, error: 'Journal ID und Ziel-Ticket ID sind erforderlich' }
+      return
     end
+    
+    result = @service.move_journal_to_ticket(journal_id, target_ticket_id)
+    render json: result
   end
 
   private
+
+  def require_admin
+    render_403 unless User.current.admin?
+  end
 
   def init_service
     @service = MailHandlerService.new

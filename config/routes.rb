@@ -24,7 +24,7 @@ RedmineApp::Application.routes.draw do
         post :process_deferred_mail
         post :block_user
         post :delete_all_comments
-        post :move_journal_with_attachments
+        post :move_journal
       get :deferred_status
       end
     end
