@@ -55,7 +55,10 @@ class MailHandlerLogsController < ApplicationController
     journal_id = params[:journal_id]
     target_issue_id = params[:target_issue_id]
     
+    Rails.logger.info "[JOURNAL-MOVE] Starting journal move: journal_id=#{journal_id}, target_issue_id=#{target_issue_id}"
+    
     if journal_id.blank? || target_issue_id.blank?
+      Rails.logger.error "[JOURNAL-MOVE] Parameter fehlen: journal_id=#{journal_id}, target_issue_id=#{target_issue_id}"
       render json: { success: false, message: 'Journal ID und Target Issue ID sind erforderlich' }
       return
     end
@@ -64,94 +67,129 @@ class MailHandlerLogsController < ApplicationController
     target_issue = Issue.find_by(id: target_issue_id)
     
     if journal.nil?
+      Rails.logger.error "[JOURNAL-MOVE] Journal nicht gefunden: ID #{journal_id}"
       render json: { success: false, message: 'Journal nicht gefunden' }
       return
     end
     
     if target_issue.nil?
+      Rails.logger.error "[JOURNAL-MOVE] Ziel-Issue nicht gefunden: ID #{target_issue_id}"
       render json: { success: false, message: 'Ziel-Issue nicht gefunden' }
       return
     end
     
     # Prüfe ob Journal Kommentar-Text hat
     if journal.notes.blank?
+      Rails.logger.warn "[JOURNAL-MOVE] Journal #{journal_id} hat keinen Kommentar-Text - Verschiebung abgelehnt"
       render json: { success: false, message: 'Nur Journals mit Kommentar-Text können verschoben werden' }
       return
     end
     
+    Rails.logger.info "[JOURNAL-MOVE] Validierung erfolgreich - starte Verschiebung von Journal #{journal_id} (Issue #{journal.journalized_id}) zu Issue #{target_issue_id}"
+    
     result = perform_single_journal_move(journal, target_issue)
     
     if result[:success]
+      Rails.logger.info "[JOURNAL-MOVE] Erfolgreich abgeschlossen: Journal #{journal_id} verschoben"
       render json: { success: true, message: 'Journal und Dateien erfolgreich verschoben' }
     else
+      Rails.logger.error "[JOURNAL-MOVE] Fehlgeschlagen: #{result[:error]}"
       render json: { success: false, message: result[:error] }
     end
   rescue => e
-    Rails.logger.error "Fehler beim Journal-Move: #{e.message}\n#{e.backtrace.join("\n")}"
+    Rails.logger.error "[JOURNAL-MOVE] Unerwarteter Fehler: #{e.message}"
+    Rails.logger.error "[JOURNAL-MOVE] Backtrace: #{e.backtrace.join("\n")}"
     render json: { success: false, message: "Fehler beim Verschieben: #{e.message}" }
   end
 
   private
 
   def perform_single_journal_move(journal, target_issue)
+    Rails.logger.info "[JOURNAL-MOVE] perform_single_journal_move gestartet für Journal #{journal&.id} zu Issue #{target_issue&.id}"
+    
     return { success: false, error: 'Journal oder Target Issue fehlt' } unless journal && target_issue
     
+    original_issue_id = journal.journalized_id
+    Rails.logger.info "[JOURNAL-MOVE] Original Issue ID: #{original_issue_id}, Ziel Issue ID: #{target_issue.id}"
+    
     ActiveRecord::Base.transaction do
-      # 1. Verschiebe nur diesen einen Kommentar
-      original_issue_id = journal.journalized_id
-      original_issue = Issue.find_by(id: original_issue_id)
-      journal.update!(journalized_id: target_issue.id)
+      Rails.logger.info "[JOURNAL-MOVE] Transaktion gestartet"
       
-      Rails.logger.info "Moved single journal #{journal.id} from issue #{original_issue_id} to #{target_issue.id}"
+      # 1. Verschiebe nur diesen einen Kommentar
+      original_issue = Issue.find_by(id: original_issue_id)
+      Rails.logger.info "[JOURNAL-MOVE] Original Issue gefunden: #{original_issue&.subject || 'Issue nicht gefunden'}"
+      
+      Rails.logger.info "[JOURNAL-MOVE] Aktualisiere Journal #{journal.id}: journalized_id von #{original_issue_id} zu #{target_issue.id}"
+      journal.update!(journalized_id: target_issue.id)
+      Rails.logger.info "[JOURNAL-MOVE] Journal erfolgreich verschoben"
       
       # 2. Journal Details werden automatisch mitbewegt (foreign key journal_id bleibt gleich)
       journal_details_count = journal.details.count
-      Rails.logger.info "Journal details automatically moved: #{journal_details_count}"
+      Rails.logger.info "[JOURNAL-MOVE] Journal Details automatisch mitverschoben: #{journal_details_count} Details"
       
       # 3. Finde Attachments die direkt zu diesem Journal gehören
-      # Attachments sind über container_type='Journal' und container_id=journal.id verknüpft
-      journal_attachments = Attachment.where(
-        container_id: journal.id,
-        container_type: 'Journal'
-      )
-      
-      moved_attachments_count = 0
-      
-      journal_attachments.each do |attachment|
-        Rails.logger.info "Found journal attachment: #{attachment.filename} (ID: #{attachment.id}) for journal #{journal.id}"
-        
-        # Erstelle eine Kopie des Attachments für das Ziel-Issue
-        new_attachment = attachment.dup
-        new_attachment.container_id = target_issue.id
-        new_attachment.container_type = 'Issue'
-        
-        if new_attachment.save
-          # Kopiere die physische Datei
-          if File.exist?(attachment.diskfile)
-            FileUtils.cp(attachment.diskfile, new_attachment.diskfile)
-            Rails.logger.info "Copied attachment file: #{attachment.filename} to issue #{target_issue.id}"
-          end
-          
-          # Entferne das ursprüngliche Attachment
-          attachment.destroy
-          moved_attachments_count += 1
-          Rails.logger.info "Moved journal attachment: #{attachment.filename} from journal #{journal.id} to issue #{target_issue.id}"
-        else
-          Rails.logger.error "Failed to move attachment: #{attachment.filename} - #{new_attachment.errors.full_messages.join(', ')}"
-          raise "Attachment-Migration fehlgeschlagen: #{new_attachment.errors.full_messages.join(', ')}"
-        end
-      end
-      
-      Rails.logger.info "Successfully moved #{moved_attachments_count} journal attachments from journal #{journal.id} to issue #{target_issue.id}"
+       # Attachments sind über container_type='Journal' und container_id=journal.id verknüpft
+       Rails.logger.info "[JOURNAL-MOVE] Suche nach Journal-Attachments für Journal #{journal.id}"
+       journal_attachments = Attachment.where(
+         container_id: journal.id,
+         container_type: 'Journal'
+       )
        
-       Rails.logger.info "Successfully moved journal #{journal.id} with #{journal_details_count} details and #{moved_attachments_count} journal attachments"
+       Rails.logger.info "[JOURNAL-MOVE] Gefundene Journal-Attachments: #{journal_attachments.count}"
+       
+       moved_attachments_count = 0
+       
+       journal_attachments.each do |attachment|
+         Rails.logger.info "[JOURNAL-MOVE] Verarbeite Attachment: #{attachment.filename} (ID: #{attachment.id}) für Journal #{journal.id}"
+         
+         begin
+           # Erstelle eine Kopie des Attachments für das Ziel-Issue
+           new_attachment = attachment.dup
+           new_attachment.container_id = target_issue.id
+           new_attachment.container_type = 'Issue'
+           
+           Rails.logger.info "[JOURNAL-MOVE] Erstelle neues Attachment für Issue #{target_issue.id}"
+           
+           if new_attachment.save
+             Rails.logger.info "[JOURNAL-MOVE] Neues Attachment gespeichert (ID: #{new_attachment.id})"
+             
+             # Kopiere die physische Datei
+             if File.exist?(attachment.diskfile)
+               Rails.logger.info "[JOURNAL-MOVE] Kopiere Datei: #{attachment.diskfile} -> #{new_attachment.diskfile}"
+               FileUtils.cp(attachment.diskfile, new_attachment.diskfile)
+               Rails.logger.info "[JOURNAL-MOVE] Datei erfolgreich kopiert"
+             else
+               Rails.logger.warn "[JOURNAL-MOVE] Originaldatei nicht gefunden: #{attachment.diskfile}"
+             end
+             
+             # Entferne das ursprüngliche Attachment
+             Rails.logger.info "[JOURNAL-MOVE] Lösche ursprüngliches Attachment #{attachment.id}"
+             attachment.destroy
+             moved_attachments_count += 1
+             Rails.logger.info "[JOURNAL-MOVE] Attachment erfolgreich verschoben: #{attachment.filename}"
+           else
+             Rails.logger.error "[JOURNAL-MOVE] Fehler beim Speichern des neuen Attachments: #{new_attachment.errors.full_messages.join(', ')}"
+             raise "Attachment-Migration fehlgeschlagen: #{new_attachment.errors.full_messages.join(', ')}"
+           end
+         rescue => attachment_error
+           Rails.logger.error "[JOURNAL-MOVE] Fehler bei Attachment #{attachment.filename}: #{attachment_error.message}"
+           raise attachment_error
+         end
+       end
+       
+       Rails.logger.info "[JOURNAL-MOVE] Attachment-Migration abgeschlossen: #{moved_attachments_count} Attachments verschoben"
+        
+        Rails.logger.info "[JOURNAL-MOVE] Journal-Move erfolgreich: Journal #{journal.id} mit #{journal_details_count} Details und #{moved_attachments_count} Attachments"
+        Rails.logger.info "[JOURNAL-MOVE] Transaktion wird committet"
     end
     
+    Rails.logger.info "[JOURNAL-MOVE] perform_single_journal_move erfolgreich abgeschlossen"
     { success: true }
     
   rescue => e
-    Rails.logger.error "Single journal move failed: #{e.message}"
-    Rails.logger.error e.backtrace.join("\n")
+    Rails.logger.error "[JOURNAL-MOVE] perform_single_journal_move fehlgeschlagen: #{e.message}"
+    Rails.logger.error "[JOURNAL-MOVE] Fehler-Details: #{e.class.name}"
+    Rails.logger.error "[JOURNAL-MOVE] Backtrace: #{e.backtrace.join("\n")}"
     { success: false, error: e.message }
   end
 
