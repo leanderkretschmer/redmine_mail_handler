@@ -16,18 +16,58 @@
   });
   
   function initAttachmentMoveFields() {
-    // Finde alle Attachment-Bereiche
-    const attachmentDivs = document.querySelectorAll('.attachments p');
+    // Finde alle Attachment-Bereiche - verschiedene Selektoren probieren
+    let attachmentElements = [];
     
-    if (attachmentDivs.length === 0) {
+    // Versuche verschiedene Selektoren für Attachments
+    const selectors = [
+      '.attachments p',
+      '.attachments div',
+      '.attachments li',
+      '.attachment',
+      'p:has(a[href*="/attachments/"])',
+      'div:has(a[href*="/attachments/"])'
+    ];
+    
+    for (const selector of selectors) {
+      try {
+        const elements = document.querySelectorAll(selector);
+        if (elements.length > 0) {
+          attachmentElements = Array.from(elements).filter(el => 
+            el.querySelector('a[href*="/attachments/"]')
+          );
+          if (attachmentElements.length > 0) {
+            console.log(`Gefunden mit Selektor '${selector}': ${attachmentElements.length} Anhänge`);
+            break;
+          }
+        }
+      } catch (e) {
+        console.log(`Selektor '${selector}' nicht unterstützt:`, e);
+      }
+    }
+    
+    if (attachmentElements.length === 0) {
+      console.log('Keine Anhänge gefunden - versuche alle Links zu finden');
+      const allAttachmentLinks = document.querySelectorAll('a[href*="/attachments/"]');
+      console.log(`Gefundene Attachment-Links: ${allAttachmentLinks.length}`);
+      
+      allAttachmentLinks.forEach(link => {
+        const parent = link.closest('p, div, li');
+        if (parent && !attachmentElements.includes(parent)) {
+          attachmentElements.push(parent);
+        }
+      });
+    }
+    
+    if (attachmentElements.length === 0) {
       console.log('Keine Anhänge gefunden');
       return;
     }
     
-    console.log(`${attachmentDivs.length} Anhänge gefunden, füge Move-Felder hinzu`);
+    console.log(`${attachmentElements.length} Anhänge gefunden, füge Move-Felder hinzu`);
     
-    attachmentDivs.forEach(function(attachmentDiv) {
-      addMoveFieldToAttachment(attachmentDiv);
+    attachmentElements.forEach(function(attachmentElement) {
+      addMoveFieldToAttachment(attachmentElement);
     });
   }
   

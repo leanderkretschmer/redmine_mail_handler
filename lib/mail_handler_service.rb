@@ -1993,23 +1993,26 @@ class MailHandlerService
     
     begin
       ActiveRecord::Base.transaction do
-        # Sammle alle Anhänge des Journals
+        # Sammle nur die Anhänge die zeitlich zum Journal gehören
+        # Da Redmine keine direkte Journal-Attachment-Verknüpfung hat, verwenden wir einen Zeitbereich
         journal_attachments = journal.journalized.attachments.where(
-          'created_on >= ? AND created_on <= ?', 
-          journal.created_on - 1.minute, 
-          journal.created_on + 1.minute
+          'created_on >= ? AND created_on <= ?',
+          journal.created_on - 5.minutes,
+          journal.created_on + 5.minutes
         )
         
         attachments_moved = 0
         
         # Verschiebe Anhänge zum Ziel-Ticket (nur DB-Eintrag ändern)
         journal_attachments.each do |attachment|
+          @logger.info("Processing attachment: #{attachment.filename} (ID: #{attachment.id}, created: #{attachment.created_on})")
+          
           attachment.container = target_ticket
           if attachment.save
             attachments_moved += 1
-            @logger.info("Moved attachment #{attachment.filename} from ticket ##{journal.journalized_id} to ticket ##{target_ticket.id}")
+            @logger.info("Successfully moved attachment '#{attachment.filename}' from ticket ##{journal.journalized_id} to ticket ##{target_ticket.id}")
           else
-            @logger.error("Failed to move attachment: #{attachment.errors.full_messages.join(', ')}")
+            @logger.error("Failed to move attachment '#{attachment.filename}': #{attachment.errors.full_messages.join(', ')}")
           end
         end
         
