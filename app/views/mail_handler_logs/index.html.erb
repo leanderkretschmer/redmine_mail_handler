@@ -22,6 +22,18 @@
     </tr>
   </table>
   
+  <h4>Journal-Move Aktivitäten:</h4>
+  <table class="list">
+    <tr>
+      <td><strong>Gesamt:</strong></td>
+      <td><%= @stats[:journal_move][:total] %> Einträge</td>
+      <td><strong>Heute:</strong></td>
+      <td><%= @stats[:journal_move][:today] %> Einträge</td>
+      <td><strong>Diese Woche:</strong></td>
+      <td><%= @stats[:journal_move][:this_week] %> Einträge</td>
+    </tr>
+  </table>
+  
   <h4>Nach Level:</h4>
   <table class="list">
     <tr>

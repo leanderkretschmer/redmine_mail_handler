@@ -35,7 +35,12 @@ class MailHandlerLogsController < ApplicationController
       total: MailHandlerLog.count,
       today: MailHandlerLog.today.count,
       this_week: MailHandlerLog.this_week.count,
-      by_level: MailHandlerLog.group(:level).count
+      by_level: MailHandlerLog.group(:level).count,
+      journal_move: {
+        total: MailHandlerLog.where("message LIKE ?", "%[JOURNAL-MOVE]%").count,
+        today: MailHandlerLog.where("message LIKE ? AND created_at >= ?", "%[JOURNAL-MOVE]%", Date.current.beginning_of_day).count,
+        this_week: MailHandlerLog.where("message LIKE ? AND created_at >= ?", "%[JOURNAL-MOVE]%", Date.current.beginning_of_week).count
+      }
     }
   end
 
