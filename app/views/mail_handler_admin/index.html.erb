@@ -109,13 +109,18 @@
       <td><%= @mails_per_hour %></td>
     </tr>
     <tr>
-      <td><strong>Aktueller Stunden-Counter:</strong></td>
+      <td><strong>Stunden-Status:</strong></td>
       <td>
+        <% remaining_mails = [@mails_per_hour - @current_hour_count, 0].max %>
         <span style="font-weight: bold; color: <%= @current_hour_count >= @mails_per_hour ? '#d9534f' : '#5cb85c' %>;">
-          <%= @current_hour_count %> / <%= @mails_per_hour %>
+          <%= @current_hour_count %> mails verarbeitet von <%= @mails_per_hour %> mails erlaubt pro stunde (<%= remaining_mails %> mails übrig)
         </span>
         <br>
         <small style="color: #666;">Reset alle Stunde (nächster Reset: <%= @next_reset_time.strftime('%H:%M') %>)</small>
+        <% if @current_hour_count >= @mails_per_hour %>
+          <br>
+          <small style="color: #d9534f; font-weight: bold;">⚠️ Limit erreicht - Import pausiert bis zum Reset</small>
+        <% end %>
       </td>
     </tr>
     <% end %>

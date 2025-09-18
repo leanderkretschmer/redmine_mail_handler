@@ -108,27 +108,18 @@ class MailHandlerLogsController < ApplicationController
       journal_details_count = journal.details.count
       Rails.logger.info "Journal details automatically moved: #{journal_details_count}"
       
-      # 3. Finde spezifische Attachments die zu diesem Journal gehören
-      # Über journal_details.prop_key -> attachments.id Verknüpfung
-      journal_specific_attachments = []
+      # 3. Finde Attachments die direkt zu diesem Journal gehören
+      # Attachments sind über container_type='Journal' und container_id=journal.id verknüpft
+      journal_attachments = Attachment.where(
+        container_id: journal.id,
+        container_type: 'Journal'
+      )
       
-      # Durchsuche journal_details nach attachment-bezogenen Einträgen
-      journal.details.each do |detail|
-        if detail.prop_key == 'attachment' && detail.value.present?
-          # prop_key 'attachment' und value enthält die attachment_id
-          attachment_id = detail.value.to_i
-          attachment = Attachment.find_by(id: attachment_id)
-          if attachment
-            journal_specific_attachments << attachment
-            Rails.logger.info "Found journal-specific attachment: #{attachment.filename} (ID: #{attachment_id})"
-          end
-        end
-      end
-      
-      # 4. Verschiebe nur die spezifisch zu diesem Journal gehörenden Attachments
       moved_attachments_count = 0
       
-      journal_specific_attachments.each do |attachment|
+      journal_attachments.each do |attachment|
+        Rails.logger.info "Found journal attachment: #{attachment.filename} (ID: #{attachment.id}) for journal #{journal.id}"
+        
         # Erstelle eine Kopie des Attachments für das Ziel-Issue
         new_attachment = attachment.dup
         new_attachment.container_id = target_issue.id
@@ -144,16 +135,16 @@ class MailHandlerLogsController < ApplicationController
           # Entferne das ursprüngliche Attachment
           attachment.destroy
           moved_attachments_count += 1
-          Rails.logger.info "Moved journal-specific attachment: #{attachment.filename} from issue #{original_issue_id} to #{target_issue.id}"
+          Rails.logger.info "Moved journal attachment: #{attachment.filename} from journal #{journal.id} to issue #{target_issue.id}"
         else
           Rails.logger.error "Failed to move attachment: #{attachment.filename} - #{new_attachment.errors.full_messages.join(', ')}"
           raise "Attachment-Migration fehlgeschlagen: #{new_attachment.errors.full_messages.join(', ')}"
         end
       end
       
-      Rails.logger.info "Successfully moved #{moved_attachments_count} journal-specific attachments from issue #{original_issue_id} to #{target_issue.id}"
+      Rails.logger.info "Successfully moved #{moved_attachments_count} journal attachments from journal #{journal.id} to issue #{target_issue.id}"
        
-       Rails.logger.info "Successfully moved journal #{journal.id} with #{journal_details_count} details and #{moved_attachments_count} journal-specific attachments"
+       Rails.logger.info "Successfully moved journal #{journal.id} with #{journal_details_count} details and #{moved_attachments_count} journal attachments"
     end
     
     { success: true }

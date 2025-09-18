@@ -152,18 +152,21 @@ class MailHandlerScheduler
       begin
         # Prüfe ob das Stunden-Limit bereits erreicht ist
         current_hour_count = get_current_hour_mail_count
+        remaining_mails = [mails_per_hour - current_hour_count, 0].max
         
         if current_hour_count >= mails_per_hour
           next_reset = Time.current.beginning_of_hour + 1.hour
-          @@logger.info_load_balanced("Hourly limit reached (#{current_hour_count}/#{mails_per_hour}). Skipping import until reset at #{next_reset.strftime('%H:%M')}")
+          @@logger.info_load_balanced("#{current_hour_count} mails verarbeitet von #{mails_per_hour} mails erlaubt pro stunde (#{remaining_mails} mails übrig). Import pausiert bis zum Reset um #{next_reset.strftime('%H:%M')}")
           next
         end
         
-        @@logger.info_load_balanced("Starting mail import (max #{batch_size} mails, current: #{current_hour_count}/#{mails_per_hour})")
+        # Begrenze Batch-Größe auf verbleibende Mails
+        actual_batch_size = [batch_size, remaining_mails].min
+        @@logger.info_load_balanced("Starting mail import (max #{actual_batch_size} mails, #{current_hour_count} mails verarbeitet von #{mails_per_hour} mails erlaubt pro stunde, #{remaining_mails} mails übrig)")
         
         ActiveRecord::Base.connection_pool.with_connection do
           service = MailHandlerService.new
-          service.import_mails(batch_size)
+          service.import_mails(actual_batch_size)
         end
       rescue => e
         @@logger.error("Load-balanced mail import failed: #{e.message}")
