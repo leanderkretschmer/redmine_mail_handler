@@ -1993,14 +1993,25 @@ class MailHandlerService
     
     begin
       ActiveRecord::Base.transaction do
+        # Debug: Zeige alle Anhänge des Tickets
+        all_attachments = journal.journalized.attachments
+        @logger.info("Total attachments in source ticket: #{all_attachments.count}")
+        all_attachments.each do |att|
+          @logger.info("  - #{att.filename} (ID: #{att.id}, created: #{att.created_on})")
+        end
+        
         # Sammle nur die Anhänge die zeitlich zum Journal gehören
         # Da Redmine keine direkte Journal-Attachment-Verknüpfung hat, verwenden wir einen Zeitbereich
+        @logger.info("Journal created_on: #{journal.created_on}")
+        @logger.info("Looking for attachments between #{journal.created_on - 5.minutes} and #{journal.created_on + 5.minutes}")
+        
         journal_attachments = journal.journalized.attachments.where(
           'created_on >= ? AND created_on <= ?',
           journal.created_on - 5.minutes,
           journal.created_on + 5.minutes
         )
         
+        @logger.info("Found #{journal_attachments.count} attachments matching time criteria")
         attachments_moved = 0
         
         # Verschiebe Anhänge zum Ziel-Ticket (nur DB-Eintrag ändern)
