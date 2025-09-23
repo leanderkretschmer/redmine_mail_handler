@@ -49,19 +49,19 @@ class MailHandlerHooks < Redmine::Hook::ViewListener
     end
   end
   
-  # Hook für Journal-Kommentare - Verschieben-Option im Kontextmenü hinzufügen
-  def view_journals_contextual_links(context = {})
+  # Hook für Journal-Kommentare - Verschieben-Link hinzufügen
+  def view_journals_notes_form_after(context = {})
     journal = context[:journal]
     
     if journal && journal.notes.present? && 
        Setting.plugin_redmine_mail_handler['optimized_comment_move_enabled'] == '1'
       
       link_html = %{
-        <li>
-          <a href="#" class="optimized-move-comment" data-journal-id="#{journal.id}">
+        <div class="journal-move-link" style="margin-top: 10px;">
+          <a href="#" class="comment-move-link" data-journal-id="#{journal.id}">
             <span class="icon icon-move"></span> Verschieben
           </a>
-        </li>
+        </div>
       }
       
       link_html.html_safe

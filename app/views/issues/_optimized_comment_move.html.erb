@@ -275,7 +275,7 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Event Listener für "Verschieben" Links im 3-Punkt-Menü
   document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('comment-move-link')) {
+    if (e.target.classList.contains('optimized-move-comment')) {
       e.preventDefault();
       currentJournalId = e.target.getAttribute('data-journal-id');
       showModal();
