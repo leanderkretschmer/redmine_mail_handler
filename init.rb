@@ -66,6 +66,7 @@ end
 require File.expand_path('../lib/mail_handler_service', __FILE__)
 require File.expand_path('../lib/mail_handler_scheduler', __FILE__)
 require File.expand_path('../lib/mail_handler_logger', __FILE__)
+require File.expand_path('../lib/mail_handler_hooks', __FILE__)
 
 # Initialisiere Scheduler nach Plugin-Load
 Rails.application.config.after_initialize do

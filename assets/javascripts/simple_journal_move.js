@@ -1,17 +1,30 @@
 // Einfache Journal-Verschiebung
 document.addEventListener('DOMContentLoaded', function() {
+  console.log('Journal Move Script geladen');
+  
+  // Prüfe ob Feature aktiviert ist
+  if (typeof window.mailHandlerJournalMoveEnabled === 'undefined') {
+    console.log('Journal Move Feature nicht aktiviert');
+    return;
+  }
+  
+  console.log('Journal Move Feature aktiviert - füge Buttons hinzu');
   // Füge Move-Buttons zu bestehenden Journals hinzu
   addMoveButtonsToJournals();
 });
 
 function addMoveButtonsToJournals() {
+  console.log('Suche nach Journal-Elementen...');
   const journals = document.querySelectorAll('.journal');
+  console.log('Gefundene Journals:', journals.length);
   
   journals.forEach(function(journal) {
     const journalId = journal.id.replace('change-', '');
+    console.log('Verarbeite Journal:', journalId);
     
     // Prüfe ob bereits ein Move-Button existiert
     if (journal.querySelector('.move-journal-btn')) {
+      console.log('Move-Button bereits vorhanden für Journal:', journalId);
       return;
     }
     
@@ -25,6 +38,7 @@ function addMoveButtonsToJournals() {
     
     moveBtn.addEventListener('click', function(e) {
       e.preventDefault();
+      console.log('Move-Button geklickt für Journal:', journalId);
       showMoveDialog(journalId, journal);
     });
     
@@ -32,6 +46,9 @@ function addMoveButtonsToJournals() {
     const actions = journal.querySelector('.contextual');
     if (actions) {
       actions.appendChild(moveBtn);
+      console.log('Move-Button hinzugefügt für Journal:', journalId);
+    } else {
+      console.log('Keine .contextual Aktionen gefunden für Journal:', journalId);
     }
   });
 }

@@ -16,8 +16,8 @@ gem 'logging', '~> 2.3.0'
 # nokogiri wird bereits von Redmine bereitgestellt
 # gem 'premailer', '~> 1.21.0' # Entfernt - erfordert Ruby 2.7+
 
-# Encoding-Unterstützung
-gem 'charlock_holmes', '~> 0.7.7'
+# Encoding-Unterstützung - entfernt da problematisch
+# gem 'charlock_holmes', '~> 0.7.7'
 
 # Mail-Decoder entfernt - Redmine hat bereits robuste Mail-Handling-Funktionen
 # gem 'mail-decoder', '~> 0.1.0'

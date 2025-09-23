@@ -45,6 +45,18 @@ class MailHandlerHooks < Redmine::Hook::ViewListener
           "console.log('Block User Feature ist deaktiviert in den Einstellungen');".html_safe)
       end
       
+      # Journal Move Funktionalität - immer auf Issue-Seiten aktiviert
+      Rails.logger.info "Journal Move Hook: Lade Assets für Issue-Seite"
+      html += stylesheet_link_tag('simple_journal_move', :plugin => 'redmine_mail_handler')
+      html += javascript_include_tag('simple_journal_move', :plugin => 'redmine_mail_handler')
+      
+      # Setze JavaScript-Variable für Feature-Aktivierung
+      html += content_tag(:script, 
+        "console.log('Journal Move Feature aktiviert für Issue-Seite'); " +
+        "window.mailHandlerJournalMoveEnabled = true;".html_safe)
+      
+      Rails.logger.info "Journal Move Hook: Assets und JavaScript-Variable gesetzt"
+      
       # Attachment Move Funktionalität
       if settings && settings['enable_attachment_move'] == '1' && Rails.env.development?
         # Lade CSS und JavaScript für Attachment Move
