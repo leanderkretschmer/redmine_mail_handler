@@ -31,15 +31,10 @@ RedmineApp::Application.routes.draw do
     resources :mail_handler_logs, :only => [:index, :show] do
       collection do
         get :export
-        post :move_journal
+        post :search_tickets
+        post :search_author_tickets
+        post :move_comment
       end
-    end
-  end
-  
-  # Öffentliche Route für Journal-Verschiebung (außerhalb von /admin)
-  resources :mail_handler_logs, :only => [] do
-    collection do
-      post :move_journal
     end
   end
 end

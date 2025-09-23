@@ -28,51 +28,47 @@ class MailHandlerHooks < Redmine::Hook::ViewListener
           html += stylesheet_link_tag('block_user', :plugin => 'redmine_mail_handler')
           html += javascript_include_tag('block_user', :plugin => 'redmine_mail_handler')
           
-          # Setze JavaScript-Variable für Feature-Aktivierung mit Debug-Info
-          html += content_tag(:script, 
-            "console.log('Block User Feature aktiviert für Ticket #{current_issue_id}'); " +
-            "window.mailHandlerBlockUserEnabled = true;".html_safe)
-          
-          Rails.logger.info "Block User Hook: Assets und JavaScript-Variable gesetzt für Ticket #{current_issue_id}"
-        else
-          # Debug für nicht-matching Tickets
-          html += content_tag(:script, 
-            "console.log('Block User nicht aktiviert: inbox_ticket_id=#{inbox_ticket_id}, current_issue_id=#{current_issue_id}');".html_safe)
+          Rails.logger.info "Block User Hook: CSS and JS loaded for inbox ticket"
         end
-      else
-        # Debug für deaktivierte Funktion
-        html += content_tag(:script, 
-          "console.log('Block User Feature ist deaktiviert in den Einstellungen');".html_safe)
-      end
-      
-      # Journal Move Funktionalität - immer auf Issue-Seiten aktiviert
-      Rails.logger.info "Journal Move Hook: Lade Assets für Issue-Seite"
-      html += stylesheet_link_tag('simple_journal_move', :plugin => 'redmine_mail_handler')
-      html += javascript_include_tag('simple_journal_move', :plugin => 'redmine_mail_handler')
-      
-      # Setze JavaScript-Variable für Feature-Aktivierung
-      html += content_tag(:script, 
-        "console.log('Journal Move Feature aktiviert für Issue-Seite'); " +
-        "window.mailHandlerJournalMoveEnabled = true;".html_safe)
-      
-      Rails.logger.info "Journal Move Hook: Assets und JavaScript-Variable gesetzt"
-      
-      # Attachment Move Funktionalität
-      if settings && settings['enable_attachment_move'] == '1' && Rails.env.development?
-        # Lade CSS und JavaScript für Attachment Move
-        html += stylesheet_link_tag('attachment_move', :plugin => 'redmine_mail_handler')
-        html += javascript_include_tag('attachment_move', :plugin => 'redmine_mail_handler')
-        
-        # Setze JavaScript-Variable für Feature-Aktivierung
-        html += content_tag(:script, 
-          "console.log('Attachment Move Feature aktiviert für Entwicklungsumgebung'); " +
-          "window.mailHandlerAttachmentMoveEnabled = true;".html_safe)
-        
-        Rails.logger.info "Attachment Move Hook: Assets und JavaScript-Variable gesetzt"
       end
     end
     
     html.html_safe
+  end
+  
+  # Hook für Issue-Ansicht - Optimierte Kommentar-Verschiebung
+  def view_issues_show_description_bottom(context = {})
+    controller = context[:controller]
+    if controller && Setting.plugin_redmine_mail_handler['optimized_comment_move_enabled'] == '1'
+      controller.render_to_string(
+        partial: 'issues/optimized_comment_move',
+        locals: {}
+      )
+    else
+      ''
+    end
+  end
+  
+  # Hook für Journal-Kommentare - Verschieben-Link hinzufügen
+  def view_journals_notes_form_after(context = {})
+    journal = context[:journal]
+    controller = context[:controller]
+    
+    if journal && journal.notes.present? && 
+       Setting.plugin_redmine_mail_handler['optimized_comment_move_enabled'] == '1'
+      
+      link_html = %{
+        <div class="journal-move-link" style="margin-top: 10px;">
+          <a href="#" class="optimized-move-comment" data-journal-id="#{journal.id}">
+            <span class="icon icon-move"></span> Kommentar verschieben
+          </a>
+        </div>
+      }
+      
+      link_html.html_safe
+    else
+      ''
+    end
   end
   
   # Hook für zusätzliche Admin-Links
@@ -122,18 +118,5 @@ class MailHandlerModelHooks < Redmine::Hook::Listener
     end
   end
 
-  # Hook für Journal-Verschiebung - Eingabefeld im Bearbeitungsmodus
-  def view_journals_notes_form_after(context = {})
-    controller = context[:controller]
-    journal = context[:journal]
-    
-    if controller && journal
-      controller.render_to_string(
-        partial: 'issues/journal_move_edit_form',
-        locals: { journal: journal }
-      )
-    else
-      ''
-    end
-  end
+
 end

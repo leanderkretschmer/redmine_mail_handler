@@ -1,0 +1,444 @@
+<%# Optimierte Kommentar-Verschiebung - Nur anzeigen wenn Feature aktiviert ist %>
+<% if Setting.plugin_redmine_mail_handler['optimized_comment_move_enabled'] == '1' %>
+<div class="optimized-comment-move-container" style="display: none;">
+  <div class="comment-move-search-field">
+    <h4>Kommentar verschieben</h4>
+    <div class="search-container">
+      <input type="text" 
+             id="comment-move-search" 
+             placeholder="Ticket-Titel oder ID eingeben..." 
+             class="search-input"
+             autocomplete="off">
+      <div class="search-buttons">
+        <button type="button" id="search-by-title" class="btn btn-small">Nach Titel suchen</button>
+        <button type="button" id="search-by-id" class="btn btn-small">Nach ID suchen</button>
+        <button type="button" id="search-by-author" class="btn btn-small">Autor-Tickets</button>
+      </div>
+    </div>
+    
+    <div class="search-results" id="search-results" style="display: none;">
+      <ul class="ticket-list"></ul>
+    </div>
+    
+    <div class="status-indicator" id="status-indicator" style="display: none;">
+      <span class="status-text"></span>
+    </div>
+    
+    <div class="action-buttons">
+      <button type="button" id="move-comment-btn" class="btn btn-primary" disabled>Verschieben</button>
+      <button type="button" id="cancel-move-btn" class="btn">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.optimized-comment-move-container {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 15px;
+  margin: 10px 0;
+}
+
+.comment-move-search-field h4 {
+  margin: 0 0 15px 0;
+  color: #333;
+}
+
+.search-container {
+  margin-bottom: 15px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.search-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.search-results {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 15px;
+}
+
+.ticket-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ticket-list li {
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.ticket-list li:hover {
+  background-color: #f5f5f5;
+}
+
+.ticket-list li:last-child {
+  border-bottom: none;
+}
+
+.ticket-list li.selected {
+  background-color: #e3f2fd;
+  border-left: 3px solid #2196f3;
+}
+
+.ticket-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ticket-title {
+  font-weight: bold;
+  color: #333;
+}
+
+.ticket-status {
+  font-size: 12px;
+  color: #666;
+  background: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.status-indicator {
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  font-size: 14px;
+}
+
+.status-indicator.success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.status-indicator.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.status-indicator.loading {
+  background-color: #d1ecf1;
+  color: #0c5460;
+  border: 1px solid #bee5eb;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
+  padding: 8px 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.btn:hover {
+  background-color: #f8f9fa;
+}
+
+.btn.btn-primary {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.btn.btn-primary:hover:not(:disabled) {
+  background-color: #0056b3;
+  border-color: #0056b3;
+}
+
+.btn.btn-primary:disabled {
+  background-color: #6c757d;
+  border-color: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.btn.btn-small {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  let currentJournalId = null;
+  let selectedTicketId = null;
+  let searchTimeout = null;
+  
+  // Event-Handler für "Verschieben" Links
+  document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('optimized-move-comment')) {
+      e.preventDefault();
+      currentJournalId = e.target.dataset.journalId;
+      showCommentMoveDialog();
+    }
+  });
+  
+  function showCommentMoveDialog() {
+    const container = document.querySelector('.optimized-comment-move-container');
+    container.style.display = 'block';
+    document.getElementById('comment-move-search').focus();
+    resetDialog();
+  }
+  
+  function hideCommentMoveDialog() {
+    const container = document.querySelector('.optimized-comment-move-container');
+    container.style.display = 'none';
+    resetDialog();
+  }
+  
+  function resetDialog() {
+    document.getElementById('comment-move-search').value = '';
+    document.getElementById('search-results').style.display = 'none';
+    document.getElementById('status-indicator').style.display = 'none';
+    document.getElementById('move-comment-btn').disabled = true;
+    selectedTicketId = null;
+  }
+  
+  // Suchfeld Event-Handler
+  const searchInput = document.getElementById('comment-move-search');
+  searchInput.addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      const query = this.value.trim();
+      if (query.length >= 2) {
+        searchByTitle(query);
+      } else {
+        hideSearchResults();
+      }
+    }, 300);
+  });
+  
+  // Such-Button Event-Handler
+  document.getElementById('search-by-title').addEventListener('click', function() {
+    const query = searchInput.value.trim();
+    if (query) searchByTitle(query);
+  });
+  
+  document.getElementById('search-by-id').addEventListener('click', function() {
+    const query = searchInput.value.trim();
+    if (query && /^\d+$/.test(query)) {
+      searchById(parseInt(query));
+    } else {
+      showStatus('Bitte geben Sie eine gültige Ticket-ID ein', 'error');
+    }
+  });
+  
+  document.getElementById('search-by-author').addEventListener('click', function() {
+    if (currentJournalId) {
+      searchByAuthor(currentJournalId);
+    }
+  });
+  
+  // Action-Button Event-Handler
+  document.getElementById('move-comment-btn').addEventListener('click', function() {
+    if (selectedTicketId && currentJournalId) {
+      moveComment(currentJournalId, selectedTicketId);
+    }
+  });
+  
+  document.getElementById('cancel-move-btn').addEventListener('click', function() {
+    hideCommentMoveDialog();
+  });
+  
+  // Such-Funktionen
+  function searchByTitle(query) {
+    showStatus('Suche nach Tickets...', 'loading');
+    
+    fetch('/admin/mail_handler_logs/search_tickets', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+      },
+      body: JSON.stringify({ query: query })
+    })
+    .then(response => response.json())
+    .then(data => {
+      hideStatus();
+      displaySearchResults(data.tickets);
+    })
+    .catch(error => {
+      showStatus('Fehler bei der Suche: ' + error.message, 'error');
+    });
+  }
+  
+  function searchById(ticketId) {
+    showStatus('Suche Ticket...', 'loading');
+    
+    // Simuliere Ticket-Suche nach ID
+    fetch('/admin/mail_handler_logs/search_tickets', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+      },
+      body: JSON.stringify({ query: '#' + ticketId })
+    })
+    .then(response => response.json())
+    .then(data => {
+      hideStatus();
+      const ticket = data.tickets.find(t => t.id === ticketId);
+      if (ticket) {
+        displaySearchResults([ticket]);
+      } else {
+        showStatus('Ticket #' + ticketId + ' nicht gefunden', 'error');
+      }
+    })
+    .catch(error => {
+      showStatus('Fehler bei der Suche: ' + error.message, 'error');
+    });
+  }
+  
+  function searchByAuthor(journalId) {
+    showStatus('Suche Tickets des Autors...', 'loading');
+    
+    fetch('/admin/mail_handler_logs/search_author_tickets', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+      },
+      body: JSON.stringify({ journal_id: journalId })
+    })
+    .then(response => response.json())
+    .then(data => {
+      hideStatus();
+      displaySearchResults(data.tickets);
+    })
+    .catch(error => {
+      showStatus('Fehler bei der Suche: ' + error.message, 'error');
+    });
+  }
+  
+  // Ergebnis-Anzeige
+  function displaySearchResults(tickets) {
+    const resultsContainer = document.getElementById('search-results');
+    const ticketList = resultsContainer.querySelector('.ticket-list');
+    
+    ticketList.innerHTML = '';
+    
+    if (tickets.length === 0) {
+      showStatus('Keine Tickets gefunden', 'error');
+      return;
+    }
+    
+    tickets.forEach(ticket => {
+      const li = document.createElement('li');
+      li.dataset.ticketId = ticket.id;
+      li.innerHTML = `
+        <div class="ticket-info">
+          <span class="ticket-title">#${ticket.id}: ${ticket.subject}</span>
+          <span class="ticket-status">${ticket.status}</span>
+        </div>
+      `;
+      
+      li.addEventListener('click', function() {
+        selectTicket(ticket.id, this);
+      });
+      
+      ticketList.appendChild(li);
+    });
+    
+    resultsContainer.style.display = 'block';
+  }
+  
+  function selectTicket(ticketId, element) {
+    // Entferne vorherige Auswahl
+    document.querySelectorAll('.ticket-list li').forEach(li => {
+      li.classList.remove('selected');
+    });
+    
+    // Markiere neue Auswahl
+    element.classList.add('selected');
+    selectedTicketId = ticketId;
+    document.getElementById('move-comment-btn').disabled = false;
+  }
+  
+  function hideSearchResults() {
+    document.getElementById('search-results').style.display = 'none';
+  }
+  
+  // Status-Anzeige
+  function showStatus(message, type) {
+    const indicator = document.getElementById('status-indicator');
+    const text = indicator.querySelector('.status-text');
+    
+    text.textContent = message;
+    indicator.className = 'status-indicator ' + type;
+    indicator.style.display = 'block';
+  }
+  
+  function hideStatus() {
+    document.getElementById('status-indicator').style.display = 'none';
+  }
+  
+  // Kommentar verschieben
+  function moveComment(journalId, targetTicketId) {
+    showStatus('Verschiebe Kommentar...', 'loading');
+    document.getElementById('move-comment-btn').disabled = true;
+    
+    fetch('/admin/mail_handler_logs/move_comment', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+      },
+      body: JSON.stringify({
+        journal_id: journalId,
+        target_issue_id: targetTicketId
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showStatus('Kommentar erfolgreich verschoben!', 'success');
+        setTimeout(() => {
+          location.reload(); // Seite neu laden um Änderungen zu zeigen
+        }, 2000);
+      } else {
+        showStatus('Fehler: ' + data.error, 'error');
+        document.getElementById('move-comment-btn').disabled = false;
+      }
+    })
+    .catch(error => {
+      showStatus('Fehler beim Verschieben: ' + error.message, 'error');
+      document.getElementById('move-comment-btn').disabled = false;
+    });
+  }
+});
+</script>
+<% end %>

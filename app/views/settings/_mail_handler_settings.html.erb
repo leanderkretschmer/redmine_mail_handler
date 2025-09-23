@@ -566,33 +566,14 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <div class="box tabular settings">
-  <h3><%= l(:label_journal_move_settings) %></h3>
+  <h3>Kommentar-Verschiebung</h3>
   
   <p>
-    <label for="settings_journal_move_copy_mode"><%= l(:label_journal_move_copy_mode) %>:</label>
-    <%= check_box_tag 'settings[journal_move_copy_mode]', '1', @settings['journal_move_copy_mode'] == '1', :id => 'settings_journal_move_copy_mode' %>
-    <em class="info"><%= l(:label_journal_move_copy_mode_info) %></em>
-  </p>
-  
-  <p id="journal_copy_options" style="<%= @settings['journal_move_copy_mode'] == '1' ? '' : 'display: none;' %>">
-    <label for="settings_journal_copy_delete_original"><%= l(:label_journal_copy_delete_original) %>:</label>
-    <%= check_box_tag 'settings[journal_copy_delete_original]', '1', @settings['journal_copy_delete_original'] == '1', :id => 'settings_journal_copy_delete_original' %>
-    <em class="info"><%= l(:label_journal_copy_delete_original_info) %></em>
+    <label for="settings_optimized_comment_move_enabled">Optimierte Kommentar-Verschiebung aktivieren:</label>
+    <%= check_box_tag 'settings[optimized_comment_move_enabled]', '1', @settings['optimized_comment_move_enabled'] == '1' %>
+    <em class="info">Aktiviert die neue, optimierte Kommentar-Verschiebungsfunktion mit integriertem Suchfeld und Live-Suche.</em>
   </p>
 </div>
-
-<script type="text/javascript">
-  document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('settings_journal_move_copy_mode').addEventListener('change', function() {
-      var copyOptions = document.getElementById('journal_copy_options');
-      if (this.checked) {
-        copyOptions.style.display = '';
-      } else {
-        copyOptions.style.display = 'none';
-      }
-    });
-  });
-</script>
 
 <div class="box tabular settings">
   <h3>Entwickler-Einstellungen</h3>
