@@ -1,67 +1,138 @@
-<%# Optimierte Kommentar-Verschiebung - Nur anzeigen wenn Feature aktiviert ist %>
+<%# Optimierte Kommentar-Verschiebung - Modal Window für Redmine 6 %>
 <% if Setting.plugin_redmine_mail_handler['optimized_comment_move_enabled'] == '1' %>
-<div class="optimized-comment-move-container" style="display: none;">
-  <div class="comment-move-search-field">
-    <h4>Kommentar verschieben</h4>
-    <div class="search-container">
-      <input type="text" 
-             id="comment-move-search" 
-             placeholder="Ticket-Titel oder ID eingeben..." 
-             class="search-input"
-             autocomplete="off">
-      <div class="search-buttons">
-        <button type="button" id="search-by-title" class="btn btn-small">Nach Titel suchen</button>
-        <button type="button" id="search-by-id" class="btn btn-small">Nach ID suchen</button>
-        <button type="button" id="search-by-author" class="btn btn-small">Autor-Tickets</button>
+<!-- Modal Overlay -->
+<div id="comment-move-modal" class="comment-move-modal" style="display: none;">
+  <div class="modal-overlay"></div>
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Kommentar verschieben</h3>
+      <button type="button" class="modal-close" id="modal-close-btn">&times;</button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="search-container">
+        <input type="text" 
+               id="comment-move-search" 
+               placeholder="Ticket-Titel oder ID eingeben..." 
+               class="search-input"
+               autocomplete="off">
+        <div class="search-buttons">
+          <button type="button" id="search-by-title" class="btn btn-small">Nach Titel suchen</button>
+          <button type="button" id="search-by-id" class="btn btn-small">Nach ID suchen</button>
+          <button type="button" id="search-by-author" class="btn btn-small">Autor-Tickets</button>
+        </div>
+      </div>
+      
+      <div class="search-results" id="search-results" style="display: none;">
+        <h4>Suchergebnisse:</h4>
+        <ul class="ticket-list"></ul>
+      </div>
+      
+      <div class="status-indicator" id="status-indicator" style="display: none;">
+        <span class="status-text"></span>
       </div>
     </div>
     
-    <div class="search-results" id="search-results" style="display: none;">
-      <ul class="ticket-list"></ul>
-    </div>
-    
-    <div class="status-indicator" id="status-indicator" style="display: none;">
-      <span class="status-text"></span>
-    </div>
-    
-    <div class="action-buttons">
+    <div class="modal-footer">
       <button type="button" id="move-comment-btn" class="btn btn-primary" disabled>Verschieben</button>
-      <button type="button" id="cancel-move-btn" class="btn">Abbrechen</button>
+      <button type="button" id="cancel-move-btn" class="btn btn-secondary">Abbrechen</button>
     </div>
   </div>
 </div>
 
 <style>
-.optimized-comment-move-container {
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
-  padding: 15px;
-  margin: 10px 0;
+/* Modal Styles für Redmine 6 */
+.comment-move-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9999;
 }
 
-.comment-move-search-field h4 {
-  margin: 0 0 15px 0;
+.modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow: hidden;
+}
+
+.modal-header {
+  padding: 20px;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f8f9fa;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 18px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
   color: #333;
 }
 
+.modal-body {
+  padding: 20px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  padding: 15px 20px;
+  border-top: 1px solid #e0e0e0;
+  background-color: #f8f9fa;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .search-container {
-  margin-bottom: 15px;
+  margin-bottom: 20px;
 }
 
 .search-input {
   width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ccc;
+  padding: 10px;
+  border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 14px;
   margin-bottom: 10px;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
 .search-buttons {
@@ -70,19 +141,65 @@
   flex-wrap: wrap;
 }
 
-.search-results {
-  background: white;
+.btn {
+  padding: 8px 16px;
   border: 1px solid #ddd;
   border-radius: 4px;
-  max-height: 200px;
-  overflow-y: auto;
-  margin-bottom: 15px;
+  background: #f8f9fa;
+  cursor: pointer;
+  font-size: 13px;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.btn:hover {
+  background: #e9ecef;
+}
+
+.btn-primary {
+  background: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.btn-primary:disabled {
+  background: #6c757d;
+  border-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+  border-color: #6c757d;
+}
+
+.btn-secondary:hover {
+  background: #545b62;
+}
+
+.search-results {
+  margin-top: 15px;
+}
+
+.search-results h4 {
+  margin: 0 0 10px 0;
+  color: #333;
+  font-size: 14px;
 }
 
 .ticket-list {
   list-style: none;
-  margin: 0;
   padding: 0;
+  margin: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
 }
 
 .ticket-list li {
@@ -92,12 +209,12 @@
   transition: background-color 0.2s;
 }
 
-.ticket-list li:hover {
-  background-color: #f5f5f5;
-}
-
 .ticket-list li:last-child {
   border-bottom: none;
+}
+
+.ticket-list li:hover {
+  background-color: #f8f9fa;
 }
 
 .ticket-list li.selected {
@@ -125,10 +242,16 @@
 }
 
 .status-indicator {
-  padding: 8px 12px;
+  padding: 10px;
   border-radius: 4px;
-  margin-bottom: 15px;
-  font-size: 14px;
+  margin: 10px 0;
+  text-align: center;
+}
+
+.status-indicator.loading {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeaa7;
 }
 
 .status-indicator.success {
@@ -142,54 +265,6 @@
   color: #721c24;
   border: 1px solid #f5c6cb;
 }
-
-.status-indicator.loading {
-  background-color: #d1ecf1;
-  color: #0c5460;
-  border: 1px solid #bee5eb;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 10px;
-}
-
-.btn {
-  padding: 8px 16px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background: white;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s;
-}
-
-.btn:hover {
-  background-color: #f8f9fa;
-}
-
-.btn.btn-primary {
-  background-color: #007bff;
-  color: white;
-  border-color: #007bff;
-}
-
-.btn.btn-primary:hover:not(:disabled) {
-  background-color: #0056b3;
-  border-color: #0056b3;
-}
-
-.btn.btn-primary:disabled {
-  background-color: #6c757d;
-  border-color: #6c757d;
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.btn.btn-small {
-  padding: 6px 12px;
-  font-size: 12px;
-}
 </style>
 
 <script>
@@ -198,85 +273,101 @@ document.addEventListener('DOMContentLoaded', function() {
   let selectedTicketId = null;
   let searchTimeout = null;
   
-  // Event-Handler für "Verschieben" Links
+  // Event Listener für "Verschieben" Links im 3-Punkt-Menü
   document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('optimized-move-comment')) {
+    if (e.target.classList.contains('comment-move-link')) {
       e.preventDefault();
-      currentJournalId = e.target.dataset.journalId;
-      showCommentMoveDialog();
+      currentJournalId = e.target.getAttribute('data-journal-id');
+      showModal();
     }
   });
   
-  function showCommentMoveDialog() {
-    const container = document.querySelector('.optimized-comment-move-container');
-    container.style.display = 'block';
-    document.getElementById('comment-move-search').focus();
-    resetDialog();
+  // Modal anzeigen
+  function showModal() {
+    const modal = document.getElementById('comment-move-modal');
+    if (modal) {
+      modal.style.display = 'block';
+      document.body.style.overflow = 'hidden'; // Verhindert Scrollen im Hintergrund
+      resetModal();
+    }
   }
   
-  function hideCommentMoveDialog() {
-    const container = document.querySelector('.optimized-comment-move-container');
-    container.style.display = 'none';
-    resetDialog();
+  // Modal verstecken
+  function hideModal() {
+    const modal = document.getElementById('comment-move-modal');
+    if (modal) {
+      modal.style.display = 'none';
+      document.body.style.overflow = ''; // Scrollen wieder aktivieren
+      resetModal();
+    }
   }
   
-  function resetDialog() {
+  // Modal zurücksetzen
+  function resetModal() {
     document.getElementById('comment-move-search').value = '';
     document.getElementById('search-results').style.display = 'none';
-    document.getElementById('status-indicator').style.display = 'none';
     document.getElementById('move-comment-btn').disabled = true;
     selectedTicketId = null;
+    hideStatus();
   }
   
-  // Suchfeld Event-Handler
-  const searchInput = document.getElementById('comment-move-search');
-  searchInput.addEventListener('input', function() {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => {
-      const query = this.value.trim();
-      if (query.length >= 2) {
-        searchByTitle(query);
-      } else {
-        hideSearchResults();
-      }
-    }, 300);
+  // Event Listeners für Modal
+  document.getElementById('modal-close-btn').addEventListener('click', hideModal);
+  document.getElementById('cancel-move-btn').addEventListener('click', hideModal);
+  
+  // Overlay Click zum Schließen
+  document.querySelector('.modal-overlay').addEventListener('click', hideModal);
+  
+  // ESC Taste zum Schließen
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      hideModal();
+    }
   });
   
-  // Such-Button Event-Handler
+  // Search Input Event Listener
+  document.getElementById('comment-move-search').addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    const query = this.value.trim();
+    
+    if (query.length >= 2) {
+      searchTimeout = setTimeout(() => {
+        searchByTitle(query);
+      }, 500);
+    } else {
+      document.getElementById('search-results').style.display = 'none';
+    }
+  });
+  
+  // Search Button Event Listeners
   document.getElementById('search-by-title').addEventListener('click', function() {
-    const query = searchInput.value.trim();
-    if (query) searchByTitle(query);
+    const query = document.getElementById('comment-move-search').value.trim();
+    if (query) {
+      searchByTitle(query);
+    }
   });
   
   document.getElementById('search-by-id').addEventListener('click', function() {
-    const query = searchInput.value.trim();
-    if (query && /^\d+$/.test(query)) {
-      searchById(parseInt(query));
-    } else {
-      showStatus('Bitte geben Sie eine gültige Ticket-ID ein', 'error');
+    const query = document.getElementById('comment-move-search').value.trim();
+    if (query) {
+      searchById(query);
     }
   });
   
   document.getElementById('search-by-author').addEventListener('click', function() {
-    if (currentJournalId) {
-      searchByAuthor(currentJournalId);
-    }
+    searchByAuthor();
   });
   
-  // Action-Button Event-Handler
+  // Move Button Event Listener
   document.getElementById('move-comment-btn').addEventListener('click', function() {
-    if (selectedTicketId && currentJournalId) {
+    if (currentJournalId && selectedTicketId) {
       moveComment(currentJournalId, selectedTicketId);
     }
   });
   
-  document.getElementById('cancel-move-btn').addEventListener('click', function() {
-    hideCommentMoveDialog();
-  });
-  
-  // Such-Funktionen
+  // Suche nach Titel
   function searchByTitle(query) {
-    showStatus('Suche nach Tickets...', 'loading');
+    showStatus('Suche nach Titel...', 'loading');
     
     fetch('/admin/mail_handler_logs/search_tickets', {
       method: 'POST',
@@ -289,33 +380,10 @@ document.addEventListener('DOMContentLoaded', function() {
     .then(response => response.json())
     .then(data => {
       hideStatus();
-      displaySearchResults(data.tickets);
-    })
-    .catch(error => {
-      showStatus('Fehler bei der Suche: ' + error.message, 'error');
-    });
-  }
-  
-  function searchById(ticketId) {
-    showStatus('Suche Ticket...', 'loading');
-    
-    // Simuliere Ticket-Suche nach ID
-    fetch('/admin/mail_handler_logs/search_tickets', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-      },
-      body: JSON.stringify({ query: '#' + ticketId })
-    })
-    .then(response => response.json())
-    .then(data => {
-      hideStatus();
-      const ticket = data.tickets.find(t => t.id === ticketId);
-      if (ticket) {
-        displaySearchResults([ticket]);
+      if (data.tickets && data.tickets.length > 0) {
+        displaySearchResults(data.tickets);
       } else {
-        showStatus('Ticket #' + ticketId + ' nicht gefunden', 'error');
+        showStatus('Keine Tickets gefunden', 'error');
       }
     })
     .catch(error => {
@@ -323,8 +391,35 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
-  function searchByAuthor(journalId) {
-    showStatus('Suche Tickets des Autors...', 'loading');
+  // Suche nach ID
+  function searchById(query) {
+    showStatus('Suche nach ID...', 'loading');
+    
+    fetch('/admin/mail_handler_logs/search_tickets', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+      },
+      body: JSON.stringify({ query: query, search_type: 'id' })
+    })
+    .then(response => response.json())
+    .then(data => {
+      hideStatus();
+      if (data.tickets && data.tickets.length > 0) {
+        displaySearchResults(data.tickets);
+      } else {
+        showStatus('Kein Ticket mit dieser ID gefunden', 'error');
+      }
+    })
+    .catch(error => {
+      showStatus('Fehler bei der Suche: ' + error.message, 'error');
+    });
+  }
+  
+  // Suche nach Autor-Tickets
+  function searchByAuthor() {
+    showStatus('Suche Autor-Tickets...', 'loading');
     
     fetch('/admin/mail_handler_logs/search_author_tickets', {
       method: 'POST',
@@ -332,67 +427,63 @@ document.addEventListener('DOMContentLoaded', function() {
         'Content-Type': 'application/json',
         'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
       },
-      body: JSON.stringify({ journal_id: journalId })
+      body: JSON.stringify({ journal_id: currentJournalId })
     })
     .then(response => response.json())
     .then(data => {
       hideStatus();
-      displaySearchResults(data.tickets);
+      if (data.tickets && data.tickets.length > 0) {
+        displaySearchResults(data.tickets);
+      } else {
+        showStatus('Keine anderen Tickets vom Autor gefunden', 'error');
+      }
     })
     .catch(error => {
       showStatus('Fehler bei der Suche: ' + error.message, 'error');
     });
   }
   
-  // Ergebnis-Anzeige
+  // Suchergebnisse anzeigen
   function displaySearchResults(tickets) {
-    const resultsContainer = document.getElementById('search-results');
-    const ticketList = resultsContainer.querySelector('.ticket-list');
+    const resultsDiv = document.getElementById('search-results');
+    const ticketList = resultsDiv.querySelector('.ticket-list');
     
     ticketList.innerHTML = '';
     
-    if (tickets.length === 0) {
-      showStatus('Keine Tickets gefunden', 'error');
-      return;
-    }
-    
     tickets.forEach(ticket => {
       const li = document.createElement('li');
-      li.dataset.ticketId = ticket.id;
+      li.className = 'ticket-item';
+      li.setAttribute('data-ticket-id', ticket.id);
+      
       li.innerHTML = `
-        <div class="ticket-info">
-          <span class="ticket-title">#${ticket.id}: ${ticket.subject}</span>
-          <span class="ticket-status">${ticket.status}</span>
-        </div>
+        <div class="ticket-title">#${ticket.id} - ${ticket.subject}</div>
+        <div class="ticket-info">Status: ${ticket.status} | Autor: ${ticket.author}</div>
       `;
       
       li.addEventListener('click', function() {
-        selectTicket(ticket.id, this);
+        selectTicket(ticket.id, li);
       });
       
       ticketList.appendChild(li);
     });
     
-    resultsContainer.style.display = 'block';
+    resultsDiv.style.display = 'block';
   }
   
+  // Ticket auswählen
   function selectTicket(ticketId, element) {
-    // Entferne vorherige Auswahl
-    document.querySelectorAll('.ticket-list li').forEach(li => {
-      li.classList.remove('selected');
+    // Vorherige Auswahl entfernen
+    document.querySelectorAll('.ticket-item.selected').forEach(item => {
+      item.classList.remove('selected');
     });
     
-    // Markiere neue Auswahl
+    // Neue Auswahl
     element.classList.add('selected');
     selectedTicketId = ticketId;
     document.getElementById('move-comment-btn').disabled = false;
   }
   
-  function hideSearchResults() {
-    document.getElementById('search-results').style.display = 'none';
-  }
-  
-  // Status-Anzeige
+  // Status anzeigen
   function showStatus(message, type) {
     const indicator = document.getElementById('status-indicator');
     const text = indicator.querySelector('.status-text');
