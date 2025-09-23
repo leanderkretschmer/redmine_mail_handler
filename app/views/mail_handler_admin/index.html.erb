@@ -205,36 +205,6 @@
   </p>
 </div>
 
-<% if @journal_move_logs.any? %>
-<div class="box">
-  <h3>Journal-Move Logs (letzte 5 Einträge)</h3>
-  <table class="list logs">
-    <thead>
-      <tr>
-        <th>Zeit</th>
-        <th>Level</th>
-        <th>Nachricht</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% @journal_move_logs.each do |log| %>
-        <tr class="log-<%= log.level %>">
-          <td class="log-time"><%= log.formatted_time %></td>
-          <td class="log-level">
-            <span class="<%= log.level_icon %>" style="color: <%= log.level_color %>"></span>
-            <%= log.level.upcase %>
-          </td>
-          <td class="log-message"><%= truncate(log.message.gsub('[JOURNAL-MOVE] ', ''), length: 120) %></td>
-        </tr>
-      <% end %>
-    </tbody>
-  </table>
-  <p class="pagination">
-    <%= link_to 'Alle Journal-Move Logs anzeigen →', { :controller => 'mail_handler_logs', :action => 'index', :filter => 'journal_move' } %>
-  </p>
-</div>
-<% end %>
-
 <% if @recent_logs.any? %>
 <div class="box">
   <h3>Aktuelle Import-Logs (letzte 10 Einträge)</h3>

@@ -45,25 +45,6 @@ de:
   label_logging_settings: "Logging-Einstellungen"
   label_log_level: "Log-Level"
   
-  # Journal-Move Einstellungen
-  label_journal_move_settings: "Journal-Move Einstellungen"
-  label_journal_move_copy_mode: "Journal kopieren statt verschieben"
-  label_journal_move_copy_mode_info: "Wenn aktiviert, wird das Journal kopiert anstatt verschoben. Das Original-Journal bleibt erhalten."
-  label_journal_copy_delete_original: "Original-Journal nach Kopierung löschen"
-  label_journal_copy_delete_original_info: "Wenn aktiviert, wird das Original-Journal nach dem Kopieren gelöscht (entspricht dem Verschieben)."
-  
-  # Journal Move - Bearbeitungsmodus
-  label_journal_move_target_ticket: "Ziel-Ticket ID:"
-  label_journal_move_target_placeholder: "z.B. 123"
-  label_journal_move_edit_info: "Kommentar zu anderem Ticket verschieben"
-  button_move: "Verschieben"
-  button_moving: "Verschiebe..."
-  error_journal_move_no_target: "Bitte geben Sie eine gültige Ticket-ID ein."
-  confirm_journal_move: "Möchten Sie diesen Kommentar wirklich verschieben?"
-  notice_journal_moved_successfully: "Kommentar wurde erfolgreich verschoben."
-  error_journal_move_failed: "Fehler beim Verschieben des Kommentars"
-  error_unknown: "Unbekannter Fehler"
-  
   # Aktionen
   button_test_connection: "IMAP-Verbindung testen"
   button_send_test_mail: "Test-E-Mail senden"

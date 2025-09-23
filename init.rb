@@ -40,9 +40,8 @@ Redmine::Plugin.register :redmine_mail_handler do
       'html_attachment_enabled' => '0',
       'backdate_comments' => '0',
       'show_block_user' => '0',
-      'mail_decoder_enabled' => '0',
-      'optimized_comment_move_enabled' => '0'
-  }, :partial => 'settings/mail_handler_settings'
+      'mail_decoder_enabled' => '0'
+    }, :partial => 'settings/mail_handler_settings'
 
   # Menü-Einträge hinzufügen
   menu :admin_menu, :mail_handler, { :controller => 'mail_handler_admin', :action => 'index' }, 

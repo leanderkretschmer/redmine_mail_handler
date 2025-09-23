@@ -31,9 +31,6 @@ RedmineApp::Application.routes.draw do
     resources :mail_handler_logs, :only => [:index, :show] do
       collection do
         get :export
-        post :search_tickets
-        post :search_author_tickets
-        post :move_comment
       end
     end
   end

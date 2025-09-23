@@ -36,39 +36,18 @@ class MailHandlerHooks < Redmine::Hook::ViewListener
     html.html_safe
   end
   
-  # Hook für Issue-Ansicht - Optimierte Kommentar-Verschiebung
-  def view_issues_show_description_bottom(context = {})
+  # Hook für die Anzeige der Issue-Beschreibung
+  def view_issues_show_description_bottom(context={})
     controller = context[:controller]
-    if controller && Setting.plugin_redmine_mail_handler['optimized_comment_move_enabled'] == '1'
+    if controller
       controller.render_to_string(
-        partial: 'issues/optimized_comment_move',
+        partial: 'issues/mail_handler_info',
         locals: {}
       )
-    else
-      ''
     end
   end
   
-  # Hook für Journal-Kommentare - Verschieben-Link hinzufügen
-  def view_journals_notes_form_after(context = {})
-    journal = context[:journal]
-    
-    if journal && journal.notes.present? && 
-       Setting.plugin_redmine_mail_handler['optimized_comment_move_enabled'] == '1'
-      
-      link_html = %{
-        <div class="journal-move-link" style="margin-top: 10px;">
-          <a href="#" class="comment-move-link" data-journal-id="#{journal.id}">
-            <span class="icon icon-move"></span> Verschieben
-          </a>
-        </div>
-      }
-      
-      link_html.html_safe
-    else
-      ''
-    end
-  end
+
   
   # Hook für zusätzliche Admin-Links
   def view_admin_index_left(context = {})
