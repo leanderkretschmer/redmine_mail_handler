@@ -2,7 +2,6 @@ require 'net/imap'
 require 'mail'
 require 'mime/types'
 require 'nokogiri'
-require 'premailer'
 require 'timeout'
 require 'openssl'
 require 'tempfile'
@@ -1212,10 +1211,10 @@ class MailHandlerService
       'ÃÂ¼' => 'ü',
       'ÃÂ¶' => 'ö',
       'ÃÂ¤' => 'ä',
-      'ÃÂÃ' => 'Ü',
-      'ÃÂÃ' => 'Ö',
-      'ÃÂÃ' => 'Ä',
-      'ÃÂÃ' => 'ß',
+      'ÃÂÜ' => 'Ü',
+      'ÃÂÖ' => 'Ö',
+      'ÃÂÄ' => 'Ä',
+      'ÃÂß' => 'ß',
       #'MÃÂGLICHKEITEN' => 'MÖGLICHKEITEN',
       #'SchaltflÃÂ¤che' => 'Schaltfläche',
       #'gefÃÂ¤hrdet' => 'gefährdet',
