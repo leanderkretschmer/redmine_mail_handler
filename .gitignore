@@ -1,0 +1,33 @@
+# Redmine Schema-Datei (automatisch generiert)
+redmine-schema.sql
+
+# Bundle-Verzeichnis
+vendor/bundle/
+.bundle/
+
+# Log-Dateien
+*.log
+log/
+
+# Temporäre Dateien
+tmp/
+*.tmp
+*.swp
+*.swo
+
+# IDE-Dateien
+.vscode/
+.idea/
+*.sublime-*
+
+# OS-spezifische Dateien
+.DS_Store
+Thumbs.db
+
+# Ruby-spezifische Dateien
+*.gem
+.rvmrc
+.rbenv-version
+
+# Test-Coverage
+coverage/

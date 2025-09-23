@@ -194,57 +194,20 @@ class MailHandlerLogsController < ApplicationController
       journal_details_count = journal.details.count
       Rails.logger.info "[JOURNAL-MOVE] Journal Details automatisch mitverschoben: #{journal_details_count} Details"
       
-      # 3. Finde Attachments die direkt zu diesem Journal gehören
-       # Attachments sind über container_type='Journal' und container_id=journal.id verknüpft
-       Rails.logger.info "[JOURNAL-MOVE] Suche nach Journal-Attachments für Journal #{journal.id}"
-       journal_attachments = Attachment.where(
-         container_id: journal.id,
-         container_type: 'Journal'
-       )
-       
-       Rails.logger.info "[JOURNAL-MOVE] Gefundene Journal-Attachments: #{journal_attachments.count}"
-       
-       moved_attachments_count = 0
-       
-       journal_attachments.each do |attachment|
-         Rails.logger.info "[JOURNAL-MOVE] Verarbeite Attachment: #{attachment.filename} (ID: #{attachment.id}) für Journal #{journal.id}"
-         
-         begin
-           # Erstelle eine Kopie des Attachments für das Ziel-Issue
-           new_attachment = attachment.dup
-           new_attachment.container_id = target_issue.id
-           new_attachment.container_type = 'Issue'
-           
-           Rails.logger.info "[JOURNAL-MOVE] Erstelle neues Attachment für Issue #{target_issue.id}"
-           
-           if new_attachment.save
-             Rails.logger.info "[JOURNAL-MOVE] Neues Attachment gespeichert (ID: #{new_attachment.id})"
-             
-             # Kopiere die physische Datei
-             if File.exist?(attachment.diskfile)
-               Rails.logger.info "[JOURNAL-MOVE] Kopiere Datei: #{attachment.diskfile} -> #{new_attachment.diskfile}"
-               FileUtils.cp(attachment.diskfile, new_attachment.diskfile)
-               Rails.logger.info "[JOURNAL-MOVE] Datei erfolgreich kopiert"
-             else
-               Rails.logger.warn "[JOURNAL-MOVE] Originaldatei nicht gefunden: #{attachment.diskfile}"
-             end
-             
-             # Entferne das ursprüngliche Attachment
-             Rails.logger.info "[JOURNAL-MOVE] Lösche ursprüngliches Attachment #{attachment.id}"
-             attachment.destroy
-             moved_attachments_count += 1
-             Rails.logger.info "[JOURNAL-MOVE] Attachment erfolgreich verschoben: #{attachment.filename}"
-           else
-             Rails.logger.error "[JOURNAL-MOVE] Fehler beim Speichern des neuen Attachments: #{new_attachment.errors.full_messages.join(', ')}"
-             raise "Attachment-Migration fehlgeschlagen: #{new_attachment.errors.full_messages.join(', ')}"
-           end
-         rescue => attachment_error
-           Rails.logger.error "[JOURNAL-MOVE] Fehler bei Attachment #{attachment.filename}: #{attachment_error.message}"
-           raise attachment_error
-         end
-       end
-       
-       Rails.logger.info "[JOURNAL-MOVE] Attachment-Migration abgeschlossen: #{moved_attachments_count} Attachments verschoben"
+      # 3. Journal-Attachments werden automatisch mitverschoben
+      # Da das Journal verschoben wurde, bleiben die Attachments korrekt zugeordnet
+      # (container_type='Journal' und container_id=journal.id bleiben unverändert)
+      journal_attachments = Attachment.where(
+        container_id: journal.id,
+        container_type: 'Journal'
+      )
+      
+      moved_attachments_count = journal_attachments.count
+      Rails.logger.info "[JOURNAL-MOVE] Journal-Attachments automatisch mitverschoben: #{moved_attachments_count} Attachments"
+      
+      journal_attachments.each do |attachment|
+        Rails.logger.info "[JOURNAL-MOVE] Attachment automatisch mitverschoben: #{attachment.filename} (ID: #{attachment.id}) bleibt bei Journal #{journal.id}"
+      end
         
         Rails.logger.info "[JOURNAL-MOVE] Journal-Move erfolgreich: Journal #{journal.id} mit #{journal_details_count} Details und #{moved_attachments_count} Attachments"
         Rails.logger.info "[JOURNAL-MOVE] Transaktion wird committet"
