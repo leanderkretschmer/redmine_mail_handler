@@ -189,31 +189,18 @@ class MailHandlerAdminController < ApplicationController
 
   def deferred_status
     begin
-      # Paginierung Parameter
-      @per_page = params[:per_page].to_i
-      @per_page = 25 if @per_page <= 0 || !valid_per_page_options.include?(@per_page)
-      @page = [params[:page].to_i, 1].max
+      # Hole Statistiken aus IMAP-Ordner
+      @deferred_stats = @service.count_deferred_messages
       
-      # Basis Query
-      deferred_query = MailDeferredEntry.includes([]).order(deferred_at: :desc)
-      
-      # Gesamtanzahl für Paginierung
-      @total_count = deferred_query.count
-      @total_pages = (@total_count.to_f / @per_page).ceil
-      @page = [@page, @total_pages].min if @total_pages > 0
-      
-      # Deferred Entries mit Paginierung laden
-      offset = (@page - 1) * @per_page
-      @deferred_entries = deferred_query.limit(@per_page).offset(offset)
-      
+      # Für die Anzeige: Keine einzelnen Einträge mehr, nur Statistiken
+      @deferred_entries = []
+      @total_count = @deferred_stats[:total]
+      @total_pages = 0
+      @page = 1
+      @per_page = 25
       @per_page_options = valid_per_page_options
       
-      @deferred_stats = {
-        total: MailDeferredEntry.count,
-        active: MailDeferredEntry.active.count,
-        expired: MailDeferredEntry.expired.count
-      }
-    rescue ActiveRecord::StatementInvalid => e
+    rescue => e
       @deferred_entries = []
       @deferred_stats = { total: 0, active: 0, expired: 0 }
       @total_count = 0
@@ -221,7 +208,7 @@ class MailHandlerAdminController < ApplicationController
       @page = 1
       @per_page = 25
       @per_page_options = valid_per_page_options
-      flash[:error] = "Zurückgestellt-Tabelle nicht gefunden. Bitte führen Sie die Datenbankmigrationen aus."
+      flash[:error] = "Fehler beim Abrufen der Deferred-Statistiken: #{e.message}"
     end
     
     render partial: 'deferred_status' if request.xhr?
@@ -284,54 +271,14 @@ class MailHandlerAdminController < ApplicationController
   end
 
   def create_user_from_mail
-    entry_id = params[:id]
-    entry = MailDeferredEntry.find_by(id: entry_id)
-    
-    unless entry
-      flash[:error] = "Zurückgestellte E-Mail nicht gefunden."
-      redirect_to action: :deferred_status
-      return
-    end
-    
-    begin
-      # Erstelle Benutzer aus E-Mail-Adresse
-      user = @service.create_new_user(entry.from_address)
-      
-      if user && user.persisted?
-        flash[:notice] = "Benutzer #{user.login} wurde erfolgreich erstellt."
-      else
-        flash[:error] = "Fehler beim Erstellen des Benutzers: #{user&.errors&.full_messages&.join(', ') || 'Unbekannter Fehler'}"
-      end
-    rescue => e
-      flash[:error] = "Fehler beim Erstellen des Benutzers: #{e.message}"
-    end
-    
+    # Diese Funktion ist nicht mehr verfügbar, da keine einzelnen deferred Einträge mehr angezeigt werden
+    flash[:error] = "Diese Funktion ist nicht mehr verfügbar. Benutzer können über die normale Redmine-Benutzerverwaltung erstellt werden."
     redirect_to action: :deferred_status
   end
 
   def process_deferred_mail
-    entry_id = params[:id]
-    entry = MailDeferredEntry.find_by(id: entry_id)
-    
-    unless entry
-      flash[:error] = "Zurückgestellte E-Mail nicht gefunden."
-      redirect_to action: :deferred_status
-      return
-    end
-    
-    begin
-      # Verarbeite die zurückgestellte E-Mail
-      result = @service.process_single_deferred_mail(entry)
-      
-      if result
-        flash[:notice] = "E-Mail von #{entry.from_address} wurde erfolgreich verarbeitet."
-      else
-        flash[:error] = "Fehler beim Verarbeiten der E-Mail von #{entry.from_address}."
-      end
-    rescue => e
-      flash[:error] = "Fehler beim Verarbeiten der E-Mail: #{e.message}"
-    end
-    
+    # Diese Funktion ist nicht mehr verfügbar, da keine einzelnen deferred Einträge mehr verarbeitet werden
+    flash[:error] = "Diese Funktion ist nicht mehr verfügbar. Verwenden Sie 'Alle zurückgestellten E-Mails verarbeiten'."
     redirect_to action: :deferred_status
   end
 

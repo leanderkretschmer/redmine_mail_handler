@@ -53,16 +53,9 @@ class DeferredScheduler
     Rails.logger.info("Starting cleanup of ignored emails older than 30 days")
     
     begin
-      # Lösche Einträge älter als 30 Tage, die als ignoriert markiert sind
-      expired_entries = MailDeferredEntry.where('created_at < ? AND reason = ?', 30.days.ago, 'ignored')
-      count = expired_entries.count
-      
-      if count > 0
-        expired_entries.destroy_all
-        Rails.logger.info("Cleaned up #{count} ignored email entries older than 30 days")
-      else
-        Rails.logger.info("No ignored emails older than 30 days found for cleanup")
-      end
+      # Diese Methode ist nicht mehr nötig, da keine Datenbank-Einträge mehr verwendet werden
+      # Die Bereinigung erfolgt jetzt automatisch über IMAP-Flags in MailHandlerService
+      Rails.logger.info("Cleanup is now handled automatically via IMAP flags - no action needed")
       
     rescue => e
       Rails.logger.error("Failed to cleanup ignored emails: #{e.message}")

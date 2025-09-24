@@ -72,14 +72,10 @@
   <h3>Zurückgestellt-Status</h3>
   <div id="deferred-status">
      <% begin %>
-       <% deferred_stats = {
-            total: MailDeferredEntry.count,
-            active: MailDeferredEntry.active.count,
-            expired: MailDeferredEntry.expired.count
-          } %>
-     <% rescue ActiveRecord::StatementInvalid => e %>
+       <% deferred_stats = @service.count_deferred_messages %>
+     <% rescue => e %>
        <% deferred_stats = { total: 0, active: 0, expired: 0 } %>
-       <div class="flash error">Zurückgestellt-Tabelle nicht gefunden. Bitte führen Sie die Datenbankmigrationen aus.</div>
+       <div class="flash error">Fehler beim Abrufen der Deferred-Statistiken: <%= e.message %></div>
      <% end %>
     <table class="list">
       <tr>

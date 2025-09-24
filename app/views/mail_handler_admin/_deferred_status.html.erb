@@ -21,88 +21,20 @@
 </div>
 
 <div class="box">
-  <h3>Anzeige-Einstellungen</h3>
-  <%= form_tag({ :action => 'deferred_status' }, :method => :get, :local => true) do %>
-    <%= hidden_field_tag 'page', @page %>
-    <p>
-      <label for="per_page">Einträge pro Seite:</label>
-      <%= select_tag 'per_page',
-                     options_for_select(@per_page_options.map { |n| [n.to_s, n] }, @per_page),
-                     :onchange => 'this.form.submit();' %>
-      
-      <%= submit_tag 'Anwenden', :class => 'small' %>
-    </p>
-  <% end %>
-</div>
-
-<div class="box">
-  <h3>Aktuelle Zurückgestellt-Einträge</h3>
-  
-  <% if @deferred_entries.any? %>
-    <table class="list logs">
-      <thead>
-        <tr>
-          <th>Von</th>
-          <th>Betreff</th>
-          <th>Zurückgestellt seit</th>
-          <th>Läuft ab</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% @deferred_entries.each do |entry| %>
-          <tr class="<%= entry.expired? ? 'log-error' : 'log-info' %>">
-            <td><%= entry.from_address %></td>
-            <td><%= truncate(entry.subject, length: 50) %></td>
-            <td class="log-time"><%= entry.deferred_at.strftime('%d.%m.%Y %H:%M') %></td>
-            <td class="log-time"><%= entry.expires_at.strftime('%d.%m.%Y %H:%M') %></td>
-            <td>
-              <% if entry.expired? %>
-                <span class="status-stopped">Abgelaufen</span>
-              <% else %>
-                <span class="status-running">Aktiv (<%= entry.days_until_expiry %> Tage)</span>
-              <% end %>
-            </td>
-          </tr>
-        <% end %>
-      </tbody>
-    </table>
-    
-    <!-- Paginierung -->
-    <div class="pagination">
-      <div class="pagination-info">
-        <p>Zeige <%= (@page - 1) * @per_page + 1 %> bis <%= [@page * @per_page, @total_count].min %> von <%= @total_count %> Einträgen</p>
-      </div>
-      
-      <% if @total_pages > 1 %>
-        <div class="pagination-links">
-          <% if @page > 1 %>
-            <%= link_to '« Erste', { :action => 'deferred_status', :page => 1, :per_page => @per_page }, :class => 'first' %>
-            <%= link_to '‹ Vorherige', { :action => 'deferred_status', :page => @page - 1, :per_page => @per_page }, :class => 'prev' %>
-          <% end %>
-          
-          <% page_start = [@page - 2, 1].max %>
-          <% page_end = [page_start + 4, @total_pages].min %>
-          <% page_start = [page_end - 4, 1].max if page_end - page_start < 4 %>
-          
-          <% (page_start..page_end).each do |p| %>
-            <% if p == @page %>
-              <span class="current"><%= p %></span>
-            <% else %>
-              <%= link_to p, { :action => 'deferred_status', :page => p, :per_page => @per_page } %>
-            <% end %>
-          <% end %>
-          
-          <% if @page < @total_pages %>
-            <%= link_to 'Nächste ›', { :action => 'deferred_status', :page => @page + 1, :per_page => @per_page }, :class => 'next' %>
-            <%= link_to 'Letzte »', { :action => 'deferred_status', :page => @total_pages, :per_page => @per_page }, :class => 'last' %>
-          <% end %>
-        </div>
-      <% end %>
-    </div>
-  <% else %>
-    <p><em>Keine Einträge zurückgestellt.</em></p>
-  <% end %>
+  <h3>IMAP-basierte Zurückstellung</h3>
+  <p>
+    <strong>Hinweis:</strong> Die Zurückstellung erfolgt jetzt über IMAP-Ordner und -Flags. 
+    Einzelne E-Mails werden nicht mehr in der Datenbank gespeichert, sondern direkt im 
+    IMAP-Ordner "Deferred" verwaltet.
+  </p>
+  <p>
+    Die Statistiken zeigen die aktuellen Zahlen aus dem IMAP-Ordner:
+  </p>
+  <ul>
+    <li><strong>Gesamt:</strong> Alle E-Mails im Deferred-Ordner</li>
+    <li><strong>Aktiv:</strong> E-Mails, die noch nicht abgelaufen sind</li>
+    <li><strong>Abgelaufen:</strong> E-Mails, die zur Archivierung bereit sind</li>
+  </ul>
 </div>
 
 <div class="contextual">
