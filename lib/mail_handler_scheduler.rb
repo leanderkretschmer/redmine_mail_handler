@@ -289,12 +289,7 @@ class MailHandlerScheduler
     @@logger.info("Redmine reminder process completed")
   end
 
-  # DEPRECATED: Diese Methode wird nicht mehr verwendet.
-  # Das Plugin nutzt jetzt Redmines eingebaute Reminder-Funktionalität.
-  def self.send_reminder_to_user(user, issues)
-    @@logger.warn("DEPRECATED: send_reminder_to_user is no longer used. Plugin now uses Redmine's built-in reminder functionality.")
-    return false
-  end
+
 
   # Sende Test-Reminder basierend auf Konfiguration
   def self.send_test_reminder(to_email)

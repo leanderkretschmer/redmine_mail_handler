@@ -563,6 +563,12 @@ document.addEventListener('DOMContentLoaded', function() {
     <%= text_area_tag 'settings[excluded_attachment_patterns]', @settings['excluded_attachment_patterns'] || "*.tmp\n*.log\nwinmail.dat\nimage001.png", :rows => 6, :cols => 60 %>
     <em class="info">Dateinamen oder Muster (mit Wildcards *) für Dateien, die nicht als Anhänge hinzugefügt werden sollen. Ein Muster pro Zeile.</em>
   </p>
+  
+  <p>
+    <label for="settings_deduplication_enabled">Mail-Deduplizierung aktivieren:</label>
+    <%= check_box_tag 'settings[deduplication_enabled]', '1', @settings['deduplication_enabled'] == '1' %>
+    <em class="info">Verhindert die Verarbeitung von E-Mails mit identischer Message-ID. Nur die erste E-Mail wird verarbeitet, Duplikate werden übersprungen.</em>
+  </p>
 </div>
 
 <div class="box tabular settings">

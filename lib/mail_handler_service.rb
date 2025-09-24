@@ -696,6 +696,13 @@ class MailHandlerService
     
     @logger.debug_mail("Processing mail from #{from_address} with subject: #{mail.subject}", mail)
     
+    # Prüfe auf Duplikate basierend auf Message-ID (wenn aktiviert)
+    if @settings['deduplication_enabled'] == '1' && is_duplicate_mail?(mail)
+      @logger.info_mail("Skipping duplicate mail based on Message-ID: #{mail.message_id}", mail)
+      archive_message(imap, msg_id, mail)
+      return
+    end
+    
     # Prüfe ob E-Mail ignoriert werden soll
     if should_ignore_email?(from_address)
       @logger.info("Mail from #{from_address} matches ignore pattern, moving to deferred")
@@ -779,11 +786,7 @@ class MailHandlerService
     user
   end
   
-  # Legacy-Methode für Rückwärtskompatibilität (deprecated)
-  def find_or_create_user(email)
-    @logger.warn("find_or_create_user is deprecated, use find_existing_user or create_new_user instead")
-    find_existing_user(email) || create_new_user(email)
-  end
+
 
   # Füge Mail zu spezifischem Ticket hinzu
   def add_mail_to_ticket(mail, ticket_id, user)
@@ -1992,6 +1995,29 @@ class MailHandlerService
 
 
 
+
+  # Prüfe ob eine Mail bereits verarbeitet wurde (Deduplizierung)
+  def is_duplicate_mail?(mail)
+    return false if mail.message_id.blank?
+    
+    # Prüfe in MailHandlerLog ob diese Message-ID bereits verarbeitet wurde
+    existing_log = MailHandlerLog.where(mail_message_id: mail.message_id).first
+    
+    if existing_log
+      @logger.debug("Found duplicate mail in logs: Message-ID #{mail.message_id} was processed at #{existing_log.created_at}")
+      return true
+    end
+    
+    # Prüfe in MailDeferredEntry ob diese Message-ID bereits zurückgestellt wurde
+    existing_deferred = MailDeferredEntry.find_by(message_id: mail.message_id)
+    
+    if existing_deferred
+      @logger.debug("Found duplicate mail in deferred entries: Message-ID #{mail.message_id} was deferred at #{existing_deferred.deferred_at}")
+      return true
+    end
+    
+    false
+  end
 
   # Alias für Rückwärtskompatibilität
   alias_method :get_smtp_settings, :get_smtp_configuration

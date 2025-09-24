@@ -29,7 +29,7 @@ class DeferredScheduler
       Rails.logger.error("Failed to schedule deferred processing: #{e.message}")
     end
   end
-  
+
   def self.process_deferred_now
     Rails.logger.info("Starting scheduled deferred processing")
     
@@ -48,7 +48,7 @@ class DeferredScheduler
       Rails.logger.error(e.backtrace.join("\n"))
     end
   end
-  
+
   def self.cleanup_ignored_emails
     Rails.logger.info("Starting cleanup of ignored emails older than 30 days")
     
@@ -68,7 +68,7 @@ class DeferredScheduler
       Rails.logger.error("Failed to cleanup ignored emails: #{e.message}")
     end
   end
-  
+
   private
   
   def self.schedule_with_at(next_run)
