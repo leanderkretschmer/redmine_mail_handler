@@ -172,23 +172,17 @@
   <% end %>
 </div>
 
+# DEPRECATED: Diese Funktion wird in einer zukünftigen Version entfernt
 <div class="box">
-  <h3>Test-Reminder senden</h3>
-  <%= form_tag({ :action => 'test_reminder' }, :method => :post) do %>
-    <p>
-      <label for="reminder_email">E-Mail-Adresse:</label>
-      <%= text_field_tag 'reminder_email', '', :size => 30, :placeholder => 'test@example.com' %>
-      <%= submit_tag 'Test-Reminder senden' %>
-    </p>
-  <% end %>
-</div>
-
-<div class="box">
-  <h3>Bulk-Reminder senden</h3>
+  <h3>Bulk-Reminder senden <span style="color: #d9534f; font-size: 0.8em;">(DEPRECATED - wird bald entfernt)</span></h3>
   <p>Sendet Reminder-E-Mails an alle Benutzer mit offenen Tickets:</p>
+  <p style="background-color: #fcf8e3; border: 1px solid #faebcc; padding: 10px; border-radius: 4px; color: #8a6d3b;">
+    <strong>Warnung:</strong> Diese Funktion ist veraltet und wird in einer zukünftigen Version entfernt. 
+    Verwenden Sie stattdessen Redmines eingebaute Reminder-Funktionalität.
+  </p>
   <%= form_tag({ :action => 'send_bulk_reminder' }, :method => :post) do %>
     <p>
-      <%= submit_tag 'Bulk-Reminder an alle senden', :confirm => 'Sind Sie sicher, dass Sie Reminder-E-Mails an alle Benutzer senden möchten?' %>
+      <%= submit_tag 'Bulk-Reminder an alle senden', :confirm => 'Sind Sie sicher, dass Sie Reminder-E-Mails an alle Benutzer senden möchten?', :style => 'background-color: #d9534f; border-color: #d43f3a;' %>
     </p>
   <% end %>
 </div>

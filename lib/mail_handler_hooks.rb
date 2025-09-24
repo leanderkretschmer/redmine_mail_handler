@@ -1,36 +1,11 @@
 class MailHandlerHooks < Redmine::Hook::ViewListener
-  # Hook für Administration-Menü und Block User Funktionalität
+  # Hook für Administration-Menü
   def view_layouts_base_html_head(context = {})
     html = ''
     
     # CSS für Admin-Bereich
     if context[:controller] && context[:controller].is_a?(MailHandlerAdminController)
       html += stylesheet_link_tag('mail_handler', :plugin => 'redmine_mail_handler')
-    end
-    
-    # Block User Funktionalität auf Ticket-Seiten
-    if context[:controller] && context[:controller].controller_name == 'issues'
-      settings = Setting.plugin_redmine_mail_handler
-      
-      # Debug-Ausgabe in Rails-Log
-      Rails.logger.info "Block User Hook: Controller=#{context[:controller].controller_name}, Action=#{context[:controller].action_name}"
-      Rails.logger.info "Block User Hook: Settings present=#{!settings.nil?}, show_block_user=#{settings&.[]('show_block_user')}"
-      
-      if settings && settings['show_block_user'] == '1'
-        # Prüfe ob es sich um das Posteingang-Ticket handelt
-        inbox_ticket_id = settings['inbox_ticket_id'].to_i
-        current_issue_id = context[:controller].params[:id].to_i
-        
-        Rails.logger.info "Block User Hook: inbox_ticket_id=#{inbox_ticket_id}, current_issue_id=#{current_issue_id}"
-        
-        if inbox_ticket_id > 0 && current_issue_id == inbox_ticket_id
-          # Lade CSS und JavaScript für Block User Buttons
-          html += stylesheet_link_tag('block_user', :plugin => 'redmine_mail_handler')
-          html += javascript_include_tag('block_user', :plugin => 'redmine_mail_handler')
-          
-          Rails.logger.info "Block User Hook: CSS and JS loaded for inbox ticket"
-        end
-      end
     end
     
     html.html_safe

@@ -4,6 +4,7 @@ redmine-schema.sql
 # Bundle-Verzeichnis
 vendor/bundle/
 .bundle/
+Gemfile.lock
 
 # Log-Dateien
 *.log

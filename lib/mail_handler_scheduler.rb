@@ -291,103 +291,45 @@ class MailHandlerScheduler
 
 
 
-  # Sende Test-Reminder basierend auf Konfiguration
-  def self.send_test_reminder(to_email)
-    reminder_type = Setting.plugin_redmine_mail_handler['reminder_type'] || 'redmine'
-    
-    if reminder_type == 'custom'
-      send_custom_test_reminder(to_email)
-    else
-      send_redmine_test_reminder(to_email)
-    end
-  end
-  
-  # Sende Test-Reminder mit Redmines eingebauter Funktionalität
-  def self.send_redmine_test_reminder(to_email)
-    begin
-      @@logger.info("Testing Redmine's built-in reminder functionality for #{to_email}")
-      
-      # Finde einen Benutzer mit der angegebenen E-Mail-Adresse über EmailAddress
-      email_address_obj = EmailAddress.find_by(address: to_email.to_s.strip.downcase)
-      user = email_address_obj&.user
-      
-      if user.nil?
-        @@logger.error("No user found with email address: #{to_email}")
-        return false
-      end
-      
-      # Führe Redmines Reminder-Task für diesen spezifischen Benutzer aus
-      require 'rake'
-      
-      # Lade Redmine's Reminder-Task
-      Rake.application.load_rakefile unless Rake.application.tasks.any?
-      
-      # Setze Umgebungsvariablen für Test-Reminder
-      ENV['days'] = '30'  # Erweitere Zeitraum für Test
-      ENV['users'] = user.id.to_s  # Nur für diesen Benutzer
-      
-      # Führe den Reminder-Task aus
-      if Rake::Task.task_defined?('redmine:send_reminders')
-        Rake::Task['redmine:send_reminders'].reenable  # Erlaube mehrfache Ausführung
-        Rake::Task['redmine:send_reminders'].invoke
-        @@logger.info("Test reminder sent to #{to_email} using Redmine's built-in functionality")
-        true
-      else
-        @@logger.error("Redmine's send_reminders task not found")
-        false
-      end
-      
-    rescue => e
-      @@logger.error("Failed to send test reminder: #{e.message}")
-      @@logger.error("Backtrace: #{e.backtrace.join("\n")}")
-      false
-    ensure
-      # Bereinige Umgebungsvariablen
-      ENV.delete('days')
-      ENV.delete('users')
-    end
-  end
-  
-  # Sende Test-Reminder mit Custom-Plugin-Funktionalität
-  def self.send_custom_test_reminder(to_email)
-    begin
-      @@logger.info("Testing custom plugin reminder functionality for #{to_email}")
-      
-      # Finde einen Benutzer mit der angegebenen E-Mail-Adresse über EmailAddress
-      email_address_obj = EmailAddress.find_by(address: to_email.to_s.strip.downcase)
-      user = email_address_obj&.user
-      
-      if user.nil?
-        @@logger.error("No user found with email address: #{to_email}")
-        return false
-      end
-      
-      # Finde offene Issues für diesen Benutzer
-      issues = Issue.joins(:assigned_to)
-                   .where(assigned_to: user)
-                   .where(status: IssueStatus.where(is_closed: false))
-                   .where('#{Issue.table_name}.updated_on < ?', 30.days.ago)
-                   .limit(10)
-      
-      if issues.empty?
-        @@logger.info("No overdue issues found for user #{user.login}")
-        return true
-      end
-      
-      # Sende Custom-Reminder-E-Mail
-      send_custom_reminder_email(user, issues)
-      @@logger.info("Custom test reminder sent to #{to_email} with #{issues.count} issues")
-      true
-      
-    rescue => e
-      @@logger.error("Failed to send custom test reminder: #{e.message}")
-      @@logger.error("Backtrace: #{e.backtrace.join("\n")}")
-      false
-    end
-  end
 
-  # Sende Bulk-Reminder basierend auf Konfiguration
+
+  # Validiere IMAP-Konfiguration
+  def self.valid_imap_configuration?
+    settings = Setting.plugin_redmine_mail_handler
+    
+    # Prüfe ob alle erforderlichen IMAP-Einstellungen vorhanden sind
+    required_settings = ['imap_host', 'imap_port', 'imap_username', 'imap_password']
+    
+    required_settings.each do |setting|
+      if settings[setting].blank?
+        @@logger&.warn("Missing IMAP setting: #{setting}")
+        return false
+      end
+    end
+    
+    # Teste IMAP-Verbindung
+    begin
+      service = MailHandlerService.new
+      result = service.test_connection
+      
+      if result[:success]
+        @@logger&.debug("IMAP configuration validation successful")
+        return true
+      else
+        @@logger&.error("IMAP connection test failed: #{result[:error]}")
+        return false
+      end
+    rescue => e
+      @@logger&.error("IMAP configuration validation error: #{e.message}")
+      return false
+    end
+  end
+end
+
+  # DEPRECATED: Diese Funktion wird in einer zukünftigen Version entfernt
+  # Verwenden Sie stattdessen Redmines eingebaute Reminder-Funktionalität
   def self.send_bulk_reminder
+    @@logger&.warn("DEPRECATED: send_bulk_reminder wird in einer zukünftigen Version entfernt")
     reminder_type = Setting.plugin_redmine_mail_handler['reminder_type'] || 'redmine'
     
     if reminder_type == 'custom'
@@ -397,7 +339,7 @@ class MailHandlerScheduler
     end
   end
   
-  # Sende Bulk-Reminder an alle Benutzer mit Redmines eingebauter Funktionalität
+  # DEPRECATED: Diese Funktion wird in einer zukünftigen Version entfernt
   def self.send_redmine_bulk_reminder
     begin
       @@logger.info("Triggering bulk reminder for all users using Redmine's built-in functionality")
@@ -434,7 +376,7 @@ class MailHandlerScheduler
     end
   end
   
-  # Sende Custom-Bulk-Reminder an alle Benutzer
+  # DEPRECATED: Diese Funktion wird in einer zukünftigen Version entfernt
   def self.send_custom_bulk_reminder
     begin
       @@logger.info("Triggering custom bulk reminder for all users")
@@ -469,94 +411,61 @@ class MailHandlerScheduler
       @@logger.error("Backtrace: #{e.backtrace.join("\n")}")
       false
     end
-   end
+  end
    
-   # Sende Custom-Reminder-E-Mail an einen Benutzer
-   def self.send_custom_reminder_email(user, issues)
-     begin
-       # Hole die primäre E-Mail-Adresse des Benutzers
-       email_address = user.email_addresses.where(is_default: true).first&.address || user.mail
-       
-       if email_address.blank?
-         @@logger.warn("No email address found for user #{user.login}")
-         return false
-       end
-       
-       # Erstelle E-Mail-Inhalt
-       subject = "[#{Setting.app_title}] Erinnerung: #{issues.count} überfällige Tickets"
-       
-       body = "Hallo #{user.firstname} #{user.lastname},\n\n"
-       body += "Sie haben #{issues.count} überfällige Tickets, die Ihre Aufmerksamkeit benötigen:\n\n"
-       
-       issues.each do |issue|
-         days_overdue = ((Time.current - issue.updated_on) / 1.day).to_i
-         body += "• ##{issue.id}: #{issue.subject}\n"
-         body += "  Projekt: #{issue.project.name}\n"
-         body += "  Status: #{issue.status.name}\n"
-         body += "  Überfällig seit: #{days_overdue} Tagen\n"
-         body += "  Link: #{Setting.protocol}://#{Setting.host_name}/issues/#{issue.id}\n\n"
-       end
-       
-       body += "Bitte überprüfen Sie diese Tickets und aktualisieren Sie den Status entsprechend.\n\n"
-       body += "Mit freundlichen Grüßen,\n"
-       body += "Ihr #{Setting.app_title} Team"
-       
-       # Sende E-Mail über Redmines Mailer
-       mail = Mail.new do
-         from     Setting.mail_from
-         to       email_address
-         subject  subject
-         body     body
-       end
-       
-       mail.delivery_method :smtp, {
-         address: Setting.plugin_redmine_mail_handler['smtp_host'],
-         port: Setting.plugin_redmine_mail_handler['smtp_port'].to_i,
-         user_name: Setting.plugin_redmine_mail_handler['smtp_username'],
-         password: Setting.plugin_redmine_mail_handler['smtp_password'],
-         authentication: 'plain',
-         enable_starttls_auto: Setting.plugin_redmine_mail_handler['smtp_tls'] == '1'
-       }
-       
-       mail.deliver!
-       @@logger.info("Custom reminder email sent to #{email_address} for user #{user.login}")
-       true
-       
-     rescue => e
-       @@logger.error("Failed to send custom reminder email to user #{user.login}: #{e.message}")
-       false
-     end
-   end
-
-  # Validiere IMAP-Konfiguration
-  def self.valid_imap_configuration?
-    settings = Setting.plugin_redmine_mail_handler
-    
-    # Prüfe ob alle erforderlichen IMAP-Einstellungen vorhanden sind
-    required_settings = ['imap_host', 'imap_port', 'imap_username', 'imap_password']
-    
-    required_settings.each do |setting|
-      if settings[setting].blank?
-        @@logger&.warn("Missing IMAP setting: #{setting}")
-        return false
-      end
-    end
-    
-    # Teste IMAP-Verbindung
+  # DEPRECATED: Diese Funktion wird in einer zukünftigen Version entfernt
+  def self.send_custom_reminder_email(user, issues)
     begin
-      service = MailHandlerService.new
-      result = service.test_connection
+      # Hole die primäre E-Mail-Adresse des Benutzers
+      email_address = user.email_addresses.where(is_default: true).first&.address || user.mail
       
-      if result[:success]
-        @@logger&.debug("IMAP configuration validation successful")
-        return true
-      else
-        @@logger&.error("IMAP connection test failed: #{result[:error]}")
+      if email_address.blank?
+        @@logger.warn("No email address found for user #{user.login}")
         return false
       end
+      
+      # Erstelle E-Mail-Inhalt
+      subject = "[#{Setting.app_title}] Erinnerung: #{issues.count} überfällige Tickets"
+      
+      body = "Hallo #{user.firstname} #{user.lastname},\n\n"
+      body += "Sie haben #{issues.count} überfällige Tickets, die Ihre Aufmerksamkeit benötigen:\n\n"
+      
+      issues.each do |issue|
+        days_overdue = ((Time.current - issue.updated_on) / 1.day).to_i
+        body += "• ##{issue.id}: #{issue.subject}\n"
+        body += "  Projekt: #{issue.project.name}\n"
+        body += "  Status: #{issue.status.name}\n"
+        body += "  Überfällig seit: #{days_overdue} Tagen\n"
+        body += "  Link: #{Setting.protocol}://#{Setting.host_name}/issues/#{issue.id}\n\n"
+      end
+      
+      body += "Bitte überprüfen Sie diese Tickets und aktualisieren Sie den Status entsprechend.\n\n"
+      body += "Mit freundlichen Grüßen,\n"
+      body += "Ihr #{Setting.app_title} Team"
+      
+      # Sende E-Mail über Redmines Mailer
+      mail = Mail.new do
+        from     Setting.mail_from
+        to       email_address
+        subject  subject
+        body     body
+      end
+      
+      mail.delivery_method :smtp, {
+        address: Setting.plugin_redmine_mail_handler['smtp_host'],
+        port: Setting.plugin_redmine_mail_handler['smtp_port'].to_i,
+        user_name: Setting.plugin_redmine_mail_handler['smtp_username'],
+        password: Setting.plugin_redmine_mail_handler['smtp_password'],
+        authentication: 'plain',
+        enable_starttls_auto: Setting.plugin_redmine_mail_handler['smtp_tls'] == '1'
+      }
+      
+      mail.deliver!
+      @@logger.info("Custom reminder email sent to #{email_address} for user #{user.login}")
+      true
+      
     rescue => e
-      @@logger&.error("IMAP configuration validation error: #{e.message}")
-      return false
+      @@logger.error("Failed to send custom reminder email to user #{user.login}: #{e.message}")
+      false
     end
   end
-end

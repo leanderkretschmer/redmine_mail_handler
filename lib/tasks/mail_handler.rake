@@ -83,44 +83,28 @@ namespace :redmine do
     end
     
     desc 'Send test reminder'
-    task :test_reminder, [:email] => :environment do |task, args|
-      email = args[:email]
-      
-      if email.blank?
-        puts "Usage: rake redmine:mail_handler:test_reminder[email@example.com]"
-        exit 1
-      end
-      
-      puts "Sending test reminder to #{email}..."
-      
-      if MailHandlerScheduler.send_test_reminder(email)
-        puts "Test reminder sent successfully."
-      else
-        puts "Failed to send test reminder."
-        exit 1
-      end
-    end
+
     
     desc 'Start scheduler'
     task :start_scheduler => :environment do
       puts "Starting Mail Handler Scheduler..."
       MailHandlerScheduler.start
-      puts "✅ Scheduler started."
+      puts "Scheduler started."
     end
     
     desc 'Stop scheduler'
     task :stop_scheduler => :environment do
       puts "Stopping Mail Handler Scheduler..."
       MailHandlerScheduler.stop
-      puts "✅ Scheduler stopped."
+      puts "Scheduler stopped."
     end
     
     desc 'Show scheduler status'
     task :scheduler_status => :environment do
       if MailHandlerScheduler.running?
-        puts "✅ Scheduler is running."
+        puts "Scheduler is running."
       else
-        puts "❌ Scheduler is stopped."
+        puts "Scheduler is stopped."
       end
     end
     
@@ -131,7 +115,7 @@ namespace :redmine do
       count = MailHandlerLog.where('created_at < ?', 30.days.ago).count
       MailHandlerLogger.cleanup_old_logs
       
-      puts "✅ Cleaned up #{count} old log entries."
+      puts "Cleaned up #{count} old log entries."
     end
     
     desc 'Show recent logs'
@@ -164,15 +148,15 @@ namespace :redmine do
         
         if archive_folder.present?
           if folders.include?(archive_folder)
-            puts "✅ Archive folder exists"
+            puts "Archive folder exists"
           else
-            puts "❌ Archive folder does not exist - it will be created automatically"
+            puts "Archive folder does not exist - it will be created automatically"
           end
         else
-          puts "⚠️  No archive folder configured - emails will not be archived"
+          puts "No archive folder configured - emails will not be archived"
         end
       else
-        puts "❌ Could not retrieve folder list. Check IMAP connection."
+        puts "Could not retrieve folder list. Check IMAP connection."
       end
     end
     
@@ -182,12 +166,12 @@ namespace :redmine do
       
       puts "Redmine Mail Handler Plugin Status"
       puts "=" * 40
-      puts "Scheduler: #{MailHandlerScheduler.running? ? '✅ Running' : '❌ Stopped'}"
-      puts "Auto Import: #{settings['auto_import_enabled'] == '1' ? '✅ Enabled' : '❌ Disabled'}"
+      puts "Scheduler: #{MailHandlerScheduler.running? ? 'Running' : 'Stopped'}"
+      puts "Auto Import: #{settings['auto_import_enabled'] == '1' ? 'Enabled' : 'Disabled'}"
       interval_unit = settings['import_interval_unit'] == 'seconds' ? 'Sekunden' : 'Minuten'
       puts "Import Interval: #{settings['import_interval']} #{interval_unit}"
-      puts "Reminders: #{settings['reminder_enabled'] == '1' ? "✅ Enabled (#{settings['reminder_time']})" : '❌ Disabled'}"
-      puts "IMAP Host: #{settings['imap_host'].present? ? settings['imap_host'] : '❌ Not configured'}"
+      puts "Reminders: #{settings['reminder_enabled'] == '1' ? "Enabled (#{settings['reminder_time']})" : 'Disabled'}"
+      puts "IMAP Host: #{settings['imap_host'].present? ? settings['imap_host'] : 'Not configured'}"
       puts "Log Level: #{settings['log_level']}"
       puts "Total Logs: #{MailHandlerLog.count}"
       puts "Logs Today: #{MailHandlerLog.today.count}"

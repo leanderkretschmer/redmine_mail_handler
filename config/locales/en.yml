@@ -48,7 +48,6 @@ en:
   # Actions
   button_test_connection: "Test IMAP Connection"
   button_send_test_mail: "Send Test Mail"
-  button_send_test_reminder: "Send Test Reminder"
   button_manual_import: "Start Manual Import"
   button_start_scheduler: "Start Scheduler"
   button_stop_scheduler: "Stop Scheduler"
@@ -62,8 +61,6 @@ en:
   notice_connection_failed: "IMAP connection failed"
   notice_test_mail_sent: "Test mail sent successfully"
   notice_test_mail_failed: "Failed to send test mail"
-  notice_test_reminder_sent: "Test reminder sent successfully"
-  notice_test_reminder_failed: "Failed to send test reminder"
   notice_import_successful: "Mails imported successfully"
   notice_import_failed: "Mail import failed"
   notice_scheduler_started: "Scheduler started"

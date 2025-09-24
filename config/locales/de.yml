@@ -48,7 +48,6 @@ de:
   # Aktionen
   button_test_connection: "IMAP-Verbindung testen"
   button_send_test_mail: "Test-E-Mail senden"
-  button_send_test_reminder: "Test-Reminder senden"
   button_manual_import: "Manuellen Import starten"
   button_start_scheduler: "Scheduler starten"
   button_stop_scheduler: "Scheduler stoppen"
@@ -62,8 +61,6 @@ de:
   notice_connection_failed: "IMAP-Verbindung fehlgeschlagen"
   notice_test_mail_sent: "Test-E-Mail wurde erfolgreich gesendet"
   notice_test_mail_failed: "Fehler beim Senden der Test-E-Mail"
-  notice_test_reminder_sent: "Test-Reminder wurde erfolgreich gesendet"
-  notice_test_reminder_failed: "Fehler beim Senden des Test-Reminders"
   notice_import_successful: "E-Mails wurden erfolgreich importiert"
   notice_import_failed: "Fehler beim E-Mail-Import"
   notice_scheduler_started: "Scheduler wurde gestartet"

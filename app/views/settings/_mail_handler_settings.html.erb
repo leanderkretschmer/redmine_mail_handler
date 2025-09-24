@@ -499,12 +499,6 @@ document.addEventListener('DOMContentLoaded', function() {
   </p>
   
   <p>
-    <label for="settings_show_block_user">Block User Buttons anzeigen:</label>
-    <%= check_box_tag 'settings[show_block_user]', '1', @settings['show_block_user'] == '1' %>
-    <em class="info">Wenn aktiviert, werden bei Kommentaren im Posteingang-Ticket Block-Buttons angezeigt, um Benutzer zu blockieren.</em>
-  </p>
-  
-  <p>
     <label for="settings_mail_decoder_enabled">Mail-Decoder verwenden:</label>
     <%= check_box_tag 'settings[mail_decoder_enabled]', '1', @settings['mail_decoder_enabled'] == '1' %>
     <em class="info">Aktiviert robusteres Charset-Handling und bessere HTML-zu-Text-Konvertierung mit mail-decoder und html2text</em>

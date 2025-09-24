@@ -44,20 +44,7 @@ class MailHandlerAdminController < ApplicationController
     redirect_to action: :index
   end
 
-  def test_reminder
-    email = params[:reminder_email]
-    
-    if email.blank?
-      flash[:error] = "Bitte geben Sie eine E-Mail-Adresse ein."
-    elsif MailHandlerScheduler.send_test_reminder(email)
-      flash[:notice] = "Test-Reminder wurde erfolgreich an #{email} gesendet."
-    else
-      flash[:error] = "Fehler beim Senden des Test-Reminders."
-    end
-    
-    redirect_to action: :index
-  end
-
+  # DEPRECATED: Diese Funktion wird in einer zukünftigen Version entfernt
   def send_bulk_reminder
     if MailHandlerScheduler.send_bulk_reminder
       flash[:notice] = "Bulk-Reminder wurde erfolgreich an alle Benutzer gesendet."
@@ -67,8 +54,6 @@ class MailHandlerAdminController < ApplicationController
     
     redirect_to action: :index
   end
-
-  def test_imap_connection
     # Temporär die Plugin-Einstellungen mit den übergebenen Parametern überschreiben
     original_settings = Setting.plugin_redmine_mail_handler.dup
     
@@ -348,48 +333,6 @@ class MailHandlerAdminController < ApplicationController
     end
     
     redirect_to action: :deferred_status
-  end
-  
-  def block_user
-    user_id = params[:user_id]
-    user = User.find_by(id: user_id)
-    
-    unless user
-      render json: { success: false, error: 'Benutzer nicht gefunden' }
-      return
-    end
-    
-    begin
-      # Hole aktuelle Ignore-Liste
-      settings = Setting.plugin_redmine_mail_handler
-      current_ignore_list = settings['ignore_email_addresses'] || ''
-      
-      # Sammle alle E-Mail-Adressen des Benutzers
-      user_emails = []
-      user_emails << user.mail if user.mail.present?
-      user.email_addresses.each { |ea| user_emails << ea.address if ea.address.present? }
-      
-      # Füge E-Mail-Adressen zur Ignore-Liste hinzu
-      ignore_list = current_ignore_list.split(',').map(&:strip).reject(&:blank?)
-      user_emails.each do |email|
-        ignore_list << email unless ignore_list.include?(email)
-      end
-      
-      # Aktualisiere Einstellungen
-      settings['ignore_email_addresses'] = ignore_list.join(', ')
-      Setting.plugin_redmine_mail_handler = settings
-      
-      # Lösche den Benutzer
-      user.destroy
-      
-      render json: { 
-        success: true, 
-        message: "Benutzer #{user.login} wurde blockiert und gelöscht. E-Mail-Adressen zur Ignore-Liste hinzugefügt: #{user_emails.join(', ')}"
-      }
-      
-    rescue => e
-      render json: { success: false, error: "Fehler beim Blockieren des Benutzers: #{e.message}" }
-    end
   end
 
 

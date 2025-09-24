@@ -5,7 +5,7 @@ Redmine::Plugin.register :redmine_mail_handler do
   name 'Redmine Mail Handler'
   author 'Leander Kretschmer'
   description 'Erweiterte Mail-Verarbeitung für Redmine mit IMAP-Support, automatischer Ticket-Zuweisung und Reminder-Funktionen'
-  version '2.2.0'
+  version '0.3.1'
   url 'https://github.com/leanderkretschmer/redmine_mail_handler'
   author_url 'https://github.com/leanderkretschmer'
 
@@ -39,7 +39,6 @@ Redmine::Plugin.register :redmine_mail_handler do
       'parser_mode' => 'html_to_text',
       'html_attachment_enabled' => '0',
       'backdate_comments' => '0',
-      'show_block_user' => '0',
       'mail_decoder_enabled' => '0',
       'deduplication_enabled' => '0'
     }, :partial => 'settings/mail_handler_settings'
