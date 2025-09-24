@@ -204,9 +204,25 @@ class MailHandlerAdminController < ApplicationController
 
   def deferred_status
     begin
-      @deferred_entries = MailDeferredEntry.includes([])
-                                              .order(deferred_at: :desc)
-                                               .limit(20)
+      # Paginierung Parameter
+      @per_page = params[:per_page].to_i
+      @per_page = 25 if @per_page <= 0 || !valid_per_page_options.include?(@per_page)
+      @page = [params[:page].to_i, 1].max
+      
+      # Basis Query
+      deferred_query = MailDeferredEntry.includes([]).order(deferred_at: :desc)
+      
+      # Gesamtanzahl für Paginierung
+      @total_count = deferred_query.count
+      @total_pages = (@total_count.to_f / @per_page).ceil
+      @page = [@page, @total_pages].min if @total_pages > 0
+      
+      # Deferred Entries mit Paginierung laden
+      offset = (@page - 1) * @per_page
+      @deferred_entries = deferred_query.limit(@per_page).offset(offset)
+      
+      @per_page_options = valid_per_page_options
+      
       @deferred_stats = {
         total: MailDeferredEntry.count,
         active: MailDeferredEntry.active.count,
@@ -215,6 +231,11 @@ class MailHandlerAdminController < ApplicationController
     rescue ActiveRecord::StatementInvalid => e
       @deferred_entries = []
       @deferred_stats = { total: 0, active: 0, expired: 0 }
+      @total_count = 0
+      @total_pages = 0
+      @page = 1
+      @per_page = 25
+      @per_page_options = valid_per_page_options
       flash[:error] = "Zurückgestellt-Tabelle nicht gefunden. Bitte führen Sie die Datenbankmigrationen aus."
     end
     
@@ -373,6 +394,84 @@ class MailHandlerAdminController < ApplicationController
 
 
 
+  def delete_anonymous_comments
+    begin
+      # Finde alle Journals von anonymen Benutzern (User.anonymous)
+      anonymous_user = User.anonymous
+      anonymous_journals = Journal.joins(:issue)
+                                 .where(user_id: anonymous_user.id)
+                                 .where('journals.id > (SELECT MIN(j2.id) FROM journals j2 WHERE j2.issue_id = journals.issue_id)')
+      
+      deleted_count = anonymous_journals.count
+      
+      if deleted_count > 0
+        # Lösche auch alle Journal-Details (Änderungen) der anonymen Kommentare
+        JournalDetail.where(journal_id: anonymous_journals.pluck(:id)).delete_all
+        
+        # Lösche die anonymen Journals
+        anonymous_journals.delete_all
+        
+        logger = MailHandlerLogger.new
+        logger.info("Deleted #{deleted_count} anonymous comments from all tickets")
+        
+        flash[:notice] = "#{deleted_count} anonyme Kommentare wurden erfolgreich aus allen Tickets gelöscht."
+      else
+        flash[:notice] = "Keine anonymen Kommentare zum Löschen gefunden."
+      end
+      
+    rescue => e
+      logger = MailHandlerLogger.new
+      logger.error("Error deleting anonymous comments: #{e.message}")
+      flash[:error] = "Fehler beim Löschen der anonymen Kommentare: #{e.message}"
+    end
+    
+    redirect_to :action => 'index'
+  end
+
+  def delete_orphaned_attachments
+    begin
+      # Finde alle Attachments die keinem Journal zugeordnet sind
+      # Attachments können entweder direkt an Issues oder an Journals gehängt sein
+      orphaned_attachments = Attachment.joins("LEFT JOIN journals ON attachments.container_id = journals.id AND attachments.container_type = 'Journal'")
+                                      .joins("LEFT JOIN issues ON attachments.container_id = issues.id AND attachments.container_type = 'Issue'")
+                                      .where("journals.id IS NULL AND issues.id IS NULL")
+      
+      deleted_count = orphaned_attachments.count
+      
+      if deleted_count > 0
+        # Lösche die physischen Dateien und Datenbankeinträge
+        orphaned_attachments.each do |attachment|
+          begin
+            # Lösche die physische Datei
+            if attachment.diskfile && File.exist?(attachment.diskfile)
+              File.delete(attachment.diskfile)
+            end
+          rescue => e
+            logger = MailHandlerLogger.new
+            logger.warn("Could not delete physical file for orphaned attachment #{attachment.id}: #{e.message}")
+          end
+        end
+        
+        # Lösche die Attachment-Datenbankeinträge
+        orphaned_attachments.delete_all
+        
+        logger = MailHandlerLogger.new
+        logger.info("Deleted #{deleted_count} orphaned attachments")
+        
+        flash[:notice] = "#{deleted_count} unzugeordnete Dateien wurden erfolgreich gelöscht."
+      else
+        flash[:notice] = "Keine unzugeordneten Dateien zum Löschen gefunden."
+      end
+      
+    rescue => e
+      logger = MailHandlerLogger.new
+      logger.error("Error deleting orphaned attachments: #{e.message}")
+      flash[:error] = "Fehler beim Löschen der unzugeordneten Dateien: #{e.message}"
+    end
+    
+    redirect_to :action => 'index'
+  end
+
   def delete_all_comments
     begin
       settings = Setting.plugin_redmine_mail_handler
@@ -460,6 +559,10 @@ class MailHandlerAdminController < ApplicationController
 
 
   private
+
+  def valid_per_page_options
+    [10, 25, 50, 100]
+  end
 
   def require_admin
     render_403 unless User.current.admin?

@@ -52,6 +52,16 @@
                        :class => 'icon icon-del delete-comments-btn',
                        :confirm => 'Sind Sie sicher, dass Sie alle Kommentare und angehängten Dateien aus dem Posteingang-Ticket löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden!',
                        :title => "Löscht alle Kommentare und Dateien aus Ticket ##{@settings['inbox_ticket_id']}" %>
+          <%= link_to "Anonyme Kommentare löschen", 
+              { :action => 'delete_anonymous_comments' }, 
+              :method => :delete, 
+              :data => { :confirm => "Sind Sie sicher, dass Sie alle anonymen Kommentare löschen möchten?" }, 
+              :class => 'icon icon-del' %>
+          <%= link_to "Unzugeordnete Dateien löschen", 
+              { :action => 'delete_orphaned_attachments' }, 
+              :method => :delete, 
+              :data => { :confirm => "Sind Sie sicher, dass Sie alle unzugeordneten Dateien löschen möchten?" }, 
+              :class => 'icon icon-del' %>
         <% end %>
       </td>
     </tr>

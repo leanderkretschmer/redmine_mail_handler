@@ -23,7 +23,9 @@ RedmineApp::Application.routes.draw do
         post :create_user_from_mail
         post :process_deferred_mail
         post :block_user
-        post :delete_all_comments
+        delete :delete_all_comments
+        delete :delete_anonymous_comments
+        delete :delete_orphaned_attachments
       get :deferred_status
       end
     end
