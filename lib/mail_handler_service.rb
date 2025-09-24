@@ -1197,6 +1197,55 @@ class MailHandlerService
       return simple_html_to_text(html_content)
     end
   end
+
+  # Zähle Nachrichten im deferred Ordner
+  def count_deferred_messages
+    begin
+      imap = connect_to_imap
+      return { total: 0, active: 0, expired: 0 } unless imap
+      
+      deferred_folder = @settings['deferred_folder'] || 'Deferred'
+      
+      # Prüfe ob Ordner existiert
+      begin
+        imap.select(deferred_folder)
+      rescue Net::IMAP::NoResponseError
+        return { total: 0, active: 0, expired: 0 }
+      end
+      
+      msg_ids = imap.search(['ALL'])
+      total_count = msg_ids.length
+      active_count = 0
+      expired_count = 0
+      
+      msg_ids.each do |msg_id|
+        begin
+          msg_data = imap.fetch(msg_id, 'RFC822')[0].attr['RFC822']
+          next if msg_data.blank?
+          
+          mail = Mail.read_from_string(msg_data)
+          next if mail.nil?
+          
+          if mail_deferred_expired?(mail)
+            expired_count += 1
+          else
+            active_count += 1
+          end
+        rescue => e
+          @logger.warn("Failed to check deferred status for message #{msg_id}: #{e.message}")
+          # Bei Fehlern als aktiv zählen
+          active_count += 1
+        end
+      end
+      
+      { total: total_count, active: active_count, expired: expired_count }
+    rescue => e
+      @logger.error("Failed to count deferred messages: #{e.message}")
+      { total: 0, active: 0, expired: 0 }
+    ensure
+      imap&.disconnect
+    end
+  end
   
   private
   
@@ -1660,55 +1709,6 @@ class MailHandlerService
     rescue => e
       @logger.warn("Failed to parse deferred info for mail #{mail.message_id}: #{e.message}")
       nil
-    end
-  end
-
-  # Zähle Nachrichten im deferred Ordner
-  def count_deferred_messages
-    begin
-      imap = connect_to_imap
-      return { total: 0, active: 0, expired: 0 } unless imap
-      
-      deferred_folder = @settings['deferred_folder'] || 'Deferred'
-      
-      # Prüfe ob Ordner existiert
-      begin
-        imap.select(deferred_folder)
-      rescue Net::IMAP::NoResponseError
-        return { total: 0, active: 0, expired: 0 }
-      end
-      
-      msg_ids = imap.search(['ALL'])
-      total_count = msg_ids.length
-      active_count = 0
-      expired_count = 0
-      
-      msg_ids.each do |msg_id|
-        begin
-          msg_data = imap.fetch(msg_id, 'RFC822')[0].attr['RFC822']
-          next if msg_data.blank?
-          
-          mail = Mail.read_from_string(msg_data)
-          next if mail.nil?
-          
-          if mail_deferred_expired?(mail)
-            expired_count += 1
-          else
-            active_count += 1
-          end
-        rescue => e
-          @logger.warn("Failed to check deferred status for message #{msg_id}: #{e.message}")
-          # Bei Fehlern als aktiv zählen
-          active_count += 1
-        end
-      end
-      
-      { total: total_count, active: active_count, expired: expired_count }
-    rescue => e
-      @logger.error("Failed to count deferred messages: #{e.message}")
-      { total: 0, active: 0, expired: 0 }
-    ensure
-      imap&.disconnect
     end
   end
 

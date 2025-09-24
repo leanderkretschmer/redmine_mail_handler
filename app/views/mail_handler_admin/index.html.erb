@@ -168,21 +168,6 @@
   <% end %>
 </div>
 
-# DEPRECATED: Diese Funktion wird in einer zukünftigen Version entfernt
-<div class="box">
-  <h3>Bulk-Reminder senden <span style="color: #d9534f; font-size: 0.8em;">(DEPRECATED - wird bald entfernt)</span></h3>
-  <p>Sendet Reminder-E-Mails an alle Benutzer mit offenen Tickets:</p>
-  <p style="background-color: #fcf8e3; border: 1px solid #faebcc; padding: 10px; border-radius: 4px; color: #8a6d3b;">
-    <strong>Warnung:</strong> Diese Funktion ist veraltet und wird in einer zukünftigen Version entfernt. 
-    Verwenden Sie stattdessen Redmines eingebaute Reminder-Funktionalität.
-  </p>
-  <%= form_tag({ :action => 'send_bulk_reminder' }, :method => :post) do %>
-    <p>
-      <%= submit_tag 'Bulk-Reminder an alle senden', :confirm => 'Sind Sie sicher, dass Sie Reminder-E-Mails an alle Benutzer senden möchten?', :style => 'background-color: #d9534f; border-color: #d43f3a;' %>
-    </p>
-  <% end %>
-</div>
-
 <div class="box">
   <h3>Manueller E-Mail-Import</h3>
   <p>Für Entwicklung und Tests können Sie E-Mails manuell importieren:</p>
