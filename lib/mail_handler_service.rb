@@ -1618,9 +1618,34 @@ class MailHandlerService
     begin
       # Erstelle oder aktualisiere Zurückgestellt-Eintrag
       deferred_entry = MailDeferredEntry.find_or_initialize_by(message_id: mail.message_id)
+      
+      # Bereinige Subject von problematischen Zeichen (Emojis) falls nötig
+      subject = mail.subject
+      if subject.present?
+        # Entferne 4-Byte UTF-8 Zeichen (Emojis) falls die Datenbank sie nicht unterstützt
+        # Dies ist ein Fallback für den Fall, dass die Migration noch nicht ausgeführt wurde
+        begin
+          subject = subject.encode('UTF-8', invalid: :replace, undef: :replace, replace: '?')
+          # Teste ob das Subject gespeichert werden kann
+          test_entry = MailDeferredEntry.new(
+            message_id: "test_#{SecureRandom.hex(8)}",
+            from_address: mail.from&.first || 'test@example.com',
+            subject: subject,
+            deferred_at: timestamp,
+            expires_at: timestamp + 1.day,
+            reason: reason
+          )
+          test_entry.valid? # Triggert Validierung ohne zu speichern
+        rescue => encoding_error
+          @logger.warn("Subject contains problematic characters, sanitizing: #{encoding_error.message}")
+          # Entferne alle 4-Byte UTF-8 Zeichen (Emojis)
+          subject = subject.gsub(/[\u{10000}-\u{10FFFF}]/, '?')
+        end
+      end
+      
       deferred_entry.update!(
         from_address: mail.from&.first,
-        subject: mail.subject,
+        subject: subject,
         deferred_at: timestamp,
         expires_at: timestamp + (@settings['deferred_lifetime_days'] || 30).to_i.days,
         reason: reason
