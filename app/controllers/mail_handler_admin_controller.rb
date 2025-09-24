@@ -54,6 +54,8 @@ class MailHandlerAdminController < ApplicationController
     
     redirect_to action: :index
   end
+
+  def test_imap_connection
     # Temporär die Plugin-Einstellungen mit den übergebenen Parametern überschreiben
     original_settings = Setting.plugin_redmine_mail_handler.dup
     
