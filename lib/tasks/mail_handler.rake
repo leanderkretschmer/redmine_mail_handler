@@ -55,15 +55,9 @@ namespace :redmine do
     task :import, [:limit] => :environment do |task, args|
       limit = args[:limit].to_i if args[:limit].present?
       
-      puts "Starting manual mail import#{limit ? " (limit: #{limit})" : ''}..."
-      
-      service = MailHandlerService.new
-      if service.import_mails(limit)
-        puts "Mail import completed successfully."
-      else
-        puts "Mail import failed. Check logs for details."
-        exit 1
-      end
+      puts "Enqueue manual mail import#{limit ? " (limit: #{limit})" : ''} via Sidekiq..."
+      MailImportJob.perform_async(limit)
+      puts "Job enqueued."
     end
     
     desc 'Test IMAP connection'

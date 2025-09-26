@@ -103,12 +103,8 @@ class MailHandlerScheduler
     
     @@scheduler.every interval_format do
       begin
-        @@logger.info("Starting scheduled mail import")
-        
-        ActiveRecord::Base.connection_pool.with_connection do
-          service = MailHandlerService.new
-          service.import_mails
-        end
+        @@logger.info("Enqueue scheduled mail import via Sidekiq")
+        MailImportJob.perform_async(nil)
       rescue => e
         @@logger.error("Scheduled mail import failed: #{e.message}")
       ensure
@@ -127,12 +123,8 @@ class MailHandlerScheduler
     if mails_per_hour <= 0
       @@scheduler.every '5m' do
         begin
-          @@logger.info_load_balanced("Starting mail import (unlimited)")
-          
-          ActiveRecord::Base.connection_pool.with_connection do
-            service = MailHandlerService.new
-            service.import_mails
-          end
+          @@logger.info_load_balanced("Enqueue mail import (unlimited) via Sidekiq")
+          MailImportJob.perform_async(nil)
         rescue => e
           @@logger.error("Load-balanced mail import failed: #{e.message}")
         ensure
@@ -171,10 +163,7 @@ class MailHandlerScheduler
         actual_batch_size = [batch_size, remaining_mails].min
         @@logger.info_load_balanced("Starting mail import (max #{actual_batch_size} mails, #{current_hour_count} mails verarbeitet von #{mails_per_hour} mails erlaubt pro stunde, #{remaining_mails} mails übrig)")
         
-        ActiveRecord::Base.connection_pool.with_connection do
-          service = MailHandlerService.new
-          service.import_mails(actual_batch_size)
-        end
+        MailImportJob.perform_async(actual_batch_size)
       rescue => e
         @@logger.error("Load-balanced mail import failed: #{e.message}")
       ensure
