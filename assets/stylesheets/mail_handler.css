@@ -87,7 +87,7 @@
    Log-Level Farben
 ------------------------- */
 .log-debug  { background-color: #f8f9fa; }
-.log-info   { background-color: #d1ecf1; }
+.log-info   { background-color: #f8f9fa; }
 .log-warn   { background-color: #fff3cd; }
 .log-error  { background-color: #f8d7da; }
 
@@ -130,7 +130,7 @@
 ------------------------- */
 .toggle-full-message,
 .toggle-short-message {
-  color: #007bff;
+  color: #555;
   text-decoration: none;
   font-size: 0.9em;
   margin-left: 10px;
@@ -147,14 +147,14 @@
 .mail-details {
   margin-bottom: 8px;
   padding: 6px;
-  background-color: #f0f8ff;
-  border-left: 3px solid #0066cc;
+  background-color: #fff;
+  border-left: 3px solid #ccc;
   border-radius: 3px;
 }
 
 .mail-details strong {
-  color: #003366;
-  font-size: 1.1em;
+  color: inherit;
+  font-size: 1em;
 }
 
 .mail-meta {
@@ -172,9 +172,9 @@
    Links
 ------------------------- */
 a[href*="/issues/"] {
-  color: #0066cc;
-  font-weight: bold;
-  text-decoration: none;
+  color: inherit;
+  font-weight: normal;
+  text-decoration: underline;
 }
 
 a[href*="/issues/"]:hover {
@@ -208,7 +208,7 @@ code {
 .stats-number {
   font-size: 2em;
   font-weight: bold;
-  color: #007bff;
+  color: #333;
 }
 
 .stats-label {
@@ -393,7 +393,7 @@ code {
   text-decoration: none;
   border: 1px solid #dee2e6;
   border-radius: 4px;
-  color: #007bff;
+  color: #555;
   background-color: #fff;
   transition: all 0.2s ease;
 }
@@ -405,9 +405,9 @@ code {
 }
 
 .pagination-links .current {
-  background-color: #007bff;
-  color: white;
-  border-color: #007bff;
+  background-color: #e9ecef;
+  color: #333;
+  border-color: #dee2e6;
   font-weight: bold;
 }
 
@@ -422,8 +422,8 @@ code {
 .pagination-links .last:hover,
 .pagination-links .prev:hover,
 .pagination-links .next:hover {
-  background-color: #007bff;
-  color: white;
+  background-color: #e9ecef;
+  color: #333;
 }
 
 /* Responsive Paginierung */

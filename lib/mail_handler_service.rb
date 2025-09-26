@@ -739,19 +739,19 @@ class MailHandlerService
     end
     
     @logger.debug_mail("Processing mail from #{from_address} with subject: #{mail.subject}", mail)
-    
+
+    # Prüfe ob E-Mail ignoriert werden soll (vor Deduplizierung)
+    if should_ignore_email?(from_address)
+      @logger.info("Mail from #{from_address} matches ignore pattern, moving to ignored folder")
+      move_to_ignored_folder(imap, msg_id, mail)
+      return # Nicht archivieren
+    end
+
     # Prüfe auf Duplikate basierend auf Message-ID (wenn aktiviert)
     if @settings['deduplication_enabled'] == '1' && is_duplicate_mail?(mail)
       @logger.info_mail("Skipping duplicate mail based on Message-ID: #{mail.message_id}", mail)
       archive_message(imap, msg_id, mail)
       return
-    end
-    
-    # Prüfe ob E-Mail ignoriert werden soll
-    if should_ignore_email?(from_address)
-      @logger.info("Mail from #{from_address} matches ignore pattern, moving to ignored folder")
-      move_to_ignored_folder(imap, msg_id, mail)
-      return # Nicht archivieren
     end
     
     # Extrahiere Ticket-ID aus Betreff
