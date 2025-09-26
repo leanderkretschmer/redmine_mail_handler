@@ -49,6 +49,15 @@
     <button type="button" id="load_archive_folders" class="small-button">Ordner laden</button>
     <span id="archive_loading" style="display: none;">Lade...</span>
   </p>
+
+  <p>
+    <label for="settings_ignored_folder">Ignored-Ordner:</label>
+    <select name="settings[ignored_folder]" id="settings_ignored_folder">
+      <option value="<%= @settings['ignored_folder'] %>"><%= @settings['ignored_folder'].present? ? @settings['ignored_folder'] : 'Ignored' %></option>
+    </select>
+    <button type="button" id="load_ignored_folders" class="small-button">Ordner laden</button>
+    <span id="ignored_loading" style="display: none;">Lade...</span>
+  </p>
   
 </div>
 
@@ -370,6 +379,10 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('load_deferred_folders').addEventListener('click', function() {
     loadImapFolders('settings_deferred_folder', 'deferred_loading');
   });
+
+  document.getElementById('load_ignored_folders').addEventListener('click', function() {
+    loadImapFolders('settings_ignored_folder', 'ignored_loading');
+  });
   
   document.getElementById('test_imap_connection').addEventListener('click', testImapConnection);
   document.getElementById('test_smtp_connection').addEventListener('click', testSmtpConnection);
@@ -469,7 +482,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <p>
     <label for="settings_ignore_email_addresses">Zu ignorierende E-Mail-Adressen:</label>
     <%= text_area_tag 'settings[ignore_email_addresses]', @settings['ignore_email_addresses'], :rows => 5, :placeholder => 'Eine E-Mail-Adresse pro Zeile, z.B.:\n*@system.example.com\nnoreply@company.com\nautomation@*' %>
-    <em class="info">E-Mails von diesen Adressen werden automatisch in den zurückgestellt Ordner verschoben und nach 30 Tagen archiviert. Wildcards (*) sind erlaubt.</em>
+    <em class="info">E-Mails von diesen Adressen werden automatisch in den Ignored-Ordner verschoben. Wildcards (*) sind erlaubt.</em>
   </p>
 </div>
 
@@ -652,7 +665,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <strong>Benutzer-Erstellung:</strong> Konfigurieren Sie hier, wie Vor- und Nachname für automatisch erstellte Benutzer generiert werden. Der Vorname kann entweder der Teil vor dem @ der E-Mail-Adresse oder die vollständige E-Mail-Adresse sein. Der Nachname ist frei konfigurierbar.
   </p>
   <p>
-    <strong>E-Mail-Filter:</strong> E-Mails von den hier konfigurierten Adressen werden automatisch in den zurückgestellt Ordner verschoben und nach 30 Tagen archiviert. Wildcards (*) sind erlaubt, z.B. *@system.example.com für alle E-Mails von system.example.com oder automation@* für alle E-Mails von automation, unabhängig von der Domain.
+    <strong>E-Mail-Filter:</strong> E-Mails von den hier konfigurierten Adressen werden automatisch in den Ignored-Ordner verschoben. Wildcards (*) sind erlaubt, z.B. *@system.example.com für alle E-Mails von system.example.com oder automation@* für alle E-Mails von automation, unabhängig von der Domain.
   </p>
   <p>
     <strong>Log-Verwaltung:</strong> Konfigurieren Sie hier die automatische Bereinigung der Mail Handler Logs. Sie können wählen zwischen der Begrenzung nach Anzahl (behalte die X neuesten Einträge) oder nach Alter (lösche Einträge älter als X Tage). Die Bereinigung läuft automatisch im konfigurierten Intervall.

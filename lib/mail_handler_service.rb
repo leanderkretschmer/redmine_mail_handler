@@ -749,9 +749,9 @@ class MailHandlerService
     
     # Prüfe ob E-Mail ignoriert werden soll
     if should_ignore_email?(from_address)
-      @logger.info("Mail from #{from_address} matches ignore pattern, moving to deferred")
-      defer_message(imap, msg_id, mail, 'ignored')
-      return # Nicht archivieren, da zurückgestellt
+      @logger.info("Mail from #{from_address} matches ignore pattern, moving to ignored folder")
+      move_to_ignored_folder(imap, msg_id, mail)
+      return # Nicht archivieren
     end
     
     # Extrahiere Ticket-ID aus Betreff
@@ -1503,6 +1503,56 @@ class MailHandlerService
     end
   end
 
+  # Verschiebe Nachricht in Ignored-Ordner (für Blacklist-Treffer)
+  def move_to_ignored_folder(imap, msg_id, mail = nil)
+    ignored_folder = @settings['ignored_folder'] || 'Ignored'
+    return if ignored_folder.blank?
+
+    begin
+      # Prüfe ob die Message-ID noch gültig ist
+      uid_data = imap.fetch(msg_id, 'UID')
+      unless uid_data && uid_data.first
+        @logger.debug("Message #{msg_id} is invalid or already processed, skipping ignore move")
+        return
+      end
+
+      # Stelle sicher, dass Ignored-Ordner existiert
+      ensure_ignored_folder_exists(imap)
+
+      # Verschiebe die Nachricht
+      imap.move(msg_id, ignored_folder)
+      @logger.info_mail("Successfully moved message #{msg_id} to ignored folder '#{ignored_folder}'", mail)
+
+    rescue Net::IMAP::BadResponseError => e
+      if e.message.include?('Invalid messageset')
+        @logger.debug("Message #{msg_id} already moved or invalid, skipping ignore move")
+      elsif e.message.include?('TRYCREATE')
+        @logger.info("Ignored folder '#{ignored_folder}' does not exist, creating it...")
+        create_ignored_folder(imap)
+        begin
+          imap.move(msg_id, ignored_folder)
+          @logger.info("Successfully moved message #{msg_id} to newly created ignored folder")
+        rescue => retry_e
+          @logger.error("Failed to move message #{msg_id} to ignored after creating folder: #{retry_e.message}")
+        end
+      elsif e.message.include?('NO MOVE')
+        @logger.warn("IMAP server does not support MOVE command for message #{msg_id}, trying COPY + EXPUNGE to ignored")
+        begin
+          imap.copy(msg_id, ignored_folder)
+          imap.store(msg_id, '+FLAGS', [:Deleted])
+          imap.expunge
+          @logger.info("Successfully copied and deleted message #{msg_id} to ignored folder (fallback method)")
+        rescue => copy_e
+          @logger.error("Fallback ignored move failed for message #{msg_id}: #{copy_e.message}")
+        end
+      else
+        @logger.warn("Failed to move message #{msg_id} to ignored: #{e.message}")
+      end
+    rescue => e
+      @logger.error("Unexpected error moving message #{msg_id} to ignored: #{e.class.name} - #{e.message}")
+    end
+  end
+
   # Verschiebe Nachricht in Zurückgestellt-Ordner
   def defer_message(imap, msg_id, mail, reason = 'unknown_user')
     deferred_folder = @settings['deferred_folder'] || 'Deferred'
@@ -1567,6 +1617,34 @@ class MailHandlerService
       end
     rescue => e
       @logger.warn("Could not check archive folder existence: #{e.message}")
+    end
+  end
+
+  # Stelle sicher, dass der Ignored-Ordner existiert
+  def ensure_ignored_folder_exists(imap)
+    ignored_folder = @settings['ignored_folder'] || 'Ignored'
+    return unless ignored_folder.present?
+
+    begin
+      folders = imap.list('', '*')
+      folder_names = folders.map(&:name)
+      unless folder_names.include?(ignored_folder)
+        @logger.info("Ignored folder '#{ignored_folder}' not found, creating it...")
+        create_ignored_folder(imap)
+      end
+    rescue => e
+      @logger.warn("Could not check ignored folder existence: #{e.message}")
+    end
+  end
+
+  # Erstelle den Ignored-Ordner
+  def create_ignored_folder(imap)
+    ignored_folder = @settings['ignored_folder'] || 'Ignored'
+    begin
+      imap.create(ignored_folder)
+      @logger.info("Created ignored folder '#{ignored_folder}'")
+    rescue => e
+      @logger.error("Failed to create ignored folder '#{ignored_folder}': #{e.message}")
     end
   end
 
