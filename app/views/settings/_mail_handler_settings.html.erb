@@ -60,6 +60,98 @@
   </p>
   
 </div>
+<style>
+.mh-tabs { margin: 10px 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.mh-tabs li { margin: 0; }
+.mh-tabs a { display: inline-block; padding: 6px 10px; border: 1px solid #ddd; border-radius: 3px; text-decoration: none; color: #333; background: #f8f8f8; }
+.mh-tabs a.selected { background: #e9ecef; font-weight: bold; }
+.mh-pager { margin: 10px 0; }
+.mh-pager button.small-button { padding: 4px 8px; }
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Erstelle Tabs/Pagination über Sinnabschnitte
+  var SECTION_TITLES = [
+    'IMAP-Einstellungen',
+    'Zurückgestellte Mails',
+    'SMTP-Einstellungen',
+    'Ticket-Einstellungen',
+    'Reminder-Einstellungen',
+    'Import-Einstellungen',
+    'Benutzer-Erstellung',
+    'E-Mail-Filter',
+    'Parser-Einstellungen',
+    'Entwickler-Einstellungen',
+    'Logging-Einstellungen',
+    'Log-Verwaltung',
+    'Hilfe'
+  ];
+
+  // Finde alle Boxen dieses Partials anhand der H3-Überschriften
+  var allBoxes = Array.from(document.querySelectorAll('.box'));
+  var boxes = allBoxes.filter(function(b) {
+    var h3 = b.querySelector('h3');
+    return h3 && SECTION_TITLES.indexOf(h3.textContent.trim()) >= 0;
+  });
+
+  if (boxes.length <= 1) { return; }
+
+  // Tabs UI vor der ersten Box einfügen
+  var tabsContainer = document.createElement('ul');
+  tabsContainer.className = 'mh-tabs';
+  boxes[0].parentNode.insertBefore(tabsContainer, boxes[0]);
+
+  // Pager unter Tabs
+  var pager = document.createElement('div');
+  pager.className = 'mh-pager';
+  var prevBtn = document.createElement('button');
+  prevBtn.textContent = '← Zurück';
+  prevBtn.className = 'small-button';
+  var nextBtn = document.createElement('button');
+  nextBtn.textContent = 'Weiter →';
+  nextBtn.className = 'small-button';
+  nextBtn.style.marginLeft = '8px';
+  tabsContainer.parentNode.insertBefore(pager, tabsContainer.nextSibling);
+  pager.appendChild(prevBtn);
+  pager.appendChild(nextBtn);
+
+  var currentIndex = 0;
+
+  function showSection(i) {
+    currentIndex = i;
+    boxes.forEach(function(b, idx) { b.style.display = (idx === i) ? 'block' : 'none'; });
+    Array.from(tabsContainer.querySelectorAll('a')).forEach(function(a, idx) {
+      a.className = (idx === i) ? 'selected' : '';
+    });
+    prevBtn.disabled = (i === 0);
+    nextBtn.disabled = (i === boxes.length - 1);
+    location.hash = '#mh-tab-' + i;
+  }
+
+  // Baue Tabs
+  boxes.forEach(function(box, idx) {
+    var title = box.querySelector('h3');
+    var label = title ? title.textContent.trim() : ('Abschnitt ' + (idx+1));
+    var li = document.createElement('li');
+    var a = document.createElement('a');
+    a.href = '#mh-tab-' + idx;
+    a.textContent = label;
+    a.addEventListener('click', function(ev) { ev.preventDefault(); showSection(idx); });
+    li.appendChild(a);
+    tabsContainer.appendChild(li);
+  });
+
+  prevBtn.addEventListener('click', function(){ showSection(Math.max(0, currentIndex - 1)); });
+  nextBtn.addEventListener('click', function(){ showSection(Math.min(boxes.length - 1, currentIndex + 1)); });
+
+  // Initiale Auswahl via Hash
+  if (location.hash && location.hash.match(/^#mh-tab-\d+$/)) {
+    currentIndex = parseInt(location.hash.replace('#mh-tab-', ''), 10) || 0;
+    currentIndex = Math.max(0, Math.min(boxes.length - 1, currentIndex));
+  }
+  showSection(currentIndex);
+});
+</script>
 
 <div class="box tabular settings">
   <h3>Zurückgestellte Mails</h3>
