@@ -67,8 +67,11 @@ require File.expand_path('../lib/mail_handler_logger', __FILE__)
 require File.expand_path('../lib/mail_handler_hooks', __FILE__)
 
 # Initialisiere Scheduler nach Plugin-Load
+# Ab Redmine Mail Handler v0.3.x: Scheduler nicht mehr automatisch im Web-Prozess starten.
+# Falls gewünscht, kann ein Embedded-Start explizit per ENV aktiviert werden:
+#   MAIL_HANDLER_EMBEDDED=1
 Rails.application.config.after_initialize do
-  if Setting.plugin_redmine_mail_handler['auto_import_enabled'] == '1'
+  if ENV['MAIL_HANDLER_EMBEDDED'] == '1' && Setting.plugin_redmine_mail_handler['auto_import_enabled'] == '1'
     MailHandlerScheduler.start
   end
 end

@@ -429,7 +429,12 @@ document.addEventListener('DOMContentLoaded', function() {
   
   <p>
     <label for="settings_auto_import_enabled">Automatischer Import aktiviert:</label>
-    <%= check_box_tag 'settings[auto_import_enabled]', '1', @settings['auto_import_enabled'] == '1' %>
+    <% receiving_env = ENV['WITH_EMAIL_RECEIVING'].to_s.strip.downcase %>
+    <% receiving_enabled = (receiving_env == 'true' || receiving_env == '1' || receiving_env == 'yes') %>
+    <%= check_box_tag 'settings[auto_import_enabled]', '1', @settings['auto_import_enabled'] == '1', :disabled => !receiving_enabled, :title => (!receiving_enabled ? 'Deaktiviert: Setze WITH_EMAIL_RECEIVING=true im Docker-Compose' : '') %>
+    <% unless receiving_enabled %>
+      <em class="info" style="color:#a00;">Deaktiviert: Setze Umgebungsvariable WITH_EMAIL_RECEIVING=true (oder 1) im Docker-Compose, um den Import zu aktivieren.</em>
+    <% end %>
   </p>
   
   <p>

@@ -4,6 +4,10 @@ class MailHandlerAdminController < ApplicationController
 
   def index
     @settings = Setting.plugin_redmine_mail_handler
+    @with_email_receiving = begin
+      env = ENV['WITH_EMAIL_RECEIVING'].to_s.strip.downcase
+      (env == 'true' || env == '1' || env == 'yes')
+    end
     @scheduler_running = MailHandlerScheduler.running?
     @load_balanced_enabled = @settings['load_balanced_enabled'] == '1'
     @load_balanced_interval = @settings['load_balanced_interval'] || '5'

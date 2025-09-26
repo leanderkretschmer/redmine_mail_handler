@@ -8,6 +8,13 @@ class MailHandlerScheduler
     return if @@scheduler && @@scheduler.up?
     
     @@logger = MailHandlerLogger.new
+    # Verhindere Start, wenn E-Mail-Empfang via ENV deaktiviert ist
+    env_flag = ENV['WITH_EMAIL_RECEIVING'].to_s.strip.downcase
+    receiving_enabled = (env_flag == 'true' || env_flag == '1' || env_flag == 'yes')
+    unless receiving_enabled
+      @@logger.info("Scheduler not started: WITH_EMAIL_RECEIVING is not enabled (set to true/1)")
+      return false
+    end
     
     # Validiere IMAP-Konfiguration vor dem Start
     unless valid_imap_configuration?

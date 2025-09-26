@@ -85,11 +85,14 @@ namespace :redmine do
     desc 'Send test reminder'
 
     
-    desc 'Start scheduler'
+    desc 'Start scheduler (foreground)'
     task :start_scheduler => :environment do
-      puts "Starting Mail Handler Scheduler..."
+      puts "Starting Mail Handler Scheduler (foreground)..."
       MailHandlerScheduler.start
-      puts "Scheduler started."
+      puts "Scheduler started. Press CTRL+C to stop."
+      trap('INT') { MailHandlerScheduler.stop; puts "\nScheduler stopped."; exit }
+      trap('TERM') { MailHandlerScheduler.stop; puts "\nScheduler stopped."; exit }
+      sleep 1 while MailHandlerScheduler.running?
     end
     
     desc 'Stop scheduler'
@@ -108,27 +111,9 @@ namespace :redmine do
       end
     end
     
-    desc 'Cleanup old logs (older than 30 days)'
-    task :cleanup_logs => :environment do
-      puts "Cleaning up old logs..."
-      
-      count = MailHandlerLog.where('created_at < ?', 30.days.ago).count
-      MailHandlerLogger.cleanup_old_logs
-      
-      puts "Cleaned up #{count} old log entries."
-    end
+    # DB-Log Cleanup entfernt (Logging erfolgt über Rails-Logdatei)
     
-    desc 'Show recent logs'
-    task :show_logs, [:limit] => :environment do |task, args|
-      limit = args[:limit]&.to_i || 20
-      
-      puts "Recent #{limit} log entries:"
-      puts "-" * 80
-      
-      MailHandlerLog.recent.limit(limit).each do |log|
-        puts "[#{log.formatted_time}] #{log.level.upcase}: #{log.message}"
-      end
-    end
+    # DB-Log Anzeige entfernt
     
     desc 'List available IMAP folders'
     task :list_folders => :environment do
@@ -173,8 +158,7 @@ namespace :redmine do
       puts "Reminders: #{settings['reminder_enabled'] == '1' ? "Enabled (#{settings['reminder_time']})" : 'Disabled'}"
       puts "IMAP Host: #{settings['imap_host'].present? ? settings['imap_host'] : 'Not configured'}"
       puts "Log Level: #{settings['log_level']}"
-      puts "Total Logs: #{MailHandlerLog.count}"
-      puts "Logs Today: #{MailHandlerLog.today.count}"
+      # Logs sind im Rails-Log einsehbar
     end
   end
 end
