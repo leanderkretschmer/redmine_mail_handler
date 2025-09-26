@@ -159,25 +159,64 @@ class MailHandlerLogger
     entries = []
     lines.each do |ln|
       next unless ln.include?("[MailHandler]")
+
+      parsed = nil
+
+      # Format A: I, [2025-09-26 07:59:38 +0200 #1234]  INFO -- : [MailHandler] Message
       if ln =~ /(\w), \[(.*?)\s[^\]]*\]\s+(\w+)\s+--\s+:\s+\[MailHandler\]\s+(.*)$/
         timestamp_str = $2
-        level_str = $3.downcase
+        level_str = $3
         message_str = $4.strip
-        timestamp = Time.parse(timestamp_str) rescue Time.current
-        level = case level_str
-                when 'debug' then 'debug'
-                when 'info'  then 'info'
-                when 'warn', 'warning' then 'warn'
-                when 'error', 'fatal' then 'error'
-                else 'info'
-                end
-        entries << OpenStruct.new(
-          id: (timestamp.to_f.to_s + message_str.hash.to_s),
-          level: level,
-          message: message_str,
-          created_at: timestamp
-        )
+        parsed = [timestamp_str, level_str, message_str]
       end
+
+      # Format B: [2025-09-26 07:59:38 +0200] INFO -- : [MailHandler] Message
+      if parsed.nil? && ln =~ /^\[(.*?)\]\s+(\w+)\s+--\s*:\s*\[MailHandler\]\s+(.*)$/
+        timestamp_str = $1
+        level_str = $2
+        message_str = $3.strip
+        parsed = [timestamp_str, level_str, message_str]
+      end
+
+      # Format C: 2025-09-26 07:59:38 INFO [MailHandler] Message (tagged logging)
+      if parsed.nil? && ln =~ /^(\d{4}-\d{2}-\d{2}[ T][^ ]+)\s+(\w+)\b.*?\[MailHandler\]\s+(.*)$/
+        timestamp_str = $1
+        level_str = $2
+        message_str = $3.strip
+        parsed = [timestamp_str, level_str, message_str]
+      end
+
+      # Format D: INFO -- : [MailHandler] Message (ohne Timestamp)
+      if parsed.nil? && ln =~ /^(\w+)\s+--\s*:\s*\[MailHandler\]\s+(.*)$/
+        level_str = $1
+        message_str = $2.strip
+        parsed = [Time.current.to_s, level_str, message_str]
+      end
+
+      # Fallback: alles nach Tag übernehmen
+      if parsed.nil?
+        parts = ln.split('[MailHandler]')
+        message_str = parts.last.to_s.strip
+        parsed = [Time.current.to_s, 'INFO', message_str]
+      end
+
+      timestamp = Time.parse(parsed[0]) rescue Time.current
+      level = parsed[1].to_s.downcase
+      level = case level
+              when 'debug', 'd' then 'debug'
+              when 'info', 'i'  then 'info'
+              when 'warn', 'warning', 'w' then 'warn'
+              when 'error', 'fatal', 'e', 'f' then 'error'
+              else 'info'
+              end
+      message_str = parsed[2]
+
+      entries << OpenStruct.new(
+        id: (timestamp.to_f.to_s + message_str.hash.to_s),
+        level: level,
+        message: message_str,
+        created_at: timestamp
+      )
     end
 
     entries.sort_by { |e| -e.created_at.to_f }
