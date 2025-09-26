@@ -70,6 +70,8 @@ class MailHandlerService
       end
 
       @logger.info("Processed #{processed_count} messages successfully")
+      # Hinweis: Deduplizierungs-Cache regelmäßig aufräumen
+      cleanup_processed_cache_if_needed
       
       # Automatische Log-Bereinigung nach Mail-Import
       MailHandlerLog.run_scheduled_cleanup
@@ -747,7 +749,7 @@ class MailHandlerService
       return # Nicht archivieren
     end
 
-    # Prüfe auf Duplikate basierend auf Message-ID (wenn aktiviert)
+    # Prüfe auf Duplikate (Message-ID oder Inhalts-Fingerprint)
     if @settings['deduplication_enabled'] == '1' && is_duplicate_mail?(mail)
       @logger.info_mail("Skipping duplicate mail based on Message-ID: #{mail.message_id}", mail)
       archive_message(imap, msg_id, mail)
@@ -787,6 +789,11 @@ class MailHandlerService
     # Mail archivieren (move() markiert automatisch als gelesen)
     # Wichtig: move() macht die Message-ID ungültig, daher zuerst archivieren
     archive_message(imap, msg_id, mail)
+
+    # Deduplizierungsmarke setzen (Message-ID und Fingerprint merken)
+    if @settings['deduplication_enabled'] == '1'
+      remember_processed_mail(mail)
+    end
   end
 
   # Extrahiere Ticket-ID aus Betreff
@@ -2169,23 +2176,73 @@ class MailHandlerService
 
   # Prüfe ob eine Mail bereits verarbeitet wurde (Deduplizierung)
   def is_duplicate_mail?(mail)
-    return false if mail.message_id.blank?
-    
-    # Prüfe in MailHandlerLog ob diese Message-ID bereits verarbeitet wurde
-    existing_log = MailHandlerLog.where(mail_message_id: mail.message_id).first
-    
-    if existing_log
-      @logger.debug("Found duplicate mail in logs: Message-ID #{mail.message_id} was processed at #{existing_log.created_at}")
+    # 1) Exakte Message-ID falls vorhanden
+    if mail.message_id.present?
+      if processed_cache_include?(:message_id, mail.message_id)
+        @logger.debug("Duplicate by processed cache (Message-ID): #{mail.message_id}")
+        return true
+      end
+    end
+
+    # 2) Inhaltlicher Fingerprint (gegen BCC-Duplikate in Gesendet/Eingang)
+    fingerprint = compute_mail_fingerprint(mail)
+    if processed_cache_include?(:fingerprint, fingerprint)
+      @logger.debug("Duplicate by fingerprint: #{fingerprint}")
       return true
     end
-    
-    # Prüfe in deferred Ordner ob diese Message-ID bereits zurückgestellt wurde
-    if mail_already_deferred?(mail.message_id)
-      @logger.debug("Found duplicate mail in deferred folder: Message-ID #{mail.message_id}")
-      return true
-    end
-    
+
     false
+  end
+
+  # --- Deduplikations-Helfer (pro Prozess) ---
+  def processed_cache
+    @processed_cache ||= { message_id: {}, fingerprint: {} }
+  end
+
+  def processed_cache_include?(type, key)
+    return false if key.blank?
+    entry = processed_cache[type][key]
+    return false unless entry
+    # Ablauf nach 48h
+    entry[:seen_at] > 48.hours.ago
+  end
+
+  def remember_processed_mail(mail)
+    now = Time.current
+    if mail.message_id.present?
+      processed_cache[:message_id][mail.message_id] = { seen_at: now }
+    end
+    fp = compute_mail_fingerprint(mail)
+    processed_cache[:fingerprint][fp] = { seen_at: now } if fp.present?
+  end
+
+  def cleanup_processed_cache_if_needed
+    @last_cache_cleanup ||= Time.at(0)
+    return if Time.current - @last_cache_cleanup < 10.minutes
+    cutoff = 48.hours.ago
+    processed_cache[:message_id].delete_if { |_, v| v[:seen_at] < cutoff }
+    processed_cache[:fingerprint].delete_if { |_, v| v[:seen_at] < cutoff }
+    @last_cache_cleanup = Time.current
+  end
+
+  def compute_mail_fingerprint(mail)
+    begin
+      from = mail.from&.first.to_s.downcase.strip
+      to   = Array(mail.to).map { |a| a.to_s.downcase.strip }.sort.join(',')
+      cc   = Array(mail.cc).map { |a| a.to_s.downcase.strip }.sort.join(',')
+      subj = (mail.subject || '').to_s.strip
+      # Nur stabile Teile des Inhalts nutzen (Plain/Text repräsentation)
+      body = if mail.multipart? && mail.text_part
+               ensure_utf8_encoding(mail.text_part.decoded).gsub(/\s+/, ' ')
+             else
+               ensure_utf8_encoding(mail.decoded).gsub(/\s+/, ' ')
+             end
+      body = body[0, 2000] # begrenzen
+      Digest::SHA256.hexdigest([from, to, cc, subj, body].join('|'))
+    rescue => e
+      @logger.debug("Fingerprint failed: #{e.message}")
+      nil
+    end
   end
 
   # Alias für Rückwärtskompatibilität
