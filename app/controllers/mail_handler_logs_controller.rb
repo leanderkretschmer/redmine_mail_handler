@@ -8,10 +8,13 @@ class MailHandlerLogsController < ApplicationController
     @page = [params[:page].to_i, 1].max
     
     # Basis Query (geordnet, ggf. gefiltert)
-    logs_query = MailHandlerLog.by_level(params[:level]).recent
+    all_logs = MailHandlerLogger.read_logs(max_lines: 5000)
+    # Level-Filter anwenden
+    level = params[:level]
+    all_logs.select! { |e| e.level == level } if level.present?
     
     # Gruppiere aufeinanderfolgende identische Logs (Level + Message)
-    grouped = group_consecutive_logs(logs_query)
+    grouped = group_consecutive_logs(all_logs)
 
     # Gesamtanzahl nach Gruppierung
     @total_count = grouped.length
@@ -40,9 +43,10 @@ class MailHandlerLogsController < ApplicationController
   end
 
   def export
-    logs_query = MailHandlerLog.by_level(params[:level]).recent
-    
-    @logs = logs_query.limit(1000)
+    raw = MailHandlerLogger.read_logs(max_lines: 10000)
+    level = params[:level]
+    raw.select! { |e| e.level == level } if level.present?
+    @logs = raw.first(1000)
     
     respond_to do |format|
       format.csv do
@@ -56,15 +60,15 @@ class MailHandlerLogsController < ApplicationController
 
   private
   # Baut gruppierte Log-Objekte (aufeinanderfolgende identische Einträge)
-  def group_consecutive_logs(relation)
+  def group_consecutive_logs(raw_logs)
     require 'ostruct'
-
-    raw_logs = relation.to_a # bereits sortiert: neueste zuerst
+    raw_logs = raw_logs.to_a # bereits sortiert: neueste zuerst
     groups = []
     current = nil
 
     raw_logs.each do |log|
-      if current && log.level == current[:level] && log.message == current[:message]
+      normalized = normalize_message_for_grouping(log.message)
+      if current && log.level == current[:level] && normalized == current[:normalized_message]
         current[:count] += 1
         current[:min_time] = log.created_at if log.created_at < current[:min_time]
         current[:max_time] = log.created_at if log.created_at > current[:max_time]
@@ -74,6 +78,7 @@ class MailHandlerLogsController < ApplicationController
         current = {
           level: log.level,
           message: log.message,
+          normalized_message: normalized,
           count: 1,
           min_time: log.created_at,
           max_time: log.created_at,
@@ -91,11 +96,18 @@ class MailHandlerLogsController < ApplicationController
         level: g[:level],
         level_icon: level_icon_for(g[:level]),
         level_color: level_color_for(g[:level]),
-        message: g[:count] > 1 ? "#{g[:message]} (x#{g[:count]})" : g[:message],
+        message: g[:count] > 1 ? "#{g[:normalized_message]} (x#{g[:count]})" : g[:message],
         has_mail_details?: false,
         formatted_time: formatted_time_range(g[:min_time], g[:max_time], g[:count])
       )
     end
+  end
+
+  # Entfernt variable Dauer-Anhänge am Ende der Nachricht für die Gruppierung
+  def normalize_message_for_grouping(message)
+    return '' if message.nil?
+    # Beispiel: "Mail Import Session abgeschlossen (Dauer: 30.05s)" -> "Mail Import Session abgeschlossen"
+    message.to_s.sub(/\s*\(Dauer:\s*[^\)]*\)\s*$/, '')
   end
 
   def formatted_time_range(min_time, max_time, count)
