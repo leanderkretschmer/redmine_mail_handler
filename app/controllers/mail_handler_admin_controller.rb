@@ -10,10 +10,8 @@ class MailHandlerAdminController < ApplicationController
     @max_parallel_imports = @settings['max_parallel_imports'] || '3'
     @import_batch_size = @settings['import_batch_size'] || '50'
     @worker_timeout = @settings['worker_timeout'] || '300'
-    # Letzte Logs aus Rails-Logdatei lesen und deduplizieren
-    raw = MailHandlerLogger.read_logs(max_lines: 5000)
-    grouped = group_consecutive_logs(raw)
-    @recent_logs = grouped.first(10)
+    # Log-Vorschau entfernt – Logging nur im Terminal/Rails-Log
+    @recent_logs = []
     
     # Load Balancing Counter
     @mails_per_hour = (@settings['mails_per_hour'] || '60').to_i
@@ -227,14 +225,14 @@ class MailHandlerAdminController < ApplicationController
   end
 
   def clear_logs
-    # File-basiertes Logging: kein DB-Clear. Hinweis anzeigen.
-    flash[:notice] = "File-basiertes Logging aktiv – keine DB-Logs zu löschen."
+    # Entfernt – Logging nur im Terminal
+    flash[:notice] = "Logging erfolgt im Terminal – keine Logs zu löschen."
     redirect_to action: :index
   end
 
   def cleanup_old_logs
-    # File-basiertes Logging: keine DB-Logs aufzuräumen. Hinweis anzeigen.
-    flash[:notice] = "File-basiertes Logging aktiv – Aufräumen nicht erforderlich."
+    # Entfernt – Logging nur im Terminal
+    flash[:notice] = "Logging erfolgt im Terminal – Aufräumen nicht erforderlich."
     redirect_to action: :index
   end
 
@@ -466,78 +464,5 @@ class MailHandlerAdminController < ApplicationController
     Time.current.beginning_of_hour + 1.hour
   end
 
-  # --- Logging-Gruppierung wie in Logs-Controller ---
-  def group_consecutive_logs(raw_logs)
-    require 'ostruct'
-    list = raw_logs.to_a
-    groups = []
-    current = nil
-
-    list.each do |log|
-      normalized = normalize_message_for_grouping(log.message)
-      if current && log.level == current[:level] && normalized == current[:normalized_message]
-        current[:count] += 1
-        current[:min_time] = log.created_at if log.created_at < current[:min_time]
-        current[:max_time] = log.created_at if log.created_at > current[:max_time]
-        current[:last_id] = log.id
-      else
-        groups << current if current
-        current = {
-          level: log.level,
-          message: log.message,
-          normalized_message: normalized,
-          count: 1,
-          min_time: log.created_at,
-          max_time: log.created_at,
-          first_id: log.id,
-          last_id: log.id
-        }
-      end
-    end
-    groups << current if current
-
-    groups.map do |g|
-      OpenStruct.new(
-        id: g[:first_id],
-        level: g[:level],
-        level_icon: level_icon_for(g[:level]),
-        level_color: level_color_for(g[:level]),
-        message: g[:count] > 1 ? "#{g[:normalized_message]} (x#{g[:count]})" : g[:message],
-        formatted_time: formatted_time_range(g[:min_time], g[:max_time], g[:count])
-      )
-    end
-  end
-
-  def normalize_message_for_grouping(message)
-    return '' if message.nil?
-    message.to_s.sub(/\s*\(Dauer:\s*[^\)]*\)\s*$/, '')
-  end
-
-  def formatted_time_range(min_time, max_time, count)
-    if count > 1
-      "#{min_time.strftime('%d.%m.%Y %H:%M:%S')} – #{max_time.strftime('%d.%m.%Y %H:%M:%S')}"
-    else
-      max_time.strftime('%d.%m.%Y %H:%M:%S')
-    end
-  end
-
-  def level_icon_for(level)
-    case level
-    when 'debug' then 'icon-info'
-    when 'info'  then 'icon-ok'
-    when 'warn'  then 'icon-warning'
-    when 'error' then 'icon-error'
-    else 'icon-info'
-    end
-  end
-
-  def level_color_for(level)
-    case level
-    when 'debug' then 'gray'
-    when 'info'  then 'blue'
-    when 'warn'  then 'orange'
-    when 'error' then 'red'
-    else 'black'
-    end
-  end
+  # Logging-Helfer entfernt
 end

@@ -2,9 +2,7 @@
   <%= stylesheet_link_tag 'mail_handler', :plugin => 'redmine_mail_handler' %>
 <% end %>
 
-<div class="contextual">
-  <%= link_to 'Logs anzeigen', { :controller => 'mail_handler_logs', :action => 'index' }, :class => 'icon icon-list' %>
-</div>
+<div class="contextual"></div>
 
 <h2>Mail Handler Administration</h2>
 
@@ -180,45 +178,9 @@
   <% end %>
 </div>
 
-<div class="box">
-  <h3>Log-Verwaltung</h3>
-  <p>Verwalten Sie die Plugin-Logs:</p>
-  <p>
-    <%= link_to 'Alle Logs anzeigen', { :controller => 'mail_handler_logs', :action => 'index' }, :class => 'icon icon-list' %>
-    <%= link_to 'Alte Logs löschen (>30 Tage)', { :action => 'cleanup_old_logs' }, :method => :post, :class => 'icon icon-del', :confirm => 'Sind Sie sicher?' %>
-    <%= link_to 'Alle Logs löschen', { :action => 'clear_logs' }, :method => :post, :class => 'icon icon-del', :confirm => 'Sind Sie sicher, dass Sie alle Logs löschen möchten?' %>
-  </p>
-</div>
+<!-- Log-Verwaltung entfernt: Logging erfolgt ausschließlich im Terminal/Rails-Log -->
 
-<% if @recent_logs.any? %>
-<div class="box">
-  <h3>Aktuelle Import-Logs (letzte 10 Einträge)</h3>
-  <table class="list logs">
-    <thead>
-      <tr>
-        <th>Zeit</th>
-        <th>Level</th>
-        <th>Nachricht</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% @recent_logs.each do |log| %>
-        <tr class="log-<%= log.level %>">
-          <td class="log-time"><%= log.formatted_time %></td>
-          <td class="log-level">
-            <span class="<%= log.level_icon %>" style="color: <%= log.level_color %>"></span>
-            <%= log.level.upcase %>
-          </td>
-          <td class="log-message"><%= truncate(log.message, length: 100) %></td>
-        </tr>
-      <% end %>
-    </tbody>
-  </table>
-  <p class="pagination">
-    <%= link_to 'Alle Import-Logs anzeigen →', { :controller => 'mail_handler_logs', :action => 'index' } %>
-  </p>
-</div>
-<% end %>
+<!-- Kurzübersicht der Logs entfernt -->
 
 
 

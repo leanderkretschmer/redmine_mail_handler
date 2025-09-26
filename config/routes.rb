@@ -16,8 +16,6 @@ RedmineApp::Application.routes.draw do
         post :toggle_scheduler
         post :restart_scheduler
         post :toggle_load_balancing
-        post :clear_logs
-        post :cleanup_old_logs
         post :get_imap_folders
         post :process_deferred
         post :create_user_from_mail
@@ -26,12 +24,6 @@ RedmineApp::Application.routes.draw do
         delete :delete_anonymous_comments
         delete :delete_orphaned_attachments
       get :deferred_status
-      end
-    end
-    
-    resources :mail_handler_logs, :only => [:index, :show] do
-      collection do
-        get :export
       end
     end
   end
