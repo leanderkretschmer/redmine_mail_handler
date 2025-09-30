@@ -179,6 +179,71 @@ class MailHandlerAdminController < ApplicationController
     redirect_to action: :index
   end
 
+  def deferred_mails
+    begin
+      # Hole alle Mails aus dem deferred Ordner
+      @deferred_mails = get_deferred_mails_from_imap
+      @total_count = @deferred_mails.length
+      
+      # Pagination
+      @page = (params[:page] || 1).to_i
+      @per_page = (params[:per_page] || 25).to_i
+      @per_page_options = valid_per_page_options
+      
+      # Berechne Pagination
+      @total_pages = (@total_count.to_f / @per_page).ceil
+      offset = (@page - 1) * @per_page
+      @deferred_mails = @deferred_mails[offset, @per_page] || []
+      
+    rescue => e
+      @deferred_mails = []
+      @total_count = 0
+      @total_pages = 0
+      @page = 1
+      @per_page = 25
+      @per_page_options = valid_per_page_options
+      flash[:error] = "Fehler beim Laden der zurückgestellten E-Mails: #{e.message}"
+    end
+  end
+
+  def rescan_deferred_mails
+    selected_ids = params[:selected_ids] || []
+    
+    if selected_ids.empty?
+      flash[:error] = "Bitte wählen Sie mindestens eine E-Mail aus."
+      redirect_to action: :deferred_mails
+      return
+    end
+    
+    begin
+      processed_count = rescan_selected_mails(selected_ids)
+      flash[:notice] = "#{processed_count} E-Mails wurden erfolgreich neu gescannt."
+    rescue => e
+      flash[:error] = "Fehler beim Neu-Scannen: #{e.message}"
+    end
+    
+    redirect_to action: :deferred_mails
+  end
+
+  def archive_deferred_mails
+    selected_ids = params[:selected_ids] || []
+    
+    if selected_ids.empty?
+      flash[:error] = "Bitte wählen Sie mindestens eine E-Mail aus."
+      redirect_to action: :deferred_mails
+      return
+    end
+    
+    begin
+      archived_count = archive_selected_mails(selected_ids)
+      flash[:notice] = "#{archived_count} E-Mails wurden erfolgreich archiviert."
+    rescue => e
+      flash[:error] = "Fehler beim Archivieren: #{e.message}"
+    end
+    
+    redirect_to action: :deferred_mails
+  end
+
   def deferred_status
     begin
       # Hole Statistiken aus IMAP-Ordner
@@ -261,9 +326,53 @@ class MailHandlerAdminController < ApplicationController
   end
 
   def create_user_from_mail
-    # Diese Funktion ist nicht mehr verfügbar, da keine einzelnen deferred Einträge mehr angezeigt werden
-    flash[:error] = "Diese Funktion ist nicht mehr verfügbar. Benutzer können über die normale Redmine-Benutzerverwaltung erstellt werden."
-    redirect_to action: :deferred_status
+    message_id = params[:message_id]
+    
+    if message_id.blank?
+      flash[:error] = "Keine Message-ID angegeben."
+      redirect_to action: :deferred_mails
+      return
+    end
+    
+    begin
+      # Hole die Mail aus dem deferred Ordner
+      mail = get_mail_by_message_id(message_id)
+      
+      if mail.nil?
+        flash[:error] = "E-Mail mit Message-ID #{message_id} nicht gefunden."
+        redirect_to action: :deferred_mails
+        return
+      end
+      
+      from_address = mail.from&.first
+      if from_address.blank?
+        flash[:error] = "Keine Absender-Adresse in der E-Mail gefunden."
+        redirect_to action: :deferred_mails
+        return
+      end
+      
+      # Prüfe ob Benutzer bereits existiert
+      existing_user = @service.find_existing_user(from_address)
+      if existing_user
+        flash[:notice] = "Benutzer für #{from_address} existiert bereits."
+        redirect_to action: :deferred_mails
+        return
+      end
+      
+      # Erstelle neuen Benutzer
+      new_user = @service.create_new_user(from_address)
+      
+      if new_user
+        flash[:notice] = "Benutzer für #{from_address} wurde erfolgreich erstellt und ist gesperrt. Aktivieren Sie den Benutzer in der Benutzerverwaltung."
+      else
+        flash[:error] = "Fehler beim Erstellen des Benutzers für #{from_address}."
+      end
+      
+    rescue => e
+      flash[:error] = "Fehler beim Erstellen des Benutzers: #{e.message}"
+    end
+    
+    redirect_to action: :deferred_mails
   end
 
   def process_deferred_mail
@@ -453,7 +562,147 @@ class MailHandlerAdminController < ApplicationController
   def init_service
     @service = MailHandlerService.new
   end
-  
+
+  def get_mail_by_message_id(message_id)
+    imap = @service.connect_to_imap
+    return nil unless imap
+
+    begin
+      deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
+      
+      # Prüfe ob Ordner existiert
+      begin
+        imap.select(deferred_folder)
+      rescue Net::IMAP::NoResponseError
+        return nil
+      end
+
+      msg_ids = imap.search(['ALL'])
+
+      msg_ids.each do |msg_id|
+        begin
+          msg_data = imap.fetch(msg_id, 'RFC822')[0].attr['RFC822']
+          next if msg_data.blank?
+
+          mail = Mail.read_from_string(msg_data)
+          next if mail.nil?
+
+          return mail if mail.message_id == message_id
+        rescue => e
+          Rails.logger.warn("Failed to process message #{msg_id}: #{e.message}")
+          next
+        end
+      end
+
+      nil
+    ensure
+      imap&.disconnect
+    end
+  end
+
+  def get_deferred_mails_from_imap
+    imap = @service.connect_to_imap
+    return [] unless imap
+
+    begin
+      deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
+      
+      # Prüfe ob Ordner existiert
+      begin
+        imap.select(deferred_folder)
+      rescue Net::IMAP::NoResponseError
+        return []
+      end
+
+      msg_ids = imap.search(['ALL'])
+      mails = []
+
+      msg_ids.each do |msg_id|
+        begin
+          msg_data = imap.fetch(msg_id, 'RFC822')[0].attr['RFC822']
+          next if msg_data.blank?
+
+          mail = Mail.read_from_string(msg_data)
+          next if mail.nil?
+
+          # Hole Deferred-Informationen
+          deferred_info = @service.get_mail_deferred_info(mail)
+          
+          mail_data = {
+            id: msg_id,
+            message_id: mail.message_id,
+            from: mail.from&.first,
+            subject: mail.subject,
+            date: mail.date,
+            deferred_at: deferred_info&.[](:deferred_at),
+            expires_at: deferred_info&.[](:expires_at),
+            reason: deferred_info&.[](:reason),
+            expired: deferred_info ? @service.mail_deferred_expired?(mail) : false
+          }
+          
+          mails << mail_data
+        rescue => e
+          Rails.logger.warn("Failed to process deferred message #{msg_id}: #{e.message}")
+          next
+        end
+      end
+
+      mails.sort_by { |m| m[:deferred_at] || Time.current }.reverse
+    ensure
+      imap&.disconnect
+    end
+  end
+
+  def rescan_selected_mails(selected_ids)
+    imap = @service.connect_to_imap
+    return 0 unless imap
+
+    begin
+      deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
+      imap.select(deferred_folder)
+      
+      processed_count = 0
+      
+      selected_ids.each do |msg_id|
+        begin
+          result = @service.process_deferred_message(imap, msg_id.to_i)
+          processed_count += 1 if result == :processed
+        rescue => e
+          Rails.logger.error("Failed to rescan message #{msg_id}: #{e.message}")
+        end
+      end
+      
+      processed_count
+    ensure
+      imap&.disconnect
+    end
+  end
+
+  def archive_selected_mails(selected_ids)
+    imap = @service.connect_to_imap
+    return 0 unless imap
+
+    begin
+      deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
+      imap.select(deferred_folder)
+      
+      archived_count = 0
+      
+      selected_ids.each do |msg_id|
+        begin
+          @service.archive_message(imap, msg_id.to_i)
+          archived_count += 1
+        rescue => e
+          Rails.logger.error("Failed to archive message #{msg_id}: #{e.message}")
+        end
+      end
+      
+      archived_count
+    ensure
+      imap&.disconnect
+    end
+  end
+
   def get_current_hour_mail_count
     current_hour_start = Time.current.beginning_of_hour
     logs = MailHandlerLogger.read_logs(max_lines: 5000)

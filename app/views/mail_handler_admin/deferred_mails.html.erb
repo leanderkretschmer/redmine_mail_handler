@@ -1,0 +1,201 @@
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag 'mail_handler', :plugin => 'redmine_mail_handler' %>
+  <%= javascript_include_tag 'mail_handler', :plugin => 'redmine_mail_handler' %>
+<% end %>
+
+<div class="contextual">
+  <%= link_to "Zurück zur Übersicht", { :action => 'index' }, :class => 'icon icon-back' %>
+</div>
+
+<h2>Zurückgestellte E-Mails verwalten</h2>
+
+<% if @deferred_mails.empty? %>
+  <div class="nodata">
+    <p>Keine zurückgestellten E-Mails gefunden.</p>
+  </div>
+<% else %>
+  <%= form_tag({ :action => 'rescan_deferred_mails' }, { :method => :post, :id => 'deferred_mails_form' }) do %>
+    
+    <div class="autoscroll">
+      <table class="list deferred-mails">
+        <thead>
+          <tr>
+            <th class="checkbox">
+              <%= check_box_tag 'select_all', '1', false, :onclick => 'toggleAllCheckboxes(this)' %>
+            </th>
+            <th>Von</th>
+            <th>Betreff</th>
+            <th>Zurückgestellt am</th>
+            <th>Läuft ab am</th>
+            <th>Grund</th>
+            <th>Status</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @deferred_mails.each do |mail| %>
+            <tr class="<%= 'expired' if mail[:expired] %>">
+              <td class="checkbox">
+                <%= check_box_tag 'selected_ids[]', mail[:id], false, :class => 'mail-checkbox' %>
+              </td>
+              <td><%= h(mail[:from]) %></td>
+              <td><%= h(mail[:subject]) %></td>
+              <td><%= mail[:deferred_at] ? format_time(mail[:deferred_at]) : '-' %></td>
+              <td><%= mail[:expires_at] ? format_time(mail[:expires_at]) : '-' %></td>
+              <td><%= h(mail[:reason]) %></td>
+              <td>
+                <% if mail[:expired] %>
+                  <span class="status-expired">Abgelaufen</span>
+                <% else %>
+                  <span class="status-active">Aktiv</span>
+                <% end %>
+              </td>
+              <td class="buttons">
+                <%= link_to "Benutzer erstellen", 
+                    { :action => 'create_user_from_mail', :message_id => mail[:message_id] }, 
+                    :method => :post, 
+                    :class => 'icon icon-user',
+                    :title => 'Benutzer aus dieser E-Mail erstellen' %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="bulk-actions">
+      <p>
+        <strong>Ausgewählte E-Mails:</strong>
+        <%= submit_tag "Neu scannen", :name => 'rescan', :class => 'small', :onclick => 'return confirmAction("Möchten Sie die ausgewählten E-Mails wirklich neu scannen?")' %>
+        <%= submit_tag "Archivieren", :name => 'archive', :class => 'small', :onclick => 'return submitArchive()' %>
+      </p>
+    </div>
+
+  <% end %>
+
+  <!-- Pagination -->
+  <% if @total_pages > 1 %>
+    <div class="pagination">
+      <ul>
+        <% if @page > 1 %>
+          <li><%= link_to "« Vorherige", { :page => @page - 1, :per_page => @per_page } %></li>
+        <% end %>
+        
+        <% (1..@total_pages).each do |page| %>
+          <% if page == @page %>
+            <li class="current"><%= page %></li>
+          <% elsif (page - @page).abs <= 2 || page == 1 || page == @total_pages %>
+            <li><%= link_to page, { :page => page, :per_page => @per_page } %></li>
+          <% elsif (page - @page).abs == 3 %>
+            <li>...</li>
+          <% end %>
+        <% end %>
+        
+        <% if @page < @total_pages %>
+          <li><%= link_to "Nächste »", { :page => @page + 1, :per_page => @per_page } %></li>
+        <% end %>
+      </ul>
+      
+      <p class="pagination-info">
+        Zeige <%= (@page - 1) * @per_page + 1 %> bis <%= [@page * @per_page, @total_count].min %> von <%= @total_count %> E-Mails
+      </p>
+    </div>
+  <% end %>
+
+<% end %>
+
+<script type="text/javascript">
+function toggleAllCheckboxes(masterCheckbox) {
+  var checkboxes = document.querySelectorAll('.mail-checkbox');
+  checkboxes.forEach(function(checkbox) {
+    checkbox.checked = masterCheckbox.checked;
+  });
+}
+
+function confirmAction(message) {
+  return confirm(message);
+}
+
+function submitArchive() {
+  if (!confirm('Möchten Sie die ausgewählten E-Mails wirklich archivieren?')) {
+    return false;
+  }
+  
+  // Change form action to archive
+  var form = document.getElementById('deferred_mails_form');
+  form.action = '<%= url_for(:action => 'archive_deferred_mails') %>';
+  return true;
+}
+</script>
+
+<style>
+.deferred-mails {
+  width: 100%;
+}
+
+.deferred-mails th.checkbox,
+.deferred-mails td.checkbox {
+  width: 30px;
+  text-align: center;
+}
+
+.deferred-mails tr.expired {
+  background-color: #ffe6e6;
+}
+
+.status-expired {
+  color: #d00;
+  font-weight: bold;
+}
+
+.status-active {
+  color: #080;
+  font-weight: bold;
+}
+
+.bulk-actions {
+  margin: 15px 0;
+  padding: 10px;
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+}
+
+.pagination {
+  margin: 20px 0;
+}
+
+.pagination ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: inline-block;
+}
+
+.pagination li {
+  display: inline-block;
+  margin: 0 2px;
+}
+
+.pagination li a,
+.pagination li.current {
+  padding: 5px 10px;
+  border: 1px solid #ddd;
+  text-decoration: none;
+}
+
+.pagination li.current {
+  background-color: #007acc;
+  color: white;
+  border-color: #007acc;
+}
+
+.pagination li a:hover {
+  background-color: #f5f5f5;
+}
+
+.pagination-info {
+  margin-top: 10px;
+  font-size: 0.9em;
+  color: #666;
+}
+</style>
