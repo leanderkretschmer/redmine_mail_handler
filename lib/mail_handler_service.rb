@@ -510,6 +510,11 @@ class MailHandlerService
     end
   end
 
+  # Öffentliche Methode für IMAP-Verbindung (für Controller-Zugriff)
+  def get_imap_connection
+    connect_to_imap
+  end
+
   private
 
   # Helper-Methode für Encoding-Behandlung

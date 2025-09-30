@@ -564,7 +564,7 @@ class MailHandlerAdminController < ApplicationController
   end
 
   def get_mail_by_message_id(message_id)
-    imap = @service.connect_to_imap
+    imap = @service.get_imap_connection
     return nil unless imap
 
     begin
@@ -601,7 +601,7 @@ class MailHandlerAdminController < ApplicationController
   end
 
   def get_deferred_mails_from_imap
-    imap = @service.connect_to_imap
+    imap = @service.get_imap_connection
     return [] unless imap
 
     begin
