@@ -606,27 +606,50 @@ class MailHandlerAdminController < ApplicationController
 
     begin
       deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
+      Rails.logger.info("Connecting to deferred folder: #{deferred_folder}")
       
       # Prüfe ob Ordner existiert
       begin
         imap.select(deferred_folder)
-      rescue Net::IMAP::NoResponseError
+        Rails.logger.info("Successfully selected deferred folder: #{deferred_folder}")
+      rescue Net::IMAP::NoResponseError => e
+        Rails.logger.error("Deferred folder not found: #{deferred_folder} - #{e.message}")
         return []
       end
 
       msg_ids = imap.search(['ALL'])
+      Rails.logger.info("Found #{msg_ids.length} messages in deferred folder")
       mails = []
 
       msg_ids.each do |msg_id|
         begin
+          Rails.logger.debug("Processing message ID: #{msg_id}")
           msg_data = imap.fetch(msg_id, 'RFC822')[0].attr['RFC822']
-          next if msg_data.blank?
+          if msg_data.blank?
+            Rails.logger.warn("Message #{msg_id} has no data")
+            next
+          end
 
           mail = Mail.read_from_string(msg_data)
-          next if mail.nil?
+          if mail.nil?
+            Rails.logger.warn("Could not parse mail for message #{msg_id}")
+            next
+          end
+
+          Rails.logger.debug("Processing mail from: #{mail.from&.first}, subject: #{mail.subject}")
 
           # Hole Deferred-Informationen
           deferred_info = @service.get_mail_deferred_info(mail)
+          
+          # Fallback für E-Mails ohne deferred Header (manuell verschoben)
+          if deferred_info.nil?
+            Rails.logger.debug("No deferred header found for message #{msg_id}, using fallback values")
+            deferred_info = {
+              deferred_at: mail.date || Time.current,
+              expires_at: (mail.date || Time.current) + 30.days,
+              reason: 'manual_defer'
+            }
+          end
           
           mail_data = {
             id: msg_id,
@@ -634,20 +657,27 @@ class MailHandlerAdminController < ApplicationController
             from: mail.from&.first,
             subject: mail.subject,
             date: mail.date,
-            deferred_at: deferred_info&.[](:deferred_at),
-            expires_at: deferred_info&.[](:expires_at),
-            reason: deferred_info&.[](:reason),
+            deferred_at: deferred_info[:deferred_at],
+            expires_at: deferred_info[:expires_at],
+            reason: deferred_info[:reason],
             expired: deferred_info ? @service.mail_deferred_expired?(mail) : false
           }
           
           mails << mail_data
+          Rails.logger.debug("Added mail to list: #{mail_data[:from]} - #{mail_data[:subject]}")
         rescue => e
-          Rails.logger.warn("Failed to process deferred message #{msg_id}: #{e.message}")
+          Rails.logger.error("Failed to process deferred message #{msg_id}: #{e.message}")
+          Rails.logger.error("Backtrace: #{e.backtrace.join("\n")}")
           next
         end
       end
 
+      Rails.logger.info("Returning #{mails.length} processed mails")
       mails.sort_by { |m| m[:deferred_at] || Time.current }.reverse
+    rescue => e
+      Rails.logger.error("Error in get_deferred_mails_from_imap: #{e.message}")
+      Rails.logger.error("Backtrace: #{e.backtrace.join("\n")}")
+      []
     ensure
       imap&.disconnect
     end
