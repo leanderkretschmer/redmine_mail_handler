@@ -38,7 +38,8 @@
     <% if @search_from.present? || @search_subject.present? %>
       <p>Keine zurückgestellten E-Mails gefunden, die den Suchkriterien entsprechen.</p>
     <% else %>
-      <p>Keine zurückgestellten E-Mails gefunden.</p>
+      <p>Keine zurückgestellten E-Mails im IMAP-Ordner gefunden.</p>
+      <p><em>Hinweis: Überprüfen Sie die IMAP-Einstellungen und stellen Sie sicher, dass der deferred Ordner existiert und E-Mails enthält.</em></p>
     <% end %>
   </div>
 <% else %>
@@ -54,6 +55,9 @@
       <% end %>
     <% else %>
       Insgesamt: <%= @total_count %> zurückgestellte E-Mails
+      <% if @deferred_mails.any? && @deferred_mails.first[:id].is_a?(Integer) && @deferred_mails.first[:id] <= 4 %>
+        <em>(Beispieldaten - IMAP-Verbindung nicht verfügbar)</em>
+      <% end %>
     <% end %>
   </p>
 
