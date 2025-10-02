@@ -531,6 +531,8 @@ class MailHandlerService
     end
   end
 
+
+
   private
 
   # Helper-Methode für Encoding-Behandlung
@@ -1267,6 +1269,61 @@ class MailHandlerService
       return simple_html_to_text(html_content)
     end
   end
+
+  # Archiviere Nachricht
+  def archive_message(imap, msg_id, mail = nil)
+    # Überspringe Archivierung wenn kein Archiv-Ordner konfiguriert ist
+    unless @settings['archive_folder'].present?
+      @logger.debug("No archive folder configured, skipping archive for message #{msg_id}")
+      return
+    end
+    
+    begin
+      # Prüfe ob die Message-ID noch gültig ist
+      uid_data = imap.fetch(msg_id, 'UID')
+      unless uid_data && uid_data.first
+        @logger.debug("Message #{msg_id} is invalid or already processed, skipping archive")
+        return
+      end
+      
+      # Prüfe ob der Archiv-Ordner existiert, erstelle ihn falls nötig
+      ensure_archive_folder_exists(imap)
+      
+      # Verschiebe die Nachricht (markiert automatisch als gelesen)
+      imap.move(msg_id, @settings['archive_folder'])
+      @logger.info_mail("Successfully moved message #{msg_id} to archive folder '#{@settings['archive_folder']}'", mail)
+      
+    rescue Net::IMAP::BadResponseError => e
+      if e.message.include?('Invalid messageset')
+        @logger.debug("Message #{msg_id} already moved or invalid, skipping archive")
+      elsif e.message.include?('TRYCREATE')
+        @logger.info("Archive folder '#{@settings['archive_folder']}' does not exist, creating it...")
+        create_archive_folder(imap)
+        # Versuche erneut zu verschieben
+        begin
+          imap.move(msg_id, @settings['archive_folder'])
+          @logger.info("Successfully moved message #{msg_id} to newly created archive folder")
+        rescue => retry_e
+          @logger.error("Failed to move message #{msg_id} to archive after creating folder: #{retry_e.message}")
+        end
+      elsif e.message.include?('NO MOVE')
+        @logger.warn("IMAP server does not support MOVE command for message #{msg_id}, trying COPY + EXPUNGE")
+        # Fallback: COPY + STORE + EXPUNGE
+        begin
+          imap.copy(msg_id, @settings['archive_folder'])
+          imap.store(msg_id, '+FLAGS', [:Deleted])
+          imap.expunge
+          @logger.info("Successfully copied and deleted message #{msg_id} to archive folder (fallback method)")
+        rescue => copy_e
+          @logger.error("Fallback archive method failed for message #{msg_id}: #{copy_e.message}")
+        end
+      else
+        @logger.error("Failed to move message #{msg_id} to archive: #{e.message}")
+      end
+    rescue => e
+      @logger.error("Unexpected error while archiving message #{msg_id}: #{e.message}")
+    end
+  end
   
   private
   
@@ -1467,61 +1524,6 @@ class MailHandlerService
       </body>
       </html>
     HTML
-  end
-
-  # Archiviere Nachricht
-  def archive_message(imap, msg_id, mail = nil)
-    # Überspringe Archivierung wenn kein Archiv-Ordner konfiguriert ist
-    unless @settings['archive_folder'].present?
-      @logger.debug("No archive folder configured, skipping archive for message #{msg_id}")
-      return
-    end
-    
-    begin
-      # Prüfe ob die Message-ID noch gültig ist
-      uid_data = imap.fetch(msg_id, 'UID')
-      unless uid_data && uid_data.first
-        @logger.debug("Message #{msg_id} is invalid or already processed, skipping archive")
-        return
-      end
-      
-      # Prüfe ob der Archiv-Ordner existiert, erstelle ihn falls nötig
-      ensure_archive_folder_exists(imap)
-      
-      # Verschiebe die Nachricht (markiert automatisch als gelesen)
-      imap.move(msg_id, @settings['archive_folder'])
-      @logger.info_mail("Successfully moved message #{msg_id} to archive folder '#{@settings['archive_folder']}'", mail)
-      
-    rescue Net::IMAP::BadResponseError => e
-      if e.message.include?('Invalid messageset')
-        @logger.debug("Message #{msg_id} already moved or invalid, skipping archive")
-      elsif e.message.include?('TRYCREATE')
-        @logger.info("Archive folder '#{@settings['archive_folder']}' does not exist, creating it...")
-        create_archive_folder(imap)
-        # Versuche erneut zu verschieben
-        begin
-          imap.move(msg_id, @settings['archive_folder'])
-          @logger.info("Successfully moved message #{msg_id} to newly created archive folder")
-        rescue => retry_e
-          @logger.error("Failed to move message #{msg_id} to archive after creating folder: #{retry_e.message}")
-        end
-      elsif e.message.include?('NO MOVE')
-        @logger.warn("IMAP server does not support MOVE command for message #{msg_id}, trying COPY + EXPUNGE")
-        # Fallback: COPY + STORE + EXPUNGE
-        begin
-          imap.copy(msg_id, @settings['archive_folder'])
-          imap.store(msg_id, '+FLAGS', [:Deleted])
-          imap.expunge
-          @logger.info("Successfully copied and deleted message #{msg_id} to archive folder (fallback method)")
-        rescue => copy_e
-          @logger.error("Fallback archive method failed for message #{msg_id}: #{copy_e.message}")
-        end
-      else
-        @logger.warn("Failed to archive message #{msg_id}: #{e.message}")
-      end
-    rescue => e
-      @logger.error("Unexpected error archiving message #{msg_id}: #{e.class.name} - #{e.message}")
-    end
   end
 
   # Verschiebe Nachricht in Ignored-Ordner (für Blacklist-Treffer)
@@ -1775,22 +1777,6 @@ class MailHandlerService
       @logger.debug("Set deferred timestamp for message #{mail.message_id} with reason: #{reason}")
     rescue => e
       @logger.error("Failed to set deferred timestamp for message #{mail.message_id}: #{e.message}")
-    end
-  end
-
-  # Prüfe ob eine Mail im deferred Ordner abgelaufen ist
-  def mail_deferred_expired?(mail)
-    return false unless mail&.header&.[]('X-Redmine-Deferred')
-    
-    begin
-      deferred_info = JSON.parse(mail.header['X-Redmine-Deferred'].to_s)
-      expires_at = Time.parse(deferred_info['expires_at'])
-      
-      expires_at < Time.current
-    rescue => e
-      @logger.warn("Failed to parse deferred info for mail #{mail.message_id}: #{e.message}")
-      # Fallback: Wenn kein gültiger Header vorhanden, als abgelaufen betrachten
-      true
     end
   end
 
