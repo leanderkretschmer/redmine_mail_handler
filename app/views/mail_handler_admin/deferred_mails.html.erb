@@ -10,11 +10,53 @@
 
 <h2>Zurückgestellte E-Mails verwalten</h2>
 
+<!-- Suchformular -->
+<div class="search-form">
+  <%= form_tag({ :action => 'deferred_mails' }, { :method => :get, :id => 'search_form' }) do %>
+    <fieldset class="collapsible">
+      <legend onclick="toggleFieldset(this);">Suche</legend>
+      <div>
+        <p>
+          <label for="search_from">Absender:</label>
+          <%= text_field_tag 'search_from', @search_from, :placeholder => 'E-Mail-Adresse des Absenders', :size => 30 %>
+        </p>
+        <p>
+          <label for="search_subject">Betreff:</label>
+          <%= text_field_tag 'search_subject', @search_subject, :placeholder => 'Betreff der E-Mail', :size => 30 %>
+        </p>
+        <p>
+          <%= submit_tag 'Suchen', :class => 'small' %>
+          <%= link_to 'Zurücksetzen', { :action => 'deferred_mails' }, :class => 'small' %>
+        </p>
+      </div>
+    </fieldset>
+  <% end %>
+</div>
+
 <% if @deferred_mails.empty? %>
   <div class="nodata">
-    <p>Keine zurückgestellten E-Mails gefunden.</p>
+    <% if @search_from.present? || @search_subject.present? %>
+      <p>Keine zurückgestellten E-Mails gefunden, die den Suchkriterien entsprechen.</p>
+    <% else %>
+      <p>Keine zurückgestellten E-Mails gefunden.</p>
+    <% end %>
   </div>
 <% else %>
+  <!-- Ergebnisinfo -->
+  <p class="search-results-info">
+    <% if @search_from.present? || @search_subject.present? %>
+      Gefunden: <%= @total_count %> E-Mails
+      <% if @search_from.present? %>
+        (Absender: "<%= h(@search_from) %>")
+      <% end %>
+      <% if @search_subject.present? %>
+        (Betreff: "<%= h(@search_subject) %>")
+      <% end %>
+    <% else %>
+      Insgesamt: <%= @total_count %> zurückgestellte E-Mails
+    <% end %>
+  </p>
+
   <%= form_tag({ :action => 'rescan_deferred_mails' }, { :method => :post, :id => 'deferred_mails_form' }) do %>
     
     <div class="autoscroll">
@@ -74,34 +116,47 @@
 
   <% end %>
 
-  <!-- Pagination -->
-  <% if @total_pages > 1 %>
-    <div class="pagination">
-      <ul>
-        <% if @page > 1 %>
-          <li><%= link_to "« Vorherige", { :page => @page - 1, :per_page => @per_page } %></li>
-        <% end %>
-        
-        <% (1..@total_pages).each do |page| %>
-          <% if page == @page %>
-            <li class="current"><%= page %></li>
-          <% elsif (page - @page).abs <= 2 || page == 1 || page == @total_pages %>
-            <li><%= link_to page, { :page => page, :per_page => @per_page } %></li>
-          <% elsif (page - @page).abs == 3 %>
-            <li>...</li>
-          <% end %>
-        <% end %>
-        
-        <% if @page < @total_pages %>
-          <li><%= link_to "Nächste »", { :page => @page + 1, :per_page => @per_page } %></li>
-        <% end %>
-      </ul>
-      
-      <p class="pagination-info">
-        Zeige <%= (@page - 1) * @per_page + 1 %> bis <%= [@page * @per_page, @total_count].min %> von <%= @total_count %> E-Mails
-      </p>
-    </div>
-  <% end %>
+      <!-- Pagination -->
+      <% if @total_pages > 1 %>
+        <div class="pagination">
+          <ul>
+            <% if @page > 1 %>
+              <li><%= link_to "« Vorherige", { :page => @page - 1, :per_page => @per_page, :search_from => @search_from, :search_subject => @search_subject } %></li>
+            <% end %>
+            
+            <% (1..@total_pages).each do |page| %>
+              <% if page == @page %>
+                <li class="current"><%= page %></li>
+              <% elsif (page - @page).abs <= 2 || page == 1 || page == @total_pages %>
+                <li><%= link_to page, { :page => page, :per_page => @per_page, :search_from => @search_from, :search_subject => @search_subject } %></li>
+              <% elsif (page - @page).abs == 3 %>
+                <li>...</li>
+              <% end %>
+            <% end %>
+            
+            <% if @page < @total_pages %>
+              <li><%= link_to "Nächste »", { :page => @page + 1, :per_page => @per_page, :search_from => @search_from, :search_subject => @search_subject } %></li>
+            <% end %>
+          </ul>
+          
+          <p class="pagination-info">
+            Zeige <%= (@page - 1) * @per_page + 1 %> bis <%= [@page * @per_page, @total_count].min %> von <%= @total_count %> E-Mails
+          </p>
+          
+          <!-- Per-Page-Auswahl -->
+          <div class="per-page-options">
+            <label>E-Mails pro Seite:</label>
+            <% @per_page_options.each do |option| %>
+              <% if option == @per_page %>
+                <strong><%= option %></strong>
+              <% else %>
+                <%= link_to option, { :page => 1, :per_page => option, :search_from => @search_from, :search_subject => @search_subject } %>
+              <% end %>
+              <% unless option == @per_page_options.last %>|<% end %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
 
 <% end %>
 
@@ -127,6 +182,31 @@ function submitArchive() {
   form.action = '<%= url_for(:action => 'archive_deferred_mails') %>';
   return true;
 }
+
+function toggleFieldset(legend) {
+  var fieldset = legend.parentNode;
+  var div = fieldset.querySelector('div');
+  if (div.style.display === 'none') {
+    div.style.display = 'block';
+    fieldset.classList.remove('collapsed');
+  } else {
+    div.style.display = 'none';
+    fieldset.classList.add('collapsed');
+  }
+}
+
+// Suchformular beim Laden der Seite einklappen wenn keine Suchkriterien vorhanden
+document.addEventListener('DOMContentLoaded', function() {
+  var searchFrom = '<%= @search_from %>';
+  var searchSubject = '<%= @search_subject %>';
+  var fieldset = document.querySelector('.search-form fieldset');
+  
+  if (!searchFrom && !searchSubject && fieldset) {
+    var div = fieldset.querySelector('div');
+    div.style.display = 'none';
+    fieldset.classList.add('collapsed');
+  }
+});
 </script>
 
 <style>
@@ -198,5 +278,72 @@ function submitArchive() {
   margin-top: 10px;
   font-size: 0.9em;
   color: #666;
+}
+
+.per-page-options {
+  margin-top: 10px;
+  font-size: 0.9em;
+}
+
+.per-page-options label {
+  margin-right: 10px;
+}
+
+.per-page-options a {
+  margin: 0 3px;
+  text-decoration: none;
+}
+
+.per-page-options a:hover {
+  text-decoration: underline;
+}
+
+/* Suchformular Styles */
+.search-form {
+  margin: 20px 0;
+}
+
+.search-form fieldset {
+  border: 1px solid #ddd;
+  padding: 10px;
+  margin: 10px 0;
+}
+
+.search-form fieldset.collapsed {
+  padding-bottom: 5px;
+}
+
+.search-form legend {
+  cursor: pointer;
+  padding: 0 10px;
+  font-weight: bold;
+  color: #007acc;
+}
+
+.search-form legend:hover {
+  text-decoration: underline;
+}
+
+.search-form p {
+  margin: 10px 0;
+}
+
+.search-form label {
+  display: inline-block;
+  width: 80px;
+  font-weight: bold;
+}
+
+.search-form input[type="text"] {
+  margin-left: 10px;
+}
+
+.search-results-info {
+  background-color: #f0f8ff;
+  border: 1px solid #b0d4f1;
+  padding: 8px 12px;
+  margin: 10px 0;
+  border-radius: 3px;
+  font-weight: bold;
 }
 </style>

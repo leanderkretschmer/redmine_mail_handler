@@ -181,28 +181,48 @@ class MailHandlerAdminController < ApplicationController
 
   def deferred_mails
     begin
+      # Suchparameter
+      @search_from = params[:search_from]
+      @search_subject = params[:search_subject]
+      
       # Hole alle Mails aus dem deferred Ordner
       @deferred_mails = get_deferred_mails_from_imap
+      
+      # Filtere nach Suchkriterien
+      if @search_from.present?
+        @deferred_mails = @deferred_mails.select { |mail| mail[:from]&.downcase&.include?(@search_from.downcase) }
+      end
+      
+      if @search_subject.present?
+        @deferred_mails = @deferred_mails.select { |mail| mail[:subject]&.downcase&.include?(@search_subject.downcase) }
+      end
+      
       @total_count = @deferred_mails.length
       
-      # Pagination
+      # Pagination - Standard auf 20 E-Mails pro Seite
       @page = (params[:page] || 1).to_i
-      @per_page = (params[:per_page] || 25).to_i
-      @per_page_options = valid_per_page_options
+      @per_page = (params[:per_page] || 20).to_i
+      @per_page_options = [10, 20, 50, 100]
       
       # Berechne Pagination
       @total_pages = (@total_count.to_f / @per_page).ceil
       offset = (@page - 1) * @per_page
       @deferred_mails = @deferred_mails[offset, @per_page] || []
       
+      Rails.logger.info("Deferred mails loaded: #{@total_count} total, showing #{@deferred_mails.length} on page #{@page}")
+      
     rescue => e
       @deferred_mails = []
       @total_count = 0
       @total_pages = 0
       @page = 1
-      @per_page = 25
-      @per_page_options = valid_per_page_options
+      @per_page = 20
+      @per_page_options = [10, 20, 50, 100]
+      @search_from = nil
+      @search_subject = nil
       flash[:error] = "Fehler beim Laden der zurückgestellten E-Mails: #{e.message}"
+      Rails.logger.error("Error in deferred_mails: #{e.message}")
+      Rails.logger.error("Backtrace: #{e.backtrace.join("\n")}")
     end
   end
 
