@@ -564,7 +564,75 @@ class MailHandlerService
     end
   end
 
+  # Verbinde zu IMAP-Server mit Retry-Logik
+  def connect_to_imap(max_retries = 3)
+    # Validiere IMAP-Einstellungen
+    if @settings['imap_host'].blank?
+      @logger.error("IMAP-Host ist nicht konfiguriert. Bitte konfigurieren Sie die IMAP-Einstellungen in der Plugin-Konfiguration.")
+      return nil
+    end
+    
+    if @settings['imap_username'].blank? || @settings['imap_password'].blank?
+      @logger.error("IMAP-Benutzername oder -Passwort ist nicht konfiguriert.")
+      return nil
+    end
 
+    retry_count = 0
+    begin
+      @logger.debug("Verbinde zu IMAP-Server: #{@settings['imap_host']}:#{@settings['imap_port']}")
+      
+      imap = Net::IMAP.new(@settings['imap_host'], @settings['imap_port'], @settings['imap_ssl'])
+      imap.login(@settings['imap_username'], @settings['imap_password'])
+      
+      @logger.debug("IMAP-Verbindung erfolgreich hergestellt")
+      return imap
+    rescue Net::IMAP::NoResponseError => e
+      @logger.error("IMAP-Authentifizierung fehlgeschlagen: #{e.message}")
+      return nil
+    rescue => e
+      retry_count += 1
+      @logger.warn("IMAP-Verbindung fehlgeschlagen (Versuch #{retry_count}/#{max_retries}): #{e.message}")
+      
+      if retry_count < max_retries
+        sleep(2 ** retry_count) # Exponential backoff
+        retry
+      else
+        @logger.error("IMAP-Verbindung nach #{max_retries} Versuchen fehlgeschlagen")
+        return nil
+      end
+    end
+  end
+
+  # Finde existierenden Benutzer (ohne Erstellung)
+  def find_existing_user(email)
+    # Validiere E-Mail-Adresse
+    if email.blank?
+      @logger.debug("Email address is blank or nil")
+      return nil
+    end
+    
+    # Normalisiere E-Mail-Adresse
+    normalized_email = email.to_s.strip.downcase
+    
+    # Validiere E-Mail-Format
+    unless normalized_email.match?(/\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i)
+      @logger.debug("Invalid email format: #{normalized_email}")
+      return nil
+    end
+    
+    @logger.debug("Searching for existing user with email: #{normalized_email}")
+    
+    # Suche nach Benutzer mit exakter E-Mail-Adresse
+    user = User.find_by(mail: normalized_email)
+    
+    if user
+      @logger.debug("Found existing user: #{user.login} (ID: #{user.id})")
+      return user
+    end
+    
+    @logger.debug("No existing user found for email: #{normalized_email}")
+    nil
+  end
 
   private
 
@@ -595,160 +663,6 @@ class MailHandlerService
      @logger&.warn("Encoding-Konvertierung fehlgeschlagen: #{e.message}")
      content.to_s.force_encoding('UTF-8')
    end
-
-  # Verbinde zu IMAP-Server mit Retry-Logik
-  def connect_to_imap(max_retries = 3)
-    # Validiere IMAP-Einstellungen
-    if @settings['imap_host'].blank?
-      @logger.error("IMAP-Host ist nicht konfiguriert. Bitte konfigurieren Sie die IMAP-Einstellungen in der Plugin-Konfiguration.")
-      return nil
-    end
-    
-    if @settings['imap_username'].blank? || @settings['imap_password'].blank?
-      @logger.error("IMAP-Benutzername oder -Passwort ist nicht konfiguriert.")
-      return nil
-    end
-    
-    port = @settings['imap_port'].present? ? @settings['imap_port'].to_i : 993
-    use_ssl = @settings['imap_ssl'] == '1'
-    
-    retry_count = 0
-    
-    begin
-      @logger.debug("Connecting to IMAP server #{@settings['imap_host']}:#{port} (SSL: #{use_ssl}) - Attempt #{retry_count + 1}/#{max_retries + 1}")
-      
-      # Erstelle IMAP-Verbindung mit erweiterten Optionen
-      imap_options = {
-        port: port,
-        ssl: use_ssl
-      }
-      
-      # Füge SSL-Verifikationsoptionen hinzu wenn SSL verwendet wird
-      if use_ssl
-        imap_options[:ssl] = {
-          verify_mode: OpenSSL::SSL::VERIFY_PEER,
-          ca_file: nil,
-          ca_path: nil,
-          cert_store: nil
-        }
-      end
-      
-      # Timeout für Verbindungsaufbau setzen
-      Timeout::timeout(30) do
-        imap = Net::IMAP.new(@settings['imap_host'], **imap_options)
-        
-        # Login mit Timeout
-        Timeout::timeout(15) do
-          imap.login(@settings['imap_username'], @settings['imap_password'])
-        end
-        
-        @logger.debug("Successfully connected to IMAP server #{@settings['imap_host']}")
-        return imap
-      end
-      
-    rescue Timeout::Error => e
-      @logger.warn("IMAP connection timeout on attempt #{retry_count + 1}: #{e.message}")
-      retry_count += 1
-      
-      if retry_count <= max_retries
-        wait_time = [2 ** retry_count, 30].min
-        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
-        sleep(wait_time)
-        retry
-      end
-      
-    rescue Net::IMAP::NoResponseError => e
-      @logger.warn("IMAP server returned no response on attempt #{retry_count + 1}: #{e.message}")
-      retry_count += 1
-      
-      if retry_count <= max_retries
-        wait_time = [2 ** retry_count, 30].min
-        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
-        sleep(wait_time)
-        retry
-      end
-      
-    rescue Net::IMAP::BadResponseError => e
-      @logger.warn("IMAP server bad response on attempt #{retry_count + 1}: #{e.message}")
-      retry_count += 1
-      
-      if retry_count <= max_retries
-        wait_time = [2 ** retry_count, 30].min
-        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
-        sleep(wait_time)
-        retry
-      end
-      
-    rescue Errno::ECONNREFUSED => e
-      @logger.warn("IMAP connection refused on attempt #{retry_count + 1}: #{e.message}")
-      retry_count += 1
-      
-      if retry_count <= max_retries
-        wait_time = [2 ** retry_count, 30].min
-        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
-        sleep(wait_time)
-        retry
-      end
-      
-    rescue Errno::EHOSTUNREACH => e
-      @logger.warn("IMAP host unreachable on attempt #{retry_count + 1}: #{e.message}")
-      retry_count += 1
-      
-      if retry_count <= max_retries
-        wait_time = [2 ** retry_count, 30].min
-        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
-        sleep(wait_time)
-        retry
-      end
-      
-    rescue Errno::ETIMEDOUT => e
-      @logger.warn("IMAP connection timed out on attempt #{retry_count + 1}: #{e.message}")
-      retry_count += 1
-      
-      if retry_count <= max_retries
-        wait_time = [2 ** retry_count, 30].min
-        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
-        sleep(wait_time)
-        retry
-      end
-      
-    rescue SocketError => e
-      @logger.warn("IMAP socket error on attempt #{retry_count + 1}: #{e.message}")
-      retry_count += 1
-      
-      if retry_count <= max_retries
-        wait_time = [2 ** retry_count, 30].min
-        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
-        sleep(wait_time)
-        retry
-      end
-      
-    rescue OpenSSL::SSL::SSLError => e
-      @logger.warn("IMAP SSL error on attempt #{retry_count + 1}: #{e.message}")
-      retry_count += 1
-      
-      if retry_count <= max_retries
-        wait_time = [2 ** retry_count, 30].min
-        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
-        sleep(wait_time)
-        retry
-      end
-      
-    rescue => e
-      @logger.warn("IMAP connection error on attempt #{retry_count + 1}: #{e.class.name} - #{e.message}")
-      retry_count += 1
-      
-      if retry_count <= max_retries
-        wait_time = [2 ** retry_count, 30].min
-        @logger.info("Retrying IMAP connection in #{wait_time} seconds...")
-        sleep(wait_time)
-        retry
-      end
-    end
-    
-    @logger.error("Failed to connect to IMAP server #{@settings['imap_host']} after #{max_retries + 1} attempts")
-    nil
-  end
 
   # Verarbeite einzelne Nachricht
   def process_message(imap, msg_id)
@@ -855,38 +769,6 @@ class MailHandlerService
     match = subject.match(/\[(?:.*?\s)?#(\d+)\]/) || subject.match(/\[#(\d+)\]/)
     match ? match[1].to_i : nil
   end
-
-  # Finde existierenden Benutzer (ohne Erstellung)
-  def find_existing_user(email)
-    # Validiere E-Mail-Adresse
-    if email.blank?
-      @logger.debug("Email address is blank or nil")
-      return nil
-    end
-    
-    # Normalisiere E-Mail-Adresse
-    normalized_email = email.to_s.strip.downcase
-    
-    # Validiere E-Mail-Format
-    unless normalized_email.match?(/\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i)
-      @logger.debug("Invalid email format: #{email}")
-      return nil
-    end
-    
-    # Suche existierenden Benutzer über EmailAddress-Objekt
-    email_address_obj = EmailAddress.find_by(address: normalized_email)
-    user = email_address_obj&.user
-    
-    if user
-      @logger.debug("Found existing user for #{normalized_email}: #{user.login}")
-    else
-      @logger.debug("No existing user found for #{normalized_email}")
-    end
-    
-    user
-  end
-  
-
 
   # Füge Mail zu spezifischem Ticket hinzu
   def add_mail_to_ticket(mail, ticket_id, user)

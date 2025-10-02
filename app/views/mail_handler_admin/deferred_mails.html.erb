@@ -11,21 +11,6 @@
 
 <h2>Zurückgestellte E-Mails verwalten</h2>
 
-<!-- Debug-Informationen -->
-<% if defined?(@imap_debug_info) && @imap_debug_info.present? %>
-  <div class="box tabular">
-    <h3>IMAP Debug-Informationen</h3>
-    <ul style="margin: 10px 0; padding-left: 20px;">
-      <% @imap_debug_info.each do |info| %>
-        <li style="margin: 5px 0; font-family: monospace; font-size: 12px;
-                   color: <%= info.start_with?('✗') ? '#d00' : (info.start_with?('ℹ') ? '#666' : '#080') %>;">
-          <%= h(info) %>
-        </li>
-      <% end %>
-    </ul>
-  </div>
-<% end %>
-
 <!-- Suchformular -->
 <div class="search-form">
   <%= form_tag({ :action => 'deferred_mails' }, { :method => :get, :id => 'search_form' }) do %>
@@ -93,8 +78,6 @@
             <th>Zurückgestellt am</th>
             <th>Alter</th>
             <th>Läuft ab am</th>
-            <th>Grund</th>
-            <th>Status</th>
             <th>Aktionen</th>
           </tr>
         </thead>
@@ -126,14 +109,6 @@
                 <% end %>
               </td>
               <td><%= mail[:expires_at] ? format_time(mail[:expires_at]) : '-' %></td>
-              <td><%= h(mail[:reason]) %></td>
-              <td>
-                <% if mail[:expired] %>
-                  <span class="status-expired">Abgelaufen</span>
-                <% else %>
-                  <span class="status-active">Aktiv</span>
-                <% end %>
-              </td>
               <td class="buttons">
                 <%= link_to "Benutzer erstellen", 
                     { :action => 'create_user_from_mail', :message_id => mail[:message_id] }, 
@@ -162,7 +137,7 @@
         <div class="pagination">
           <ul>
             <% if @page > 1 %>
-              <li><%= link_to "« Vorherige", { :page => @page - 1, :per_page => @per_page, :search_from => @search_from, :search_subject => @search_subject } %></li>
+              <li><%= link_to "« Vorherige", { :page => @page - 1, :per_page => @per_page, :search_from => @search_from, :search_subject => @search_subject }, :class => 'pagination-arrow' %></li>
             <% end %>
             
             <% (1..@total_pages).each do |page| %>
@@ -171,12 +146,12 @@
               <% elsif (page - @page).abs <= 2 || page == 1 || page == @total_pages %>
                 <li><%= link_to page, { :page => page, :per_page => @per_page, :search_from => @search_from, :search_subject => @search_subject } %></li>
               <% elsif (page - @page).abs == 3 %>
-                <li>...</li>
+                <li class="ellipsis">...</li>
               <% end %>
             <% end %>
             
             <% if @page < @total_pages %>
-              <li><%= link_to "Nächste »", { :page => @page + 1, :per_page => @per_page, :search_from => @search_from, :search_subject => @search_subject } %></li>
+              <li><%= link_to "Nächste »", { :page => @page + 1, :per_page => @per_page, :search_from => @search_from, :search_subject => @search_subject }, :class => 'pagination-arrow' %></li>
             <% end %>
           </ul>
           
@@ -201,7 +176,39 @@
 
 <% end %>
 
+<!-- IMAP Debug-Informationen (minimiert) -->
+<% if defined?(@imap_debug_info) && @imap_debug_info.present? %>
+  <div class="debug-info-container">
+    <div class="debug-info-header" onclick="toggleDebugInfo()">
+      <span class="debug-info-title">IMAP Debug-Informationen</span>
+      <span class="debug-info-toggle" id="debug-toggle">▼</span>
+    </div>
+    <div class="debug-info-content" id="debug-content" style="display: none;">
+      <ul>
+        <% @imap_debug_info.each do |info| %>
+          <li class="debug-info-item <%= info.start_with?('✗') ? 'error' : (info.start_with?('ℹ') ? 'info' : 'success') %>">
+            <%= h(info) %>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  </div>
+<% end %>
+
 <script type="text/javascript">
+function toggleDebugInfo() {
+  var content = document.getElementById('debug-content');
+  var toggle = document.getElementById('debug-toggle');
+  
+  if (content.style.display === 'none') {
+    content.style.display = 'block';
+    toggle.textContent = '▲';
+  } else {
+    content.style.display = 'none';
+    toggle.textContent = '▼';
+  }
+}
+
 function toggleAllCheckboxes(masterCheckbox) {
   var checkboxes = document.querySelectorAll('.mail-checkbox');
   checkboxes.forEach(function(checkbox) {
@@ -315,6 +322,21 @@ document.addEventListener('DOMContentLoaded', function() {
   background-color: #f5f5f5;
 }
 
+.pagination li.ellipsis {
+  padding: 5px 10px;
+  color: #999;
+  border: 1px solid transparent;
+}
+
+.pagination .pagination-arrow {
+  font-weight: bold;
+}
+
+.pagination .pagination-arrow:hover {
+  background-color: #007acc;
+  color: white;
+}
+
 .pagination-info {
   margin-top: 10px;
   font-size: 0.9em;
@@ -386,5 +408,67 @@ document.addEventListener('DOMContentLoaded', function() {
   margin: 10px 0;
   border-radius: 3px;
   font-weight: bold;
+}
+
+/* Debug-Informationen Styles */
+.debug-info-container {
+  margin: 20px 0;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  background-color: #f9f9f9;
+}
+
+.debug-info-header {
+  padding: 10px 15px;
+  background-color: #f0f0f0;
+  border-bottom: 1px solid #ddd;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.debug-info-header:hover {
+  background-color: #e8e8e8;
+}
+
+.debug-info-title {
+  font-weight: bold;
+  color: #333;
+}
+
+.debug-info-toggle {
+  font-size: 12px;
+  color: #666;
+}
+
+.debug-info-content {
+  padding: 10px 15px;
+}
+
+.debug-info-content ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.debug-info-item {
+  margin: 5px 0;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 3px 0;
+}
+
+.debug-info-item.error {
+  color: #d00;
+}
+
+.debug-info-item.info {
+  color: #666;
+}
+
+.debug-info-item.success {
+  color: #080;
 }
 </style>
