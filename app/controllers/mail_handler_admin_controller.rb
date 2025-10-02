@@ -181,23 +181,43 @@ class MailHandlerAdminController < ApplicationController
 
   def deferred_mails
     begin
+      Rails.logger.info("=== Starting deferred_mails action ===")
+      
       # Suchparameter
       @search_from = params[:search_from]
       @search_subject = params[:search_subject]
+      Rails.logger.info("Search parameters - from: '#{@search_from}', subject: '#{@search_subject}'")
       
       # Hole alle Mails aus dem deferred Ordner
+      Rails.logger.info("Calling get_deferred_mails_from_imap...")
       @deferred_mails = get_deferred_mails_from_imap
+      Rails.logger.info("get_deferred_mails_from_imap returned #{@deferred_mails.length} mails")
+      
+      # Debug: Zeige die ersten paar Mails
+      if @deferred_mails.any?
+        Rails.logger.info("First few mails:")
+        @deferred_mails.first(3).each_with_index do |mail, index|
+          Rails.logger.info("  #{index + 1}. From: #{mail[:from]}, Subject: #{mail[:subject]}")
+        end
+      else
+        Rails.logger.warn("No mails returned from get_deferred_mails_from_imap!")
+      end
       
       # Filtere nach Suchkriterien
       if @search_from.present?
+        before_count = @deferred_mails.length
         @deferred_mails = @deferred_mails.select { |mail| mail[:from]&.downcase&.include?(@search_from.downcase) }
+        Rails.logger.info("After filtering by sender '#{@search_from}': #{before_count} -> #{@deferred_mails.length} mails")
       end
       
       if @search_subject.present?
+        before_count = @deferred_mails.length
         @deferred_mails = @deferred_mails.select { |mail| mail[:subject]&.downcase&.include?(@search_subject.downcase) }
+        Rails.logger.info("After filtering by subject '#{@search_subject}': #{before_count} -> #{@deferred_mails.length} mails")
       end
       
       @total_count = @deferred_mails.length
+      Rails.logger.info("Total count after filtering: #{@total_count}")
       
       # Pagination - Standard auf 20 E-Mails pro Seite
       @page = (params[:page] || 1).to_i
@@ -209,9 +229,13 @@ class MailHandlerAdminController < ApplicationController
       offset = (@page - 1) * @per_page
       @deferred_mails = @deferred_mails[offset, @per_page] || []
       
-      Rails.logger.info("Deferred mails loaded: #{@total_count} total, showing #{@deferred_mails.length} on page #{@page}")
+      Rails.logger.info("Pagination: page #{@page}, per_page #{@per_page}, total_pages #{@total_pages}")
+      Rails.logger.info("Final result: showing #{@deferred_mails.length} mails on page #{@page}")
+      Rails.logger.info("=== Finished deferred_mails action ===")
       
     rescue => e
+      Rails.logger.error("=== ERROR in deferred_mails action: #{e.message} ===")
+      Rails.logger.error("Backtrace: #{e.backtrace.join("\n")}")
       @deferred_mails = []
       @total_count = 0
       @total_pages = 0
@@ -621,12 +645,18 @@ class MailHandlerAdminController < ApplicationController
   end
 
   def get_deferred_mails_from_imap
+    Rails.logger.info("=== Starting get_deferred_mails_from_imap ===")
+    
     imap = @service.get_imap_connection
-    return [] unless imap
+    if imap.nil?
+      Rails.logger.error("IMAP connection failed - @service.get_imap_connection returned nil")
+      return []
+    end
+    Rails.logger.info("IMAP connection successful")
 
     begin
       deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
-      Rails.logger.info("Connecting to deferred folder: #{deferred_folder}")
+      Rails.logger.info("Attempting to connect to deferred folder: '#{deferred_folder}'")
       
       # Prüfe ob Ordner existiert
       begin
@@ -634,11 +664,24 @@ class MailHandlerAdminController < ApplicationController
         Rails.logger.info("Successfully selected deferred folder: #{deferred_folder}")
       rescue Net::IMAP::NoResponseError => e
         Rails.logger.error("Deferred folder not found: #{deferred_folder} - #{e.message}")
+        Rails.logger.info("Available folders:")
+        begin
+          folders = imap.list('', '*')
+          folders.each { |folder| Rails.logger.info("  - #{folder.name}") }
+        rescue => list_error
+          Rails.logger.error("Could not list folders: #{list_error.message}")
+        end
         return []
       end
 
       msg_ids = imap.search(['ALL'])
       Rails.logger.info("Found #{msg_ids.length} messages in deferred folder")
+      
+      if msg_ids.empty?
+        Rails.logger.warn("No messages found in deferred folder - this might be the issue!")
+        return []
+      end
+      
       mails = []
 
       msg_ids.each do |msg_id|
@@ -656,14 +699,14 @@ class MailHandlerAdminController < ApplicationController
             next
           end
 
-          Rails.logger.debug("Processing mail from: #{mail.from&.first}, subject: #{mail.subject}")
+          Rails.logger.info("Processing mail from: #{mail.from&.first}, subject: #{mail.subject}")
 
           # Hole Deferred-Informationen
           deferred_info = @service.get_mail_deferred_info(mail)
           
           # Fallback für E-Mails ohne deferred Header (manuell verschoben)
           if deferred_info.nil?
-            Rails.logger.debug("No deferred header found for message #{msg_id}, using fallback values")
+            Rails.logger.info("No deferred header found for message #{msg_id}, using fallback values")
             deferred_info = {
               deferred_at: mail.date || Time.current,
               expires_at: (mail.date || Time.current) + 30.days,
@@ -684,7 +727,7 @@ class MailHandlerAdminController < ApplicationController
           }
           
           mails << mail_data
-          Rails.logger.debug("Added mail to list: #{mail_data[:from]} - #{mail_data[:subject]}")
+          Rails.logger.info("Added mail to list: #{mail_data[:from]} - #{mail_data[:subject]}")
         rescue => e
           Rails.logger.error("Failed to process deferred message #{msg_id}: #{e.message}")
           Rails.logger.error("Backtrace: #{e.backtrace.join("\n")}")
@@ -692,10 +735,10 @@ class MailHandlerAdminController < ApplicationController
         end
       end
 
-      Rails.logger.info("Returning #{mails.length} processed mails")
+      Rails.logger.info("=== Returning #{mails.length} processed mails ===")
       mails.sort_by { |m| m[:deferred_at] || Time.current }.reverse
     rescue => e
-      Rails.logger.error("Error in get_deferred_mails_from_imap: #{e.message}")
+      Rails.logger.error("=== Error in get_deferred_mails_from_imap: #{e.message} ===")
       Rails.logger.error("Backtrace: #{e.backtrace.join("\n")}")
       []
     ensure

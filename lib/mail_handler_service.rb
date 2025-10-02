@@ -146,8 +146,7 @@ class MailHandlerService
   # Bereinige abgelaufene Zurückgestellt-Einträge
   def cleanup_expired_deferred
     @logger.info("Starting cleanup of expired deferred entries")
-    
-    begin
+        begin
       # Verbinde zu IMAP und prüfe deferred Ordner
       imap = connect_to_imap
       return 0 unless imap
