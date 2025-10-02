@@ -514,6 +514,23 @@ class MailHandlerService
     connect_to_imap
   end
 
+  # Hole Deferred-Informationen aus Mail-Header
+  def get_mail_deferred_info(mail)
+    return nil unless mail&.header&.[]('X-Redmine-Deferred')
+    
+    begin
+      deferred_info = JSON.parse(mail.header['X-Redmine-Deferred'].to_s)
+      {
+        deferred_at: Time.parse(deferred_info['deferred_at']),
+        expires_at: Time.parse(deferred_info['expires_at']),
+        reason: deferred_info['reason']
+      }
+    rescue => e
+      @logger.warn("Failed to parse deferred info for mail #{mail.message_id}: #{e.message}")
+      nil
+    end
+  end
+
   private
 
   # Helper-Methode für Encoding-Behandlung
@@ -1248,23 +1265,6 @@ class MailHandlerService
       @logger.warn("Html2Text Konvertierung fehlgeschlagen: #{e.message}")
       # Fallback auf einfache Nokogiri-Konvertierung
       return simple_html_to_text(html_content)
-    end
-  end
-
-  # Hole Deferred-Informationen aus Mail-Header
-  def get_mail_deferred_info(mail)
-    return nil unless mail&.header&.[]('X-Redmine-Deferred')
-    
-    begin
-      deferred_info = JSON.parse(mail.header['X-Redmine-Deferred'].to_s)
-      {
-        deferred_at: Time.parse(deferred_info['deferred_at']),
-        expires_at: Time.parse(deferred_info['expires_at']),
-        reason: deferred_info['reason']
-      }
-    rescue => e
-      @logger.warn("Failed to parse deferred info for mail #{mail.message_id}: #{e.message}")
-      nil
     end
   end
   
