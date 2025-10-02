@@ -1088,7 +1088,11 @@ class MailHandlerAdminController < ApplicationController
       
       selected_ids.each do |msg_id|
         begin
-          @service.archive_message(imap, msg_id.to_i)
+          # Fetch the mail object first for proper logging
+          msg_data = imap.fetch(msg_id.to_i, 'RFC822')[0].attr['RFC822']
+          mail = msg_data.present? ? Mail.read_from_string(msg_data) : nil
+          
+          @service.archive_message(imap, msg_id.to_i, mail)
           archived_count += 1
         rescue => e
           Rails.logger.error("Failed to archive message #{msg_id}: #{e.message}")
