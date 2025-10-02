@@ -834,11 +834,68 @@ class MailHandlerAdminController < ApplicationController
         return []
       end
 
-      msg_ids = imap.search(['ALL'])
-      Rails.logger.info("Found #{msg_ids.length} messages in deferred folder")
+      msg_ids = []
+      
+      # Versuche verschiedene Suchkriterien um ALLE E-Mails zu finden
+      search_criteria_list = [
+        ['ALL'],                    # Alle E-Mails
+        ['UNSEEN'],                 # Ungelesene E-Mails
+        ['SEEN'],                   # Gelesene E-Mails
+        ['NOT', 'DELETED'],         # Nicht gelöschte E-Mails
+        []                          # Leere Suche (sollte alle zurückgeben)
+      ]
+      
+      search_criteria_list.each do |criteria|
+        begin
+          if criteria.empty?
+            # Versuche alle Message-IDs direkt zu bekommen
+            status = imap.status(deferred_folder, ['MESSAGES'])
+            total_messages = status['MESSAGES']
+            Rails.logger.info("Folder status shows #{total_messages} total messages")
+            
+            if total_messages > 0
+              # Hole alle Message-IDs von 1 bis total_messages
+              msg_ids = (1..total_messages).to_a
+              Rails.logger.info("Using sequential message IDs: #{msg_ids}")
+              break
+            end
+          else
+            search_result = imap.search(criteria)
+            Rails.logger.info("Search with #{criteria.inspect} found #{search_result.length} messages: #{search_result}")
+            
+            if search_result.any?
+              msg_ids = search_result
+              break
+            end
+          end
+        rescue => search_error
+          Rails.logger.warn("Search with #{criteria.inspect} failed: #{search_error.message}")
+          next
+        end
+      end
+      
+      Rails.logger.info("Final message IDs to process: #{msg_ids}")
       
       if msg_ids.empty?
-        Rails.logger.warn("No messages found in deferred folder - this might be the issue!")
+        Rails.logger.error("No messages found with any search criteria!")
+        # Versuche noch eine alternative Methode
+        begin
+          # Hole Folder-Informationen
+          status = imap.status(deferred_folder, ['MESSAGES', 'RECENT', 'UNSEEN'])
+          Rails.logger.info("Folder status: #{status}")
+          
+          # Versuche FETCH auf alle möglichen Message-IDs
+          if status['MESSAGES'] > 0
+            Rails.logger.info("Trying to fetch messages 1 to #{status['MESSAGES']}")
+            msg_ids = (1..status['MESSAGES']).to_a
+          end
+        rescue => status_error
+          Rails.logger.error("Could not get folder status: #{status_error.message}")
+        end
+      end
+      
+      if msg_ids.empty?
+        Rails.logger.error("Still no messages found after all attempts!")
         return []
       end
       
@@ -847,9 +904,31 @@ class MailHandlerAdminController < ApplicationController
       msg_ids.each do |msg_id|
         begin
           Rails.logger.debug("Processing message ID: #{msg_id}")
-          msg_data = imap.fetch(msg_id, 'RFC822')[0].attr['RFC822']
+          
+          # Versuche verschiedene FETCH-Methoden
+          msg_data = nil
+          fetch_methods = [
+            'RFC822',           # Vollständige E-Mail
+            'BODY[]',          # E-Mail-Body
+            'BODY.PEEK[]'      # E-Mail-Body ohne als gelesen zu markieren
+          ]
+          
+          fetch_methods.each do |method|
+            begin
+              fetch_result = imap.fetch(msg_id, method)
+              if fetch_result && fetch_result[0]
+                msg_data = fetch_result[0].attr[method] || fetch_result[0].attr['BODY[]']
+                Rails.logger.debug("Successfully fetched message #{msg_id} using #{method}")
+                break
+              end
+            rescue => fetch_error
+              Rails.logger.warn("Fetch method #{method} failed for message #{msg_id}: #{fetch_error.message}")
+              next
+            end
+          end
+          
           if msg_data.blank?
-            Rails.logger.warn("Message #{msg_id} has no data")
+            Rails.logger.warn("Message #{msg_id} has no data after trying all fetch methods")
             next
           end
 
@@ -859,7 +938,7 @@ class MailHandlerAdminController < ApplicationController
             next
           end
 
-          Rails.logger.info("Processing mail from: #{mail.from&.first}, subject: #{mail.subject}")
+          Rails.logger.info("Successfully processed mail from: #{mail.from&.first}, subject: #{mail.subject}")
 
           # Hole Deferred-Informationen
           deferred_info = @service.get_mail_deferred_info(mail)
@@ -967,17 +1046,48 @@ class MailHandlerAdminController < ApplicationController
   end
 
   def test_imap_connection_available
+    Rails.logger.info("=== Testing IMAP connection availability ===")
     imap = @service.get_imap_connection
-    return false unless imap
+    if imap.nil?
+      Rails.logger.error("IMAP connection failed - service returned nil")
+      return false
+    end
+    Rails.logger.info("IMAP connection established successfully")
 
     begin
       deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
+      Rails.logger.info("Testing deferred folder: '#{deferred_folder}'")
+      
       imap.select(deferred_folder)
+      Rails.logger.info("Successfully selected deferred folder")
+      
+      # Zusätzliche Informationen über den Ordner
+      begin
+        status = imap.status(deferred_folder, ['MESSAGES', 'RECENT', 'UNSEEN'])
+        Rails.logger.info("Folder status: #{status}")
+      rescue => status_error
+        Rails.logger.warn("Could not get folder status: #{status_error.message}")
+      end
+      
       return true
-    rescue Net::IMAP::NoResponseError
+    rescue Net::IMAP::NoResponseError => e
+      Rails.logger.error("Deferred folder '#{deferred_folder}' not found: #{e.message}")
+      
+      # Liste verfügbare Ordner
+      begin
+        folders = imap.list('', '*')
+        if folders
+          Rails.logger.info("Available folders:")
+          folders.each { |folder| Rails.logger.info("  - #{folder.name}") }
+        end
+      rescue => list_error
+        Rails.logger.error("Could not list folders: #{list_error.message}")
+      end
+      
       return false
     rescue => e
       Rails.logger.error("IMAP connection test failed: #{e.message}")
+      Rails.logger.error("Backtrace: #{e.backtrace.join("\n")}")
       return false
     ensure
       imap&.disconnect
