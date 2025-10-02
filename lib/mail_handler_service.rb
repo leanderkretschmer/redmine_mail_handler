@@ -224,8 +224,12 @@ class MailHandlerService
     
     # Prüfe ob Deferred-Zeit abgelaufen ist
     if mail_deferred_expired?(mail)
-      # Zurückstellung abgelaufen → in Archiv verschieben
+      # Zurückstellung abgelaufen → in Archiv verschieben und Tag entfernen
       @logger.info("Deferral expired for message #{msg_id}, moving to archive")
+      
+      # Entferne Deferred-Tag vor Archivierung
+      remove_deferred_timestamp(mail)
+      
       archive_message(imap, msg_id, mail)
       return :expired
     end
@@ -352,6 +356,19 @@ class MailHandlerService
     rescue => e
       @logger.error("Failed to list IMAP folders: #{e.message}")
       []
+    end
+  end
+
+  # Entferne Zurückgestellt-Zeitstempel von Mail
+  def remove_deferred_timestamp(mail)
+    return unless mail&.header&.[]('X-Redmine-Deferred')
+    
+    begin
+      # Entferne Custom Header
+      mail.header.delete('X-Redmine-Deferred')
+      @logger.debug("Removed deferred timestamp from message #{mail.message_id}")
+    rescue => e
+      @logger.error("Failed to remove deferred timestamp from message #{mail.message_id}: #{e.message}")
     end
   end
 
@@ -528,6 +545,22 @@ class MailHandlerService
     rescue => e
       @logger.warn("Failed to parse deferred info for mail #{mail.message_id}: #{e.message}")
       nil
+    end
+  end
+
+  # Prüfe ob eine Mail im deferred Ordner abgelaufen ist
+  def mail_deferred_expired?(mail)
+    return false unless mail&.header&.[]('X-Redmine-Deferred')
+    
+    begin
+      deferred_info = JSON.parse(mail.header['X-Redmine-Deferred'].to_s)
+      expires_at = Time.parse(deferred_info['expires_at'])
+      
+      expires_at < Time.current
+    rescue => e
+      @logger.warn("Failed to parse deferred info for mail #{mail.message_id}: #{e.message}")
+      # Fallback: Wenn kein gültiger Header vorhanden, als abgelaufen betrachten
+      true
     end
   end
 

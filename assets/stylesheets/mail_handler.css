@@ -19,6 +19,31 @@
 }
 
 /* -------------------------
+   Age Display
+------------------------- */
+.age-new {
+  color: #28a745;
+  font-weight: bold;
+}
+
+.age-recent {
+  color: #17a2b8;
+}
+
+.age-old {
+  color: #ffc107;
+}
+
+.age-very-old {
+  color: #dc3545;
+  font-weight: bold;
+}
+
+.age-unknown {
+  color: #6c757d;
+}
+
+/* -------------------------
    Delete Comments Button
 ------------------------- */
 .delete-comments-btn {
