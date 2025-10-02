@@ -10,6 +10,12 @@
 
 <h2>Zurückgestellte E-Mails verwalten</h2>
 
+<!-- Aktionsleiste -->
+<div class="contextual">
+  <%= link_to 'Aktualisieren', { :action => 'deferred_mails' }, :class => 'icon icon-reload', :title => 'Seite neu laden' %>
+  <%= link_to 'IMAP testen & neu laden', { :action => 'reload_deferred_mails' }, :method => :post, :class => 'icon icon-test', :title => 'IMAP-Verbindung testen und E-Mails neu laden' %>
+</div>
+
 <!-- Suchformular -->
 <div class="search-form">
   <%= form_tag({ :action => 'deferred_mails' }, { :method => :get, :id => 'search_form' }) do %>
@@ -55,8 +61,10 @@
       <% end %>
     <% else %>
       Insgesamt: <%= @total_count %> zurückgestellte E-Mails
-      <% if @deferred_mails.any? && @deferred_mails.first[:id].is_a?(Integer) && @deferred_mails.first[:id] <= 4 %>
+      <% if defined?(@imap_connection_available) && !@imap_connection_available %>
         <em>(Beispieldaten - IMAP-Verbindung nicht verfügbar)</em>
+      <% elsif defined?(@imap_connection_available) && @imap_connection_available %>
+        <em>(Live-Daten aus IMAP)</em>
       <% end %>
     <% end %>
   </p>

@@ -21,6 +21,7 @@ Redmine::Plugin.register :redmine_mail_handler do
     'inbox_folder' => 'INBOX',
     'archive_folder' => 'Archive',
     'ignored_folder' => 'Ignored',
+    'deferred_folder' => 'Deferred',
     'inbox_ticket_id' => '',
     'reminder_time' => '09:00',
     'reminder_enabled' => '1',

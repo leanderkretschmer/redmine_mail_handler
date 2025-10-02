@@ -25,6 +25,7 @@ RedmineApp::Application.routes.draw do
         delete :delete_orphaned_attachments
         get :deferred_status
         get :deferred_mails
+        post :reload_deferred_mails
         post :rescan_deferred_mails
         post :archive_deferred_mails
       end

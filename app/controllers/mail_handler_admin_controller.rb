@@ -187,10 +187,19 @@ class MailHandlerAdminController < ApplicationController
       
       # Hole alle Mails aus dem deferred Ordner
       @deferred_mails = get_deferred_mails_from_imap
+      @imap_connection_available = !@deferred_mails.empty?
+      
+      # Automatisch abgelaufene E-Mails archivieren
+      if @imap_connection_available
+        archive_expired_mails(@deferred_mails)
+        # Nach der Archivierung erneut laden
+        @deferred_mails = get_deferred_mails_from_imap
+      end
       
       # Falls keine E-Mails aus IMAP geladen werden können, erstelle Test-Daten
       if @deferred_mails.empty?
         @deferred_mails = create_sample_deferred_mails
+        @imap_connection_available = false
       end
       
       # Filtere nach Suchkriterien
@@ -568,6 +577,88 @@ class MailHandlerAdminController < ApplicationController
 
 
 
+  # Archiviere automatisch abgelaufene E-Mails
+  def archive_expired_mails(mails)
+    return if mails.empty?
+    
+    expired_mails = mails.select { |mail| mail[:expired] }
+    return if expired_mails.empty?
+    
+    begin
+      imap = @service.get_imap_connection
+      return unless imap
+      
+      # Wähle den deferred Ordner
+      deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'INBOX.deferred'
+      imap.select(deferred_folder)
+      
+      # Wähle oder erstelle den archived Ordner
+      archived_folder = Setting.plugin_redmine_mail_handler['archived_folder'] || 'INBOX.archived'
+      begin
+        imap.select(archived_folder)
+      rescue Net::IMAP::NoResponseError
+        # Erstelle den archived Ordner falls er nicht existiert
+        imap.create(archived_folder)
+        imap.select(archived_folder)
+      end
+      
+      # Wechsle zurück zum deferred Ordner
+      imap.select(deferred_folder)
+      
+      expired_count = 0
+      expired_mails.each do |mail|
+        begin
+          # Suche die E-Mail anhand der Message-ID
+          search_result = imap.search(['HEADER', 'Message-ID', mail[:message_id]])
+          next if search_result.empty?
+          
+          uid = search_result.first
+          
+          # Verschiebe die E-Mail zum archived Ordner
+          imap.move(uid, archived_folder)
+          expired_count += 1
+          
+        rescue => e
+          Rails.logger.error "Fehler beim Archivieren der E-Mail #{mail[:message_id]}: #{e.message}"
+        end
+      end
+      
+      if expired_count > 0
+        Rails.logger.info "#{expired_count} abgelaufene E-Mails automatisch archiviert"
+        flash[:notice] = "#{expired_count} abgelaufene E-Mails wurden automatisch archiviert."
+      end
+      
+    rescue => e
+      Rails.logger.error "Fehler beim automatischen Archivieren: #{e.message}"
+    ensure
+      imap&.disconnect rescue nil
+    end
+  end
+
+  # Teste IMAP-Verbindung und lade E-Mails neu
+  def reload_deferred_mails
+    begin
+      # Teste IMAP-Verbindung
+      imap = @service.get_imap_connection
+      if imap
+        deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'INBOX.deferred'
+        begin
+          imap.select(deferred_folder)
+          flash[:notice] = "IMAP-Verbindung erfolgreich. Deferred Ordner '#{deferred_folder}' gefunden."
+        rescue Net::IMAP::NoResponseError
+          flash[:error] = "IMAP-Verbindung erfolgreich, aber deferred Ordner '#{deferred_folder}' nicht gefunden."
+        end
+        imap.disconnect rescue nil
+      else
+        flash[:error] = "IMAP-Verbindung fehlgeschlagen. Überprüfen Sie die Plugin-Einstellungen."
+      end
+    rescue => e
+      flash[:error] = "IMAP-Verbindungsfehler: #{e.message}"
+    end
+    
+    redirect_to action: 'deferred_mails'
+  end
+
   # Erstelle Beispiel-Daten für die Anzeige wenn keine echten E-Mails verfügbar sind
   def create_sample_deferred_mails
     [
@@ -616,6 +707,49 @@ class MailHandlerAdminController < ApplicationController
         expired: true
       }
     ]
+  end
+
+  def reload_deferred_mails
+    init_service
+    
+    # Teste IMAP-Verbindung
+    imap = @service.get_imap_connection
+    if imap.nil?
+      flash[:error] = 'IMAP-Verbindung fehlgeschlagen. Bitte überprüfen Sie die Plugin-Einstellungen.'
+      redirect_to deferred_mails_mail_handler_admin_index_path
+      return
+    end
+
+    begin
+      deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
+      
+      # Teste ob der deferred Ordner existiert
+      begin
+        imap.select(deferred_folder)
+        flash[:notice] = "IMAP-Verbindung erfolgreich. Deferred-Ordner '#{deferred_folder}' gefunden und verbunden."
+      rescue Net::IMAP::NoResponseError => e
+        # Liste verfügbare Ordner
+        available_folders = []
+        begin
+          folders = imap.list('', '*')
+          available_folders = folders.map(&:name) if folders
+        rescue => list_error
+          Rails.logger.error("Could not list folders: #{list_error.message}")
+        end
+        
+        if available_folders.any?
+          flash[:error] = "Deferred-Ordner '#{deferred_folder}' nicht gefunden. Verfügbare Ordner: #{available_folders.join(', ')}"
+        else
+          flash[:error] = "Deferred-Ordner '#{deferred_folder}' nicht gefunden und konnte verfügbare Ordner nicht auflisten."
+        end
+      end
+    rescue => e
+      flash[:error] = "IMAP-Fehler: #{e.message}"
+    ensure
+      imap&.disconnect
+    end
+
+    redirect_to deferred_mails_mail_handler_admin_index_path
   end
 
   private
