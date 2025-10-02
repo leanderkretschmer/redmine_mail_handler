@@ -185,29 +185,50 @@ class MailHandlerAdminController < ApplicationController
       @search_from = params[:search_from]
       @search_subject = params[:search_subject]
       
+      # Initialisiere Logging-Variablen
+      @imap_debug_info = []
+      
       # Teste IMAP-Verbindung zuerst
       @imap_connection_available = test_imap_connection_available
       
       if @imap_connection_available
+        @imap_debug_info << "✓ IMAP-Verbindung erfolgreich hergestellt"
+        
         # Hole alle Mails aus dem deferred Ordner
         @deferred_mails = get_deferred_mails_from_imap
         
+        @imap_debug_info << "✓ #{@deferred_mails.length} E-Mails aus IMAP-Ordner geladen"
+        
         # Automatisch abgelaufene E-Mails archivieren
-        archive_expired_mails(@deferred_mails)
+        archived_count = archive_expired_mails(@deferred_mails)
+        if archived_count > 0
+          @imap_debug_info << "✓ #{archived_count} abgelaufene E-Mails archiviert"
+        end
+        
         # Nach der Archivierung erneut laden
         @deferred_mails = get_deferred_mails_from_imap
+        @imap_debug_info << "✓ Nach Archivierung: #{@deferred_mails.length} E-Mails verfügbar"
       else
+        @imap_debug_info << "✗ IMAP-Verbindung fehlgeschlagen - verwende Beispieldaten"
         # Falls IMAP-Verbindung nicht verfügbar, erstelle Test-Daten
         @deferred_mails = create_sample_deferred_mails
       end
       
       # Filtere nach Suchkriterien
+      original_count = @deferred_mails.length
       if @search_from.present?
         @deferred_mails = @deferred_mails.select { |mail| mail[:from]&.downcase&.include?(@search_from.downcase) }
+        @imap_debug_info << "✓ Nach Absender-Filter (#{@search_from}): #{@deferred_mails.length} E-Mails"
       end
       
       if @search_subject.present?
         @deferred_mails = @deferred_mails.select { |mail| mail[:subject]&.downcase&.include?(@search_subject.downcase) }
+        @imap_debug_info << "✓ Nach Betreff-Filter (#{@search_subject}): #{@deferred_mails.length} E-Mails"
+      end
+      
+      if (@search_from.present? || @search_subject.present?) && @deferred_mails.length < original_count
+        filtered_out = original_count - @deferred_mails.length
+        @imap_debug_info << "ℹ #{filtered_out} E-Mails durch Suchfilter ausgeblendet"
       end
       
       @total_count = @deferred_mails.length
@@ -578,14 +599,14 @@ class MailHandlerAdminController < ApplicationController
 
   # Archiviere automatisch abgelaufene E-Mails
   def archive_expired_mails(mails)
-    return if mails.empty?
+    return 0 if mails.empty?
     
     expired_mails = mails.select { |mail| mail[:expired] }
-    return if expired_mails.empty?
+    return 0 if expired_mails.empty?
     
     begin
       imap = @service.get_imap_connection
-      return unless imap
+      return 0 unless imap
       
       # Wähle den deferred Ordner
       deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'INBOX.deferred'
@@ -627,8 +648,11 @@ class MailHandlerAdminController < ApplicationController
         flash[:notice] = "#{expired_count} abgelaufene E-Mails wurden automatisch archiviert."
       end
       
+      return expired_count
+      
     rescue => e
       Rails.logger.error "Fehler beim automatischen Archivieren: #{e.message}"
+      return 0
     ensure
       imap&.disconnect rescue nil
     end
