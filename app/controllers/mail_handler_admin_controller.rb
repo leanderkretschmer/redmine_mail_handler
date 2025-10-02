@@ -185,21 +185,20 @@ class MailHandlerAdminController < ApplicationController
       @search_from = params[:search_from]
       @search_subject = params[:search_subject]
       
-      # Hole alle Mails aus dem deferred Ordner
-      @deferred_mails = get_deferred_mails_from_imap
-      @imap_connection_available = !@deferred_mails.empty?
+      # Teste IMAP-Verbindung zuerst
+      @imap_connection_available = test_imap_connection_available
       
-      # Automatisch abgelaufene E-Mails archivieren
       if @imap_connection_available
+        # Hole alle Mails aus dem deferred Ordner
+        @deferred_mails = get_deferred_mails_from_imap
+        
+        # Automatisch abgelaufene E-Mails archivieren
         archive_expired_mails(@deferred_mails)
         # Nach der Archivierung erneut laden
         @deferred_mails = get_deferred_mails_from_imap
-      end
-      
-      # Falls keine E-Mails aus IMAP geladen werden können, erstelle Test-Daten
-      if @deferred_mails.empty?
+      else
+        # Falls IMAP-Verbindung nicht verfügbar, erstelle Test-Daten
         @deferred_mails = create_sample_deferred_mails
-        @imap_connection_available = false
       end
       
       # Filtere nach Suchkriterien
@@ -965,6 +964,24 @@ class MailHandlerAdminController < ApplicationController
   
   def get_next_reset_time
     Time.current.beginning_of_hour + 1.hour
+  end
+
+  def test_imap_connection_available
+    imap = @service.get_imap_connection
+    return false unless imap
+
+    begin
+      deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
+      imap.select(deferred_folder)
+      return true
+    rescue Net::IMAP::NoResponseError
+      return false
+    rescue => e
+      Rails.logger.error("IMAP connection test failed: #{e.message}")
+      return false
+    ensure
+      imap&.disconnect
+    end
   end
 
   # Logging-Helfer entfernt
