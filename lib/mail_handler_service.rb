@@ -1192,68 +1192,88 @@ class MailHandlerService
 
   # Archiviere Nachricht
   def archive_message(imap, msg_id, mail = nil)
+    puts "=== ARCHIVE DEBUG: Starting archive_message for message #{msg_id} ==="
     @logger.info("Starting archive_message for message #{msg_id}")
     
     # Überspringe Archivierung wenn kein Archiv-Ordner konfiguriert ist
     unless @settings['archive_folder'].present?
+      puts "=== ARCHIVE DEBUG: No archive folder configured ==="
       @logger.error("No archive folder configured, skipping archive for message #{msg_id}")
       raise "Archive folder not configured"
     end
     
+    puts "=== ARCHIVE DEBUG: Archive folder configured: '#{@settings['archive_folder']}' ==="
     @logger.info("Archive folder configured: '#{@settings['archive_folder']}'")
     
     begin
       # Prüfe ob die Message-ID noch gültig ist
+      puts "=== ARCHIVE DEBUG: Checking if message #{msg_id} is valid... ==="
       @logger.debug("Checking if message #{msg_id} is valid...")
       uid_data = imap.fetch(msg_id, 'UID')
       unless uid_data && uid_data.first
+        puts "=== ARCHIVE DEBUG: Message #{msg_id} is invalid ==="
         @logger.error("Message #{msg_id} is invalid or already processed, skipping archive")
         raise "Message #{msg_id} is invalid"
       end
       
+      puts "=== ARCHIVE DEBUG: Message #{msg_id} is valid, proceeding with archive ==="
       @logger.debug("Message #{msg_id} is valid, proceeding with archive")
       
       # Prüfe ob der Archiv-Ordner existiert, erstelle ihn falls nötig
+      puts "=== ARCHIVE DEBUG: Ensuring archive folder exists ==="
       ensure_archive_folder_exists(imap)
       
       # Verschiebe die Nachricht (markiert automatisch als gelesen)
+      puts "=== ARCHIVE DEBUG: Moving message #{msg_id} to archive folder '#{@settings['archive_folder']}' ==="
       @logger.info("Moving message #{msg_id} to archive folder '#{@settings['archive_folder']}'")
       imap.move(msg_id, @settings['archive_folder'])
+      puts "=== ARCHIVE DEBUG: Successfully moved message #{msg_id} ==="
       @logger.info_mail("Successfully moved message #{msg_id} to archive folder '#{@settings['archive_folder']}'", mail)
       
     rescue Net::IMAP::BadResponseError => e
+      puts "=== ARCHIVE DEBUG: IMAP BadResponseError: #{e.message} ==="
       @logger.error("IMAP BadResponseError for message #{msg_id}: #{e.message}")
       if e.message.include?('Invalid messageset')
+        puts "=== ARCHIVE DEBUG: Invalid messageset error ==="
         @logger.debug("Message #{msg_id} already moved or invalid, skipping archive")
         raise "Message #{msg_id} already moved or invalid"
       elsif e.message.include?('TRYCREATE')
+        puts "=== ARCHIVE DEBUG: TRYCREATE error, creating folder ==="
         @logger.info("Archive folder '#{@settings['archive_folder']}' does not exist, creating it...")
         create_archive_folder(imap)
         # Versuche erneut zu verschieben
         begin
           imap.move(msg_id, @settings['archive_folder'])
+          puts "=== ARCHIVE DEBUG: Successfully moved after creating folder ==="
           @logger.info("Successfully moved message #{msg_id} to newly created archive folder")
         rescue => retry_e
+          puts "=== ARCHIVE DEBUG: Failed to move after creating folder: #{retry_e.message} ==="
           @logger.error("Failed to move message #{msg_id} to archive after creating folder: #{retry_e.message}")
           raise retry_e
         end
       elsif e.message.include?('NO MOVE')
+        puts "=== ARCHIVE DEBUG: NO MOVE error, trying fallback ==="
         @logger.warn("IMAP server does not support MOVE command for message #{msg_id}, trying COPY + EXPUNGE")
         # Fallback: COPY + STORE + EXPUNGE
         begin
           imap.copy(msg_id, @settings['archive_folder'])
           imap.store(msg_id, '+FLAGS', [:Deleted])
           imap.expunge
+          puts "=== ARCHIVE DEBUG: Successfully used fallback method ==="
           @logger.info("Successfully copied and deleted message #{msg_id} to archive folder (fallback method)")
         rescue => copy_e
+          puts "=== ARCHIVE DEBUG: Fallback method failed: #{copy_e.message} ==="
           @logger.error("Fallback archive method failed for message #{msg_id}: #{copy_e.message}")
           raise copy_e
         end
       else
+        puts "=== ARCHIVE DEBUG: Other IMAP error: #{e.message} ==="
         @logger.error("Failed to move message #{msg_id} to archive: #{e.message}")
         raise e
       end
     rescue => e
+      puts "=== ARCHIVE DEBUG: Unexpected error: #{e.message} ==="
+      puts "=== ARCHIVE DEBUG: Backtrace: #{e.backtrace.join("\n")} ==="
       @logger.error("Unexpected error while archiving message #{msg_id}: #{e.message}")
       @logger.error("Backtrace: #{e.backtrace.join("\n")}")
       raise e
