@@ -244,22 +244,26 @@ class MailHandlerService
       # Benutzer existiert jetzt → Mail normal verarbeiten
       @logger.info("User #{from_address} now exists, processing deferred message #{msg_id}")
       
-      # Extrahiere Ticket-ID (falls vorhanden)
-      ticket_id = extract_ticket_id(mail.subject)
-      
-      if ticket_id
-        add_mail_to_ticket(mail, ticket_id, existing_user)
-      else
-        add_mail_to_inbox_ticket(mail, existing_user)
+      begin
+        # Extrahiere Ticket-ID (falls vorhanden)
+        ticket_id = extract_ticket_id(mail.subject)
+        
+        if ticket_id
+          add_mail_to_ticket(mail, ticket_id, existing_user)
+        else
+          add_mail_to_inbox_ticket(mail, existing_user)
+        end
+        
+        # Mail archivieren
+        archive_message(imap, msg_id, mail)
+        
+        @logger.info("Successfully processed deferred message #{msg_id} for user #{from_address}")
+        return :processed
+      rescue => e
+        @logger.error("Failed to process deferred message #{msg_id} for user #{from_address}: #{e.message}")
+        @logger.error("Backtrace: #{e.backtrace.join("\n")}")
+        return :skipped
       end
-      
-      # Mail archivieren
-      archive_message(imap, msg_id, mail)
-      
-      # Zurückgestellt-Eintrag löschen
-      deferred_entry.destroy if deferred_entry
-      
-      return :processed
     else
       # Benutzer existiert noch nicht → zurückgestellt lassen
       @logger.debug("User #{from_address} still does not exist, keeping message #{msg_id} deferred")
@@ -622,10 +626,11 @@ class MailHandlerService
     
     @logger.debug("Searching for existing user with email: #{normalized_email}")
     
-    # Suche nach Benutzer mit exakter E-Mail-Adresse
-    user = User.find_by(mail: normalized_email)
+    # Suche nach Benutzer über EmailAddress-Tabelle (Redmine 6+ Kompatibilität)
+    email_address = EmailAddress.find_by(address: normalized_email)
     
-    if user
+    if email_address && email_address.user
+      user = email_address.user
       @logger.debug("Found existing user: #{user.login} (ID: #{user.id})")
       return user
     end
