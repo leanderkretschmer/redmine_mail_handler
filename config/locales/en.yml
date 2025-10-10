@@ -41,10 +41,6 @@ en:
   label_import_interval_unit: "Unit"
   label_minutes: "Minutes"
   label_seconds: "Seconds"
-
-  label_performance_settings: "Performance Settings"
-  label_enable_multithreading: "Enable Multithreading"
-  label_num_threads: "Number of Threads"
   
   label_logging_settings: "Logging Settings"
   label_log_level: "Log Level"

@@ -1,40 +1,55 @@
-# Mail Handler Plugin - Änderungsübersicht
+# Mail Handler Plugin - Change Summary
 
-## Version 2.3.0: Multithreading für den Mail-Import
+## Version 2.3.0: Background Processing for Mail Imports
 
-Diese Version führt eine signifikante Leistungsverbesserung für den E-Mail-Importprozess durch die Implementierung von Multithreading ein. Anstatt E-Mails nacheinander zu verarbeiten, kann das Plugin nun mehrere E-Mails parallel abrufen und verarbeiten, was die Importzeit drastisch reduziert.
+This version introduces a significant architectural change to improve the performance and reliability of the mail import process. Instead of running the import task within the main Redmine application process, it is now offloaded to a background job.
 
-### Neue Funktionen und Änderungen
+### Key Changes
 
-- **Parallele E-Mail-Verarbeitung:** Der Kern des Importprozesses wurde neugestaltet, um einen Thread-Pool zu nutzen. Dies ermöglicht die gleichzeitige Verarbeitung mehrerer E-Mails.
-- **Drei-Phasen-Import:** Der Importprozess ist nun in drei Phasen unterteilt, um die Effizienz zu maximieren und Konflikte zu minimieren:
-  1.  **Massenabruf:** Alle ungelesenen E-Mails werden in einem einzigen Schritt abgerufen.
-  2.  **Parallele Verarbeitung:** Der Inhalt jeder E-Mail wird in einem separaten Thread verarbeitet.
-  3.  **Massenarchivierung:** Alle erfolgreich verarbeiteten E-Mails werden in einem Stapel archiviert.
-- **Neue Konfigurationseinstellungen:** Es wurden neue Einstellungen hinzugefügt, um die Multithreading-Funktion zu steuern:
-  - **Multithreading aktivieren:** Aktiviert oder deaktiviert die parallele Verarbeitung.
-  - **Anzahl der Threads:** Definiert die Anzahl der Threads, die für den Import verwendet werden sollen.
+- **Asynchronous Mail Import:** The mail import process is no longer executed directly by the scheduler. It is now enqueued as a background job using Redmine's built-in Active Job framework.
+- **Improved Responsiveness:** By moving the import process to the background, the main Redmine application remains responsive and is not blocked by potentially long-running mail import tasks. This prevents timeouts and improves the user experience.
+- **Enhanced Stability:** Offloading the import process to a separate background worker improves the overall stability of the Redmine instance.
 
-### Änderungen für Systemadministratoren
+### Actions for System Administrators
 
-#### Redmine-Konfiguration
+#### Configure an Active Job Backend
 
-1.  **Plugin-Einstellungen aktualisieren:**
-    - Navigieren Sie zu `Administration -> Plugins -> Redmine Mail Handler -> Konfigurieren`.
-    - Im neuen Abschnitt **Performance-Einstellungen** können Sie die folgenden Optionen konfigurieren:
-      - **Multithreading aktivieren:** Setzen Sie dieses Häkchen, um die neue Funktion zu nutzen.
-      - **Anzahl der Threads:** Passen Sie die Anzahl der zu verwendenden Threads an.
+For the mail import to work correctly in a production environment, you **must** configure an Active Job backend. The default inline backend is not suitable for production as it does not provide the benefits of background processing.
 
-2.  **Empfehlungen zur Thread-Anzahl:**
-    - **Standard:** Der Standardwert ist `4` Threads, was für die meisten Setups ein guter Ausgangspunkt ist.
-    - **Empfehlung:** Für eine optimale Leistung wird empfohlen, die Anzahl der Threads auf die **Anzahl der CPU-Kerne** des Servers einzustellen, auf dem Redmine läuft. Wenn Ihr Server beispielsweise 8 CPU-Kerne hat, setzen Sie diesen Wert auf `8`.
-    - **Vorsicht:** Eine zu hohe Anzahl an Threads kann zu einer übermäßigen CPU- und Datenbankauslastung führen. Überwachen Sie die Systemleistung nach der Änderung dieser Einstellung.
+**Recommended Backend: Sidekiq**
 
-#### Neustart erforderlich
+We recommend using Sidekiq with Redis for robust and efficient background job processing.
 
-- **WICHTIG:** Nachdem Sie die Multithreading-Einstellungen aktiviert oder geändert haben, ist ein **Neustart des Redmine-Anwendungsservers** (z.B. Puma, Unicorn, Passenger) erforderlich, damit die Änderungen wirksam werden. Ein einfacher Neustart über die Redmine-Oberfläche ist nicht ausreichend.
+1.  **Install Redis:**
+    - Follow the official instructions to install Redis on your server: [https://redis.io/topics/quickstart](https://redis.io/topics/quickstart)
 
-#### Überwachung
+2.  **Add Sidekiq to your `Gemfile.local`:**
+    - Create or edit the `Gemfile.local` file in your Redmine root directory and add the following line:
+      ```ruby
+      gem 'sidekiq'
+      ```
 
-- Überwachen Sie nach der Aktivierung des Multithreadings die CPU- und Speicherauslastung Ihres Redmine-Servers während des E-Mail-Imports, um sicherzustellen, dass das System stabil bleibt.
-- Überprüfen Sie die Plugin-Logs unter `Administration -> Mail Handler -> Logs`, um den Importprozess zu verfolgen und eventuelle Fehler zu identifizieren.
+3.  **Install the Gem:**
+    - Run `bundle install` in your Redmine root directory.
+
+4.  **Configure Redmine to use Sidekiq:**
+    - In your `config/application.rb` file, set the queue adapter:
+      ```ruby
+      config.active_job.queue_adapter = :sidekiq
+      ```
+
+5.  **Run the Sidekiq Worker:**
+    - Start the Sidekiq worker process from your Redmine root directory:
+      ```bash
+      bundle exec sidekiq -q mail_handler -q default
+      ```
+    - It is crucial to include the `mail_handler` queue, as this is the queue used by the plugin.
+
+#### Restart Redmine
+
+- **IMPORTANT:** After making these changes, you must **restart the Redmine application server** (e.g., Puma, Unicorn, Passenger) for the changes to take effect.
+
+#### Monitoring
+
+- Monitor the status of the background jobs in your chosen backend's monitoring interface (e.g., the Sidekiq Web UI).
+- Check the plugin's logs under `Administration -> Mail Handler -> Logs` to monitor the import process and identify any potential issues.
