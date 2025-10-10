@@ -8,78 +8,82 @@
 
 <h2>Mail Handler Dashboard</h2>
 
-<div class="columns">
-  <div class="splitcontentleft">
-    <div class="box">
-      <h3>System-Status</h3>
-      <table class="list">
-        <tr>
-          <td><strong>Scheduler-Status:</strong></td>
-          <td>
-            <% if @scheduler_running %>
-              <span class="status-running">Läuft</span>
-            <% else %>
-              <span class="status-stopped">Gestoppt</span>
-            <% end %>
-          </td>
-        </tr>
-        <tr>
-          <td><strong>Automatischer Import:</strong></td>
-          <td><%= @settings['auto_import_enabled'] == '1' ? 'Aktiviert' : 'Deaktiviert' %> (<%= @settings['import_interval'] %> <%= @settings['import_interval_unit'] == 'seconds' ? 'Sekunden' : 'Minuten' %>)</td>
-        </tr>
-        <tr>
-          <td><strong>Load-Balancing:</strong></td>
-          <td><%= @settings['load_balanced_enabled'] == '1' ? "Aktiviert (#{@settings['mails_per_hour']} Mails/Stunde)" : 'Deaktiviert' %></td>
-        </tr>
-        <tr>
-          <td><strong>Tägliche Reminder:</strong></td>
-          <td><%= @settings['reminder_enabled'] == '1' ? "Aktiviert (#{@settings['reminder_time']})" : 'Deaktiviert' %></td>
-        </tr>
-      </table>
-    </div>
-
-    <div class="box">
-      <h3>Zurückgestellte Mails</h3>
-      <% deferred_stats = @service.count_deferred_messages rescue { total: 0, active: 0, expired: 0 } %>
-      <table class="list">
-        <tr>
-          <td><strong>Status:</strong></td>
-          <td><%= deferred_stats[:active] %> aktiv, <%= deferred_stats[:expired] %> abgelaufen</td>
-        </tr>
-        <tr>
-          <td><strong>Ordner:</strong></td>
-          <td><%= @settings['deferred_folder'] || 'Nicht konfiguriert' %></td>
-        </tr>
-      </table>
-    </div>
+<div class="splitcontentleft">
+  <div class="box">
+    <h3>System-Status</h3>
+    <table class="list">
+      <tr>
+        <td><strong>Scheduler-Status:</strong></td>
+        <td>
+          <% if @scheduler_running %>
+            <span class="status-running">Läuft</span>
+          <% else %>
+            <span class="status-stopped">Gestoppt</span>
+          <% end %>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Automatischer Import:</strong></td>
+        <td><%= @settings['auto_import_enabled'] == '1' ? 'Aktiviert' : 'Deaktiviert' %> (<%= @settings['import_interval'] %> <%= @settings['import_interval_unit'] == 'seconds' ? 'Sekunden' : 'Minuten' %>)</td>
+      </tr>
+      <tr>
+        <td><strong>Load-Balancing:</strong></td>
+        <td><%= @settings['load_balanced_enabled'] == '1' ? "Aktiviert (#{@settings['mails_per_hour']} Mails/Stunde)" : 'Deaktiviert' %></td>
+      </tr>
+      <tr>
+        <td><strong>Tägliche Reminder:</strong></td>
+        <td><%= @settings['reminder_enabled'] == '1' ? "Aktiviert (#{@settings['reminder_time']})" : 'Deaktiviert' %></td>
+      </tr>
+    </table>
   </div>
 
-  <div class="splitcontentright">
-    <div class="box">
-      <h3>Aktionen</h3>
-      <div class="buttons">
-        <% if @scheduler_running %>
-          <%= link_to 'Scheduler stoppen', { action: 'toggle_scheduler' }, method: :post, class: 'icon icon-del' %>
-          <%= link_to 'Scheduler neu starten', { action: 'restart_scheduler' }, method: :post, class: 'icon icon-reload' %>
-        <% else %>
-          <%= link_to 'Scheduler starten', { action: 'toggle_scheduler' }, method: :post, class: 'icon icon-play' %>
-        <% end %>
-        <hr>
-        <%= link_to 'Manuellen Import starten', { action: 'manual_import' }, method: :post, class: 'icon icon-email', data: { confirm: 'Sind Sie sicher?' } %>
-        <%= link_to 'Zurückgestellte Mails verarbeiten', { action: 'process_deferred' }, method: :post, class: 'icon icon-reload' %>
-        <hr>
-        <%= link_to 'Logs anzeigen', { controller: 'mail_handler_logs', action: 'index' }, class: 'icon icon-report' %>
-      </div>
-    </div>
-    
-    <div class="box">
-      <h3>Tests</h3>
-      <%= form_tag({ action: 'test_mail' }, method: :post) do %>
-        <p>
-          <%= text_field_tag 'test_email', '', size: 20, placeholder: 'test@example.com' %>
-          <%= submit_tag 'Test-Mail senden' %>
-        </p>
+  <div class="box">
+    <h3>Zurückgestellte Mails</h3>
+    <% deferred_stats = @service.count_deferred_messages rescue { total: 0, active: 0, expired: 0 } %>
+    <table class="list">
+      <tr>
+        <td><strong>Status:</strong></td>
+        <td>
+          <%= deferred_stats[:active] %> aktiv, <%= deferred_stats[:expired] %> abgelaufen
+          (<%= link_to 'Details anzeigen', { action: 'deferred_mails' } %>)
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Ordner:</strong></td>
+        <td><%= @settings['deferred_folder'] || 'Nicht konfiguriert' %></td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div class="splitcontentright">
+  <div class="box">
+    <h3>Aktionen</h3>
+    <p>
+      <% if @scheduler_running %>
+        <%= link_to 'Scheduler stoppen', { action: 'toggle_scheduler' }, method: :post, class: 'icon icon-del' %>
+        <%= link_to 'Scheduler neu starten', { action: 'restart_scheduler' }, method: :post, class: 'icon icon-reload' %>
+      <% else %>
+        <%= link_to 'Scheduler starten', { action: 'toggle_scheduler' }, method: :post, class: 'icon icon-play' %>
       <% end %>
-    </div>
+    </p>
+    <hr>
+    <%= form_tag({ action: 'manual_import' }, method: :post) do %>
+      <p>
+        <%= text_field_tag 'import_limit', '', size: 5, placeholder: 'Anzahl' %>
+        <%= submit_tag 'Manueller Import', data: { confirm: 'Sind Sie sicher?' } %>
+      </p>
+    <% end %>
+    <p><%= link_to 'Zurückgestellte Mails verarbeiten', { action: 'process_deferred' }, method: :post, class: 'icon icon-reload' %></p>
+  </div>
+  
+  <div class="box">
+    <h3>Tests</h3>
+    <%= form_tag({ action: 'test_mail' }, method: :post) do %>
+      <p>
+        <%= text_field_tag 'test_email', '', size: 20, placeholder: 'test@example.com' %>
+        <%= submit_tag 'Test-Mail senden' %>
+      </p>
+    <% end %>
   </div>
 </div>
