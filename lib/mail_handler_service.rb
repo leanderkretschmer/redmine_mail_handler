@@ -530,10 +530,7 @@ class MailHandlerService
     end
   end
 
-  # Öffentliche Methode für IMAP-Verbindung (für Controller-Zugriff)
-  def get_imap_connection
-    connect_to_imap
-  end
+
 
   # Hole Deferred-Informationen aus Mail-Header
   def get_mail_deferred_info(mail)
@@ -570,22 +567,19 @@ class MailHandlerService
 
   # Verbinde zu IMAP-Server mit Retry-Logik
   def connect_to_imap(max_retries = 3)
-    # Validiere IMAP-Einstellungen
-    if @settings['imap_host'].blank?
-      @logger.error("IMAP-Host ist nicht konfiguriert. Bitte konfigurieren Sie die IMAP-Einstellungen in der Plugin-Konfiguration.")
-      return nil
-    end
-    
-    if @settings['imap_username'].blank? || @settings['imap_password'].blank?
-      @logger.error("IMAP-Benutzername oder -Passwort ist nicht konfiguriert.")
+    if @settings['imap_host'].blank? || @settings['imap_username'].blank? || @settings['imap_password'].blank?
+      @logger.error("IMAP-Einstellungen sind unvollständig.")
       return nil
     end
 
+    port = @settings['imap_port'].to_i
+    use_ssl = @settings['imap_ssl'] == '1'
+    
     retry_count = 0
     begin
-      @logger.debug("Verbinde zu IMAP-Server: #{@settings['imap_host']}:#{@settings['imap_port']}")
+      @logger.debug("Verbinde zu IMAP-Server: #{@settings['imap_host']}:#{port} mit SSL=#{use_ssl}")
       
-      imap = Net::IMAP.new(@settings['imap_host'], @settings['imap_port'], @settings['imap_ssl'])
+      imap = Net::IMAP.new(@settings['imap_host'], port: port, ssl: use_ssl)
       imap.login(@settings['imap_username'], @settings['imap_password'])
       
       @logger.debug("IMAP-Verbindung erfolgreich hergestellt")
@@ -598,7 +592,7 @@ class MailHandlerService
       @logger.warn("IMAP-Verbindung fehlgeschlagen (Versuch #{retry_count}/#{max_retries}): #{e.message}")
       
       if retry_count < max_retries
-        sleep(2 ** retry_count) # Exponential backoff
+        sleep(2**retry_count)
         retry
       else
         @logger.error("IMAP-Verbindung nach #{max_retries} Versuchen fehlgeschlagen")
