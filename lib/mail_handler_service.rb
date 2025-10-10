@@ -1503,10 +1503,8 @@ class MailHandlerService
           @logger.error("Fallback archive method failed for message #{msg_id}: #{copy_e.message}")
         end
       else
-        @logger.warn("Failed to archive message #{msg_id}: #{e.message}")
+        @logger.warn("Failed to archive messages: #{e.message}")
       end
-    rescue => e
-      @logger.error("Unexpected error archiving message #{msg_id}: #{e.class.name} - #{e.message}")
     end
   end
 
@@ -1562,6 +1560,13 @@ class MailHandlerService
 
   # Verschiebe Nachricht in Zurückgestellt-Ordner
   def defer_message(imap, msg_id, mail, reason = 'unknown_user')
+    uid = imap.fetch(msg_id, 'UID').first.attr['UID']
+    result = { status: :deferred, reason: reason, mail: mail, uid: uid }
+    defer_messages_by_uid(imap, [uid], [result])
+  end
+
+  def defer_messages_by_uid(imap, uids, results)
+    return if uids.empty?
     deferred_folder = @settings['deferred_folder'] || 'Deferred'
     
     begin
@@ -1602,10 +1607,8 @@ class MailHandlerService
           @logger.error("Fallback defer method failed for message #{msg_id}: #{copy_e.message}")
         end
       else
-        @logger.warn("Failed to defer message #{msg_id}: #{e.message}")
+        @logger.warn("Failed to defer messages: #{e.message}")
       end
-    rescue => e
-      @logger.error("Unexpected error deferring message #{msg_id}: #{e.class.name} - #{e.message}")
     end
   end
 

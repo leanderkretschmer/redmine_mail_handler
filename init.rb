@@ -27,6 +27,8 @@ Redmine::Plugin.register :redmine_mail_handler do
     'reminder_type' => 'redmine',
     'auto_import_enabled' => '1',
     'import_interval' => '5',
+    'enable_multithreading' => '0',
+    'num_threads' => '4',
     'log_level' => 'info',
     'smtp_same_as_imap' => '1',
     'smtp_host' => '',

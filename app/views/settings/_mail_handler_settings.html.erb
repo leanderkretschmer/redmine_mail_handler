@@ -462,6 +462,23 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <div class="box tabular settings">
+  <h3>Performance-Einstellungen</h3>
+
+  <p>
+    <label for="settings_enable_multithreading">Multithreading aktivieren:</label>
+    <%= check_box_tag 'settings[enable_multithreading]', '1', @settings['enable_multithreading'] == '1' %>
+    <em class="info">Verarbeitet E-Mails parallel, um den Import zu beschleunigen. Erfordert einen neu gestarteten Redmine-Applikationsserver, um wirksam zu werden.</em>
+  </p>
+  
+  <p>
+    <label for="settings_num_threads">Anzahl der Threads:</label>
+    <%= text_field_tag 'settings[num_threads]', @settings['num_threads'], size: 10, placeholder: '4' %>
+    <em class="info">Anzahl der parallelen Threads für den E-Mail-Import. Standard: 4.</em>
+  </p>
+</div>
+
+
+<div class="box tabular settings">
   <h3>Benutzer-Erstellung</h3>
   
   <p>

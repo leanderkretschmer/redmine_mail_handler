@@ -3,6 +3,8 @@ source 'https://rubygems.org'
 # MIME-Decoding - kompatible Version für Ruby 2.6
 gem 'mime-types', '~> 3.3.0'
 
+gem 'concurrent-ruby'
+
 # Logging
 gem 'logging', '~> 2.3.0'
 
