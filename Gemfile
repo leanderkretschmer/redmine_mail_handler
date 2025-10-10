@@ -10,9 +10,6 @@ gem 'logging', '~> 2.3.0'
 gem 'html2text', '~> 0.2.0'
 
 group :development, :test do
-  # Sidekiq wird als Backend für ActiveJob empfohlen
-  gem 'sidekiq'
-
   gem 'rspec', '~> 3.11.0'
   gem 'factory_bot', '~> 6.2.0'
   # gem 'webmock', '~> 3.18.0' # Entfernt - erfordert Ruby 2.7+
