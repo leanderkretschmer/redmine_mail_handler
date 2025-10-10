@@ -530,6 +530,10 @@ class MailHandlerService
     end
   end
 
+  def get_imap_connection
+    connect_to_imap
+  end
+
 
 
   # Hole Deferred-Informationen aus Mail-Header
