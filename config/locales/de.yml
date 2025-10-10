@@ -1,4 +1,11 @@
 de:
+  # Tabs
+  label_tab_connections: "Verbindungen"
+  label_tab_processing: "Verarbeitung"
+  label_tab_parser: "Parser"
+  label_tab_automation: "Automatisierung"
+  label_tab_help: "Hilfe"
+
   # Plugin-Name und Beschreibung
   plugin_redmine_mail_handler:
     name: "Redmine Mail Handler"
