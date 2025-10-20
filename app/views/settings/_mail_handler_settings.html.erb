@@ -21,6 +21,7 @@
     <p><label>&nbsp;</label><button type="button" id="test_imap_connection" class="test-connection-btn">IMAP-Verbindung testen</button><span id="imap_test_status" class="connection-status"></span></p>
   </div>
 
+  <div class="box tabular settings">
     <h3>SMTP-Einstellungen</h3>
     <p><label for="settings_smtp_same_as_imap">SMTP = IMAP verwenden</label><%= check_box_tag 'settings[smtp_same_as_imap]', '1', @settings['smtp_same_as_imap'] == '1', onchange: 'toggleSmtpFields(this.checked)' %><em class="info">Wenn aktiviert, werden die IMAP-Einstellungen auch für SMTP verwendet</em></p>
     <div id="smtp_fields" style="<%= @settings['smtp_same_as_imap'] == '1' ? 'display: none;' : '' %>">
@@ -40,6 +41,7 @@
     <p><label for="settings_inbox_folder">Posteingang-Ordner</label><select name="settings[inbox_folder]" id="settings_inbox_folder"><option value="<%= @settings['inbox_folder'] %>"><%= @settings['inbox_folder'].present? ? @settings['inbox_folder'] : 'INBOX' %></option></select><button type="button" id="load_inbox_folders" class="small-button">Ordner laden</button><span id="inbox_loading" style="display: none;">Lade...</span></p>
     <p><label for="settings_archive_folder">Archiv-Ordner</label><select name="settings[archive_folder]" id="settings_archive_folder"><option value="<%= @settings['archive_folder'] %>"><%= @settings['archive_folder'].present? ? @settings['archive_folder'] : 'Archive' %></option></select><button type="button" id="load_archive_folders" class="small-button">Ordner laden</button><span id="archive_loading" style="display: none;">Lade...</span></p>
     <p><label for="settings_ignored_folder">Ignored-Ordner</label><select name="settings[ignored_folder]" id="settings_ignored_folder"><option value="<%= @settings['ignored_folder'] %>"><%= @settings['ignored_folder'].present? ? @settings['ignored_folder'] : 'Ignored' %></option></select><button type="button" id="load_ignored_folders" class="small-button">Ordner laden</button><span id="ignored_loading" style="display: none;">Lade...</span></p>
+  </div>
   <div class="box tabular settings">
     <h3>Ticket-Verarbeitung</h3>
     <p><label for="settings_inbox_ticket_id">Posteingang-Ticket-ID</label><%= text_field_tag 'settings[inbox_ticket_id]', @settings['inbox_ticket_id'], size: 10, placeholder: '1' %><em class="info">ID des Tickets für E-Mails von bekannten Absendern ohne Ticket-ID</em></p>
