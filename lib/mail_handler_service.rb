@@ -1225,17 +1225,28 @@ class MailHandlerService
       puts "=== ARCHIVE DEBUG: Moving message #{msg_id} to archive folder '#{@settings['archive_folder']}' ==="
       @logger.info("Moving message #{msg_id} to archive folder '#{@settings['archive_folder']}'")
       imap.move(msg_id, @settings['archive_folder'])
+      # Ensure deleted messages are removed from source mailbox (for MOVE fallback)
+      begin
+        imap.expunge
+        puts "=== ARCHIVE DEBUG: Expunge completed on source mailbox ==="
+        @logger.debug("Expunge completed on source mailbox after move for message #{msg_id}")
+      rescue => expunge_err
+        puts "=== ARCHIVE DEBUG: Expunge failed: #{expunge_err.message} ==="
+        @logger.warn("Expunge after move failed for message #{msg_id}: #{expunge_err.message}")
+      end
       puts "=== ARCHIVE DEBUG: Successfully moved message #{msg_id} ==="
       @logger.info_mail("Successfully moved message #{msg_id} to archive folder '#{@settings['archive_folder']}'", mail)
       
-    rescue Net::IMAP::BadResponseError => e
-      puts "=== ARCHIVE DEBUG: IMAP BadResponseError: #{e.message} ==="
-      @logger.error("IMAP BadResponseError for message #{msg_id}: #{e.message}")
-      if e.message.include?('Invalid messageset')
+    rescue Net::IMAP::BadResponseError, Net::IMAP::NoResponseError => e
+      puts "=== ARCHIVE DEBUG: IMAP error: #{e.message} ==="
+      @logger.error("IMAP error while archiving message #{msg_id}: #{e.message}")
+      msg = e.message.to_s
+
+      if msg.include?('Invalid messageset')
         puts "=== ARCHIVE DEBUG: Invalid messageset error ==="
         @logger.debug("Message #{msg_id} already moved or invalid, skipping archive")
         raise "Message #{msg_id} already moved or invalid"
-      elsif e.message.include?('TRYCREATE')
+      elsif msg.include?('TRYCREATE')
         puts "=== ARCHIVE DEBUG: TRYCREATE error, creating folder ==="
         @logger.info("Archive folder '#{@settings['archive_folder']}' does not exist, creating it...")
         create_archive_folder(imap)
@@ -1249,7 +1260,7 @@ class MailHandlerService
           @logger.error("Failed to move message #{msg_id} to archive after creating folder: #{retry_e.message}")
           raise retry_e
         end
-      elsif e.message.include?('NO MOVE')
+      elsif msg =~ /NO MOVE|MOVE not supported/i
         puts "=== ARCHIVE DEBUG: NO MOVE error, trying fallback ==="
         @logger.warn("IMAP server does not support MOVE command for message #{msg_id}, trying COPY + EXPUNGE")
         # Fallback: COPY + STORE + EXPUNGE
@@ -1586,8 +1597,9 @@ class MailHandlerService
       # Liste alle Ordner auf
       folders = imap.list('', '*')
       folder_names = folders.map(&:name)
+      normalized = folder_names.map { |n| n.to_s.downcase }
       
-      unless folder_names.include?(@settings['archive_folder'])
+      unless normalized.include?(@settings['archive_folder'].to_s.downcase)
         @logger.info("Archive folder '#{@settings['archive_folder']}' not found, creating it...")
         create_archive_folder(imap)
       end

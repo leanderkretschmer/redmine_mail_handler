@@ -605,19 +605,18 @@ class MailHandlerAdminController < ApplicationController
     return 0 if expired_mails.empty?
     
     begin
-      imap = @service.get_imap_connection
+      imap = @service.connect_to_imap
       return 0 unless imap
       
       # Wähle den deferred Ordner
-      deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'INBOX.deferred'
+      deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
       imap.select(deferred_folder)
       
-      # Wähle oder erstelle den archived Ordner
-      archived_folder = Setting.plugin_redmine_mail_handler['archived_folder'] || 'INBOX.archived'
+      # Wähle oder erstelle den Archive-Ordner gemäß Plugin-Einstellung
+      archived_folder = Setting.plugin_redmine_mail_handler['archive_folder'] || 'Archive'
       begin
         imap.select(archived_folder)
       rescue Net::IMAP::NoResponseError
-        # Erstelle den archived Ordner falls er nicht existiert
         imap.create(archived_folder)
         imap.select(archived_folder)
       end
@@ -632,10 +631,17 @@ class MailHandlerAdminController < ApplicationController
           search_result = imap.search(['HEADER', 'Message-ID', mail[:message_id]])
           next if search_result.empty?
           
-          uid = search_result.first
+          msg_seq = search_result.first
           
-          # Verschiebe die E-Mail zum archived Ordner
-          imap.move(uid, archived_folder)
+          # Verschiebe die E-Mail zum Archive-Ordner
+          imap.move(msg_seq, archived_folder)
+          # Entferne gelöschte Nachrichten aus dem Quellordner
+          begin
+            imap.expunge
+          rescue => expunge_err
+            Rails.logger.warn("Expunge nach MOVE fehlgeschlagen: #{expunge_err.message}")
+          end
+          
           expired_count += 1
           
         rescue => e
@@ -662,19 +668,19 @@ class MailHandlerAdminController < ApplicationController
   def reload_deferred_mails
     begin
       # Teste IMAP-Verbindung
-      imap = @service.get_imap_connection
-      if imap
-        deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'INBOX.deferred'
-        begin
-          imap.select(deferred_folder)
-          flash[:notice] = "IMAP-Verbindung erfolgreich. Deferred Ordner '#{deferred_folder}' gefunden."
-        rescue Net::IMAP::NoResponseError
-          flash[:error] = "IMAP-Verbindung erfolgreich, aber deferred Ordner '#{deferred_folder}' nicht gefunden."
-        end
-        imap.disconnect rescue nil
-      else
-        flash[:error] = "IMAP-Verbindung fehlgeschlagen. Überprüfen Sie die Plugin-Einstellungen."
+      imap = @service.connect_to_imap
+    if imap
+      deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
+      begin
+        imap.select(deferred_folder)
+        flash[:notice] = "IMAP-Verbindung erfolgreich. Deferred Ordner '#{deferred_folder}' gefunden."
+      rescue Net::IMAP::NoResponseError
+        flash[:error] = "IMAP-Verbindung erfolgreich, aber deferred Ordner '#{deferred_folder}' nicht gefunden."
       end
+      imap.disconnect rescue nil
+    else
+      flash[:error] = "IMAP-Verbindung fehlgeschlagen. Überprüfen Sie die Plugin-Einstellungen."
+    end
     rescue => e
       flash[:error] = "IMAP-Verbindungsfehler: #{e.message}"
     end
@@ -792,7 +798,7 @@ class MailHandlerAdminController < ApplicationController
   end
 
   def get_mail_by_message_id(message_id)
-    imap = @service.get_imap_connection
+    imap = @service.connect_to_imap
     return nil unless imap
 
     begin
@@ -831,9 +837,9 @@ class MailHandlerAdminController < ApplicationController
   def get_deferred_mails_from_imap
     Rails.logger.info("=== Starting get_deferred_mails_from_imap ===")
     
-    imap = @service.get_imap_connection
+    imap = @service.connect_to_imap
     if imap.nil?
-      Rails.logger.error("IMAP connection failed - @service.get_imap_connection returned nil")
+      Rails.logger.error("IMAP connection failed - @service.connect_to_imap returned nil")
       @imap_debug_info << "✗ IMAP-Verbindung fehlgeschlagen"
       return []
     end
@@ -886,10 +892,10 @@ class MailHandlerAdminController < ApplicationController
       
       # Versuche verschiedene Suchkriterien um ALLE E-Mails zu finden
       search_criteria_list = [
-        ['ALL'],                    # Alle E-Mails
+        ['NOT', 'DELETED'],         # Nicht gelöschte E-Mails zuerst bevorzugen
         ['UNSEEN'],                 # Ungelesene E-Mails
         ['SEEN'],                   # Gelesene E-Mails
-        ['NOT', 'DELETED'],         # Nicht gelöschte E-Mails
+        ['ALL'],                    # Alle E-Mails (inkl. \Deleted)
         []                          # Leere Suche (sollte alle zurückgeben)
       ]
       
@@ -1122,7 +1128,7 @@ class MailHandlerAdminController < ApplicationController
 
   def test_imap_connection_available
     Rails.logger.info("=== Testing IMAP connection availability ===")
-    imap = @service.get_imap_connection
+    imap = @service.connect_to_imap
     if imap.nil?
       Rails.logger.error("IMAP connection failed - service returned nil")
       return false

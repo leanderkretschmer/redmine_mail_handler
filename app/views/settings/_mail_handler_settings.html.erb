@@ -20,7 +20,7 @@
     <p><label for="settings_imap_password">Passwort</label><%= password_field_tag 'settings[imap_password]', @settings['imap_password'], size: 30 %></p>
     <p><label>&nbsp;</label><button type="button" id="test_imap_connection" class="test-connection-btn">IMAP-Verbindung testen</button><span id="imap_test_status" class="connection-status"></span></p>
   </div>
-  <div class="box tabular settings">
+
     <h3>SMTP-Einstellungen</h3>
     <p><label for="settings_smtp_same_as_imap">SMTP = IMAP verwenden</label><%= check_box_tag 'settings[smtp_same_as_imap]', '1', @settings['smtp_same_as_imap'] == '1', onchange: 'toggleSmtpFields(this.checked)' %><em class="info">Wenn aktiviert, werden die IMAP-Einstellungen auch für SMTP verwendet</em></p>
     <div id="smtp_fields" style="<%= @settings['smtp_same_as_imap'] == '1' ? 'display: none;' : '' %>">
@@ -34,26 +34,23 @@
   </div>
 </div>
 
-<!-- Tab Content: Processing -->
 <div id="tab-processing" class="tab-content" style="display: none;">
   <div class="box tabular settings">
     <h3>IMAP-Ordner</h3>
     <p><label for="settings_inbox_folder">Posteingang-Ordner</label><select name="settings[inbox_folder]" id="settings_inbox_folder"><option value="<%= @settings['inbox_folder'] %>"><%= @settings['inbox_folder'].present? ? @settings['inbox_folder'] : 'INBOX' %></option></select><button type="button" id="load_inbox_folders" class="small-button">Ordner laden</button><span id="inbox_loading" style="display: none;">Lade...</span></p>
     <p><label for="settings_archive_folder">Archiv-Ordner</label><select name="settings[archive_folder]" id="settings_archive_folder"><option value="<%= @settings['archive_folder'] %>"><%= @settings['archive_folder'].present? ? @settings['archive_folder'] : 'Archive' %></option></select><button type="button" id="load_archive_folders" class="small-button">Ordner laden</button><span id="archive_loading" style="display: none;">Lade...</span></p>
     <p><label for="settings_ignored_folder">Ignored-Ordner</label><select name="settings[ignored_folder]" id="settings_ignored_folder"><option value="<%= @settings['ignored_folder'] %>"><%= @settings['ignored_folder'].present? ? @settings['ignored_folder'] : 'Ignored' %></option></select><button type="button" id="load_ignored_folders" class="small-button">Ordner laden</button><span id="ignored_loading" style="display: none;">Lade...</span></p>
-  </div>
   <div class="box tabular settings">
     <h3>Ticket-Verarbeitung</h3>
     <p><label for="settings_inbox_ticket_id">Posteingang-Ticket-ID</label><%= text_field_tag 'settings[inbox_ticket_id]', @settings['inbox_ticket_id'], size: 10, placeholder: '1' %><em class="info">ID des Tickets für E-Mails von bekannten Absendern ohne Ticket-ID</em></p>
   </div>
   <div class="box tabular settings">
     <h3>Benutzer-Erstellung</h3>
-    <p><label for="settings_user_firstname_type">Vorname für neue Benutzer</label><%= select_tag 'settings[user_firstname_type]', options_for_select([['Mail-Account (Teil vor @)', 'mail_account'], ['Vollständige E-Mail-Adresse', 'mail_address']], @settings['user_firstname_type'] || 'mail_account') %><em class="info">Bestimmt, wie der Vorname für automatisch erstellte Benutzer generiert wird</em></p>
+    <p><label for="settings_user_firstname_type">Vorname für neue Benutzer</label><%= select_tag 'settings[user_firstname_type]', options_for_select([["Mail-Account (Teil vor @)", 'mail_account'], ['Vollständige E-Mail-Adresse', 'mail_address']], @settings['user_firstname_type'] || 'mail_account') %><em class="info">Bestimmt, wie der Vorname für automatisch erstellte Benutzer generiert wird</em></p>
     <p><label for="settings_user_lastname_custom">Nachname für neue Benutzer</label><%= text_field_tag 'settings[user_lastname_custom]', @settings['user_lastname_custom'] || 'Auto-generated', size: 30, placeholder: 'Auto-generated' %><em class="info">Benutzerdefinierter Nachname für alle automatisch erstellten Benutzer</em></p>
   </div>
   <div class="box tabular settings">
     <h3>E-Mail-Filter</h3>
-    <p><label for="settings_ignore_email_addresses">Zu ignorierende E-Mail-Adressen</label><%= text_area_tag 'settings[ignore_email_addresses]', @settings['ignore_email_addresses'], rows: 5, placeholder: "Eine E-Mail-Adresse pro Zeile, z.B.:\n*@system.example.com\nnoreply@company.com\nautomation@*" %><em class="info">E-Mails von diesen Adressen werden automatisch in den Ignored-Ordner verschoben. Wildcards (*) sind erlaubt.</em></p>
   </div>
 </div>
 
@@ -61,14 +58,12 @@
 <div id="tab-parser" class="tab-content" style="display: none;">
   <div class="box tabular settings">
     <h3>Parser-Einstellungen</h3>
-    <p><label for="settings_parser_mode">Parser-Modus</label><%= select_tag 'settings[parser_mode]', options_for_select([['HTML zu Text (Standard)', 'html_to_text'], ['Text-Repräsentation', 'text_representation']], @settings['parser_mode'] || 'html_to_text') %><em class="info">HTML zu Text: Konvertiert HTML-Inhalt zu sauberem Text. Text-Repräsentation: Nutzt die Textversion der E-Mail.</em></p>
+    <p><label for="settings_parser_mode">Parser-Modus</label><%= select_tag 'settings[parser_mode]', options_for_select([["HTML zu Text (Standard)", 'html_to_text'], ['Text-Repräsentation', 'text_representation']], @settings['parser_mode'] || 'html_to_text') %><em class="info">HTML zu Text: Konvertiert HTML-Inhalt zu sauberem Text. Text-Repräsentation: Nutzt die Textversion der E-Mail.</em></p>
     <p><label for="settings_html_attachment_enabled">HTML als Anhang speichern</label><%= check_box_tag 'settings[html_attachment_enabled]', '1', @settings['html_attachment_enabled'] == '1' %><em class="info">Wenn aktiviert, wird der HTML-Inhalt der E-Mail als .html Datei an das Ticket angehängt.</em></p>
-    <p><label for="settings_backdate_comments">Kommentare rückdatieren</label><%= check_box_tag 'settings[backdate_comments]', '1', @settings['backdate_comments'] == '1' %><em class="info">Wenn aktiviert, werden Kommentare auf das Empfangsdatum der E-Mail zurückdatiert.</em></p>
     <p><label for="settings_mail_decoder_enabled">Mail-Decoder verwenden</label><%= check_box_tag 'settings[mail_decoder_enabled]', '1', @settings['mail_decoder_enabled'] == '1' %><em class="info">Aktiviert robusteres Charset-Handling mit mail-decoder und html2text.</em></p>
     <p><label for="settings_html_structure_filter_enabled">HTML-Struktur-Filter</label><%= check_box_tag 'settings[html_structure_filter_enabled]', '1', @settings['html_structure_filter_enabled'] == '1' %><em class="info">Entfernt störende HTML-Elemente wie Zitate und Signaturen.</em></p>
     <p><label for="settings_regex_filter_enabled">Regex-Filter</label><%= check_box_tag 'settings[regex_filter_enabled]', '1', @settings['regex_filter_enabled'] == '1' %><em class="info">Entfernt Text ab typischen E-Mail-Trennern.</em></p>
     <p><label for="settings_regex_separators">Regex-Trenner</label><%= text_area_tag 'settings[regex_separators]', @settings['regex_separators'] || "Am .* schrieb .*:\nVon:\nGesendet:\nAn:\nBetreff:\n-----Original Message-----\n-------- Ursprüngliche Nachricht --------", rows: 4 %><em class="info">Ein Muster pro Zeile.</em></p>
-    <p><label for="settings_remove_leading_whitespace_enabled">Führende Leerzeichen entfernen</label><%= check_box_tag 'settings[remove_leading_whitespace_enabled]', '1', @settings['remove_leading_whitespace_enabled'] == '1' %><em class="info">Entfernt Leerzeichen und Tabs am Anfang jeder Zeile.</em></p>
     <p><label for="settings_normalize_paragraphs_enabled">Absätze normalisieren</label><%= check_box_tag 'settings[normalize_paragraphs_enabled]', '1', @settings['normalize_paragraphs_enabled'] == '1' %><em class="info">Reduziert mehrere aufeinanderfolgende leere Zeilen.</em></p>
     <p><label for="settings_max_consecutive_paragraphs">Max. leere Zeilen</label><%= number_field_tag 'settings[max_consecutive_paragraphs]', @settings['max_consecutive_paragraphs'] || '1', min: 1, max: 5, step: 1 %></p>
     <p><label for="settings_markdown_link_filter_enabled">Link-Formate konvertieren</label><%= check_box_tag 'settings[markdown_link_filter_enabled]', '1', @settings['markdown_link_filter_enabled'] == '1' %><em class="info">Konvertiert verschiedene Link-Formate in Markdown.</em></p>
@@ -78,17 +73,15 @@
 
 <!-- Tab Content: Automation -->
 <div id="tab-automation" class="tab-content" style="display: none;">
-  <div class="box tabular settings">
     <h3>Import-Automatisierung</h3>
     <p><label for="settings_auto_import_enabled">Automatischer Import</label><%= check_box_tag 'settings[auto_import_enabled]', '1', @settings['auto_import_enabled'] == '1' %></p>
-    <p><label for="settings_import_interval">Import-Intervall</label><%= text_field_tag 'settings[import_interval]', @settings['import_interval'], size: 10, placeholder: '5' %> <%= select_tag 'settings[import_interval_unit]', options_for_select([['Minuten', 'minutes'], ['Sekunden', 'seconds']], @settings['import_interval_unit'] || 'minutes') %></p>
+    <p><label for="settings_import_interval">Import-Intervall</label><%= text_field_tag 'settings[import_interval]', @settings['import_interval'], size: 10, placeholder: '5' %> <%= select_tag 'settings[import_interval_unit]', options_for_select([["Minuten", 'minutes'], ["Sekunden", 'seconds']], @settings['import_interval_unit'] || 'minutes') %></p>
     <p><label for="settings_load_balanced_enabled">Load-Balanced Import</label><%= check_box_tag 'settings[load_balanced_enabled]', '1', @settings['load_balanced_enabled'] == '1' %><em class="info">Verteilt den Import gleichmäßig über die Stunde.</em></p>
     <p><label for="settings_mails_per_hour">Mails pro Stunde</label><%= text_field_tag 'settings[mails_per_hour]', @settings['mails_per_hour'] || '60', size: 10, placeholder: '60' %><em class="info">Max. Anzahl Mails pro Stunde (0 = unbegrenzt).</em></p>
   </div>
   <div class="box tabular settings">
     <h3>Zurückgestellte Mails</h3>
     <p><label for="settings_deferred_enabled">Zurückstellung aktiviert</label><%= check_box_tag 'settings[deferred_enabled]', '1', @settings['deferred_enabled'] == '1' %><em class="info">Aktiviert die Zurückstellung für unbekannte Benutzer.</em></p>
-    <p><label for="settings_deferred_folder">Zurückgestellt-Ordner</label><select name="settings[deferred_folder]" id="settings_deferred_folder"><option value="<%= @settings['deferred_folder'] %>"><%= @settings['deferred_folder'].present? ? @settings['deferred_folder'] : 'Deferred' %></option></select><button type="button" id="load_deferred_folders" class="small-button">Ordner laden</button><span id="deferred_loading" style="display: none;">Lade...</span></p>
     <p><label for="settings_deferred_lifetime_days">Aufbewahrungszeit (Tage)</label><%= text_field_tag 'settings[deferred_lifetime_days]', @settings['deferred_lifetime_days'] || '30', size: 10, placeholder: '30' %></p>
     <p><label for="settings_deferred_recheck_time">Prüfzeit</label><%= text_field_tag 'settings[deferred_recheck_time]', @settings['deferred_recheck_time'] || '02:00', size: 10, placeholder: '02:00' %><em class="info">Uhrzeit für tägliche Prüfung (HH:MM).</em></p>
   </div>
@@ -96,16 +89,14 @@
     <h3>Reminder</h3>
     <p><label for="settings_reminder_enabled">Tägliche Reminder</label><%= check_box_tag 'settings[reminder_enabled]', '1', @settings['reminder_enabled'] == '1' %></p>
     <p><label for="settings_reminder_time">Reminder-Zeit</label><%= text_field_tag 'settings[reminder_time]', @settings['reminder_time'], size: 10, placeholder: '09:00' %><em class="info">Format: HH:MM</em></p>
-    <p><label for="settings_reminder_type">Reminder-Typ</label><%= select_tag 'settings[reminder_type]', options_for_select([['Redmine Standard', 'redmine'], ['Plugin Custom', 'custom']], @settings['reminder_type'] || 'redmine') %></p>
   </div>
   <div class="box tabular settings">
     <h3>Logging</h3>
-    <p><label for="settings_log_level">Log-Level</label><%= select_tag 'settings[log_level]', options_for_select([['Debug', 'debug'], ['Info', 'info'], ['Warning', 'warn'], ['Error', 'error']], @settings['log_level']) %></p>
+    <p><label for="settings_log_level">Log-Level</label><%= select_tag 'settings[log_level]', options_for_select([["Debug", 'debug'], ["Info", 'info'], ["Warning", 'warn'], ["Error", 'error']], @settings['log_level']) %></p>
     <p><label for="settings_log_cleanup_enabled">Log-Bereinigung</label><%= check_box_tag 'settings[log_cleanup_enabled]', '1', @settings['log_cleanup_enabled'] == '1' %></p>
-    <p><label for="settings_log_cleanup_method">Bereinigungsmethode</label><%= select_tag 'settings[log_cleanup_method]', options_for_select([['Nach Anzahl', 'count'], ['Nach Alter', 'days']], @settings['log_cleanup_method'] || 'count') %></p>
+    <p><label for="settings_log_cleanup_method">Bereinigungsmethode</label><%= select_tag 'settings[log_cleanup_method]', options_for_select([["Nach Anzahl", 'count'], ["Nach Alter", 'days']], @settings['log_cleanup_method'] || 'count') %></p>
     <p><label for="settings_log_max_entries">Max. Anzahl Logs</label><%= number_field_tag 'settings[log_max_entries]', @settings['log_max_entries'] || '1000', min: 100, max: 50000, step: 100 %></p>
     <p><label for="settings_log_retention_days">Aufbewahrung (Tage)</label><%= number_field_tag 'settings[log_retention_days]', @settings['log_retention_days'] || '30', min: 1, max: 365, step: 1 %></p>
-    <p><label for="settings_log_cleanup_schedule">Bereinigungsintervall</label><%= select_tag 'settings[log_cleanup_schedule]', options_for_select([['Täglich', 'daily'], ['Wöchentlich', 'weekly'], ['Monatlich', 'monthly']], @settings['log_cleanup_schedule'] || 'weekly') %></p>
   </div>
 </div>
 
@@ -128,7 +119,6 @@
 .tabs a { display: block; padding: 10px 15px; text-decoration: none; color: #555; border: 1px solid transparent; border-bottom: none; border-radius: 5px 5px 0 0; }
 .tabs a.selected { background-color: #fff; border-color: #ccc #ccc #fff #ccc; color: #000; font-weight: bold; }
 .tab-content { padding-top: 10px; }
-.test-connection-btn { margin-left: 10px; }
 .connection-status { padding: 5px 10px; border-radius: 3px; font-weight: bold; display: none; }
 .connection-status.success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; display: inline-block; }
 .connection-status.error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; display: inline-block; }
@@ -150,6 +140,77 @@ document.addEventListener('DOMContentLoaded', function() {
 
   window.toggleSmtpFields = function(useImapSettings) {
     document.getElementById('smtp_fields').style.display = useImapSettings ? 'none' : 'block';
+  }
+
+  // IMAP-Verbindung testen
+  var imapBtn = document.getElementById('test_imap_connection');
+  if (imapBtn) {
+    imapBtn.addEventListener('click', function() {
+      var statusEl = document.getElementById('imap_test_status');
+      var hostEl = document.querySelector('input[name="settings[imap_host]"]');
+      var portEl = document.querySelector('input[name="settings[imap_port]"]');
+      var sslEl = document.querySelector('input[name="settings[imap_ssl]"]');
+      var userEl = document.querySelector('input[name="settings[imap_username]"]');
+      var passEl = document.querySelector('input[name="settings[imap_password]"]');
+
+      var host = hostEl && hostEl.value ? hostEl.value.trim() : '';
+      var port = portEl && portEl.value ? portEl.value.trim() : '';
+      var ssl = sslEl && sslEl.checked ? '1' : '0';
+      var user = userEl && userEl.value ? userEl.value.trim() : '';
+      var pass = passEl ? passEl.value : '';
+
+      if (!statusEl) return;
+
+      // Einfache Validierung
+      if (!host || !port || !user || !pass) {
+        statusEl.textContent = 'Bitte Host, Port, Benutzername und Passwort ausfüllen.';
+        statusEl.className = 'connection-status error';
+        statusEl.style.display = 'inline-block';
+        return;
+      }
+
+      statusEl.textContent = 'Teste Verbindung...';
+      statusEl.className = 'connection-status testing';
+      statusEl.style.display = 'inline-block';
+
+      var csrfToken = (function() {
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        if (meta) return meta.getAttribute('content');
+        if (window.Rails && typeof window.Rails.csrfToken === 'function') return window.Rails.csrfToken();
+        var input = document.querySelector('input[name="authenticity_token"]');
+        return input ? input.value : null;
+      })();
+
+      fetch('/admin/mail_handler_admin/test_imap_connection', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken || ''
+        },
+        body: JSON.stringify({
+          imap_host: host,
+          imap_port: port,
+          imap_ssl: ssl,
+          imap_username: user,
+          imap_password: pass
+        })
+      }).then(function(resp) {
+        return resp.json();
+      }).then(function(data) {
+        if (data && data.success) {
+          statusEl.textContent = 'IMAP-Verbindung erfolgreich!';
+          statusEl.className = 'connection-status success';
+        } else {
+          statusEl.textContent = 'Fehler: ' + (data && data.error ? data.error : 'Unbekannter Fehler');
+          statusEl.className = 'connection-status error';
+        }
+        statusEl.style.display = 'inline-block';
+      }).catch(function(err) {
+        statusEl.textContent = 'Fehler: ' + err.message;
+        statusEl.className = 'connection-status error';
+        statusEl.style.display = 'inline-block';
+      });
+    });
   }
 
   // Other functions...
