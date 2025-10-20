@@ -119,10 +119,19 @@
 .tabs a { display: block; padding: 10px 15px; text-decoration: none; color: #555; border: 1px solid transparent; border-bottom: none; border-radius: 5px 5px 0 0; }
 .tabs a.selected { background-color: #fff; border-color: #ccc #ccc #fff #ccc; color: #000; font-weight: bold; }
 .tab-content { padding-top: 10px; }
+
+/* Legacy status pill (kept for compatibility, now hidden during button feedback) */
 .connection-status { padding: 5px 10px; border-radius: 3px; font-weight: bold; display: none; }
 .connection-status.success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; display: inline-block; }
 .connection-status.error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; display: inline-block; }
 .connection-status.testing { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; display: inline-block; }
+
+/* Button-state feedback */
+.test-connection-btn { padding: 6px 12px; border-radius: 4px; border: 1px solid #ccc; background: #f3f3f3; color: #333; cursor: pointer; transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease; }
+.test-connection-btn.testing { background-color: #fff3cd; color: #856404; border-color: #ffeaa7; }
+.test-connection-btn.success { background-color: #28a745; color: #fff; border-color: #28a745; }
+.test-connection-btn.error { background-color: #dc3545; color: #fff; border-color: #dc3545; }
+.test-connection-btn:disabled { opacity: 0.7; cursor: not-allowed; }
 </style>
 
 <script>
@@ -134,19 +143,30 @@ document.addEventListener('DOMContentLoaded', function() {
       tabs.forEach(function(t) { t.classList.remove('selected'); });
       this.classList.add('selected');
       document.querySelectorAll('.tab-content').forEach(function(content) { content.style.display = 'none'; });
-      document.querySelector(this.getAttribute('href')).style.display = 'block';
+      var targetSel = this.getAttribute('href');
+      var target = targetSel ? document.querySelector(targetSel) : null;
+      if (target) { target.style.display = 'block'; }
     });
   });
+  // Ensure initial tab content visibility
+  document.querySelectorAll('.tab-content').forEach(function(content) { content.style.display = 'none'; });
+  var selectedTab = document.querySelector('.tabs a.selected');
+  var initialTarget = selectedTab ? document.querySelector(selectedTab.getAttribute('href')) : document.getElementById('tab-connections');
+  if (initialTarget) initialTarget.style.display = 'block';
 
   window.toggleSmtpFields = function(useImapSettings) {
-    document.getElementById('smtp_fields').style.display = useImapSettings ? 'none' : 'block';
+    var container = document.getElementById('smtp_fields');
+    if (container) container.style.display = useImapSettings ? 'none' : 'block';
   }
 
-  // IMAP-Verbindung testen
+  // IMAP-Verbindung testen: Status im Button anzeigen (grün/rot)
   var imapBtn = document.getElementById('test_imap_connection');
   if (imapBtn) {
     imapBtn.addEventListener('click', function() {
+      var btn = imapBtn;
       var statusEl = document.getElementById('imap_test_status');
+      if (statusEl) statusEl.style.display = 'none';
+
       var hostEl = document.querySelector('input[name="settings[imap_host]"]');
       var portEl = document.querySelector('input[name="settings[imap_port]"]');
       var sslEl = document.querySelector('input[name="settings[imap_ssl]"]');
@@ -159,19 +179,18 @@ document.addEventListener('DOMContentLoaded', function() {
       var user = userEl && userEl.value ? userEl.value.trim() : '';
       var pass = passEl ? passEl.value : '';
 
-      if (!statusEl) return;
-
-      // Einfache Validierung
+      // Validierung, Feedback im Button
       if (!host || !port || !user || !pass) {
-        statusEl.textContent = 'Bitte Host, Port, Benutzername und Passwort ausfüllen.';
-        statusEl.className = 'connection-status error';
-        statusEl.style.display = 'inline-block';
+        btn.textContent = 'Bitte Felder ausfüllen';
+        btn.classList.remove('success','testing');
+        btn.classList.add('error');
         return;
       }
 
-      statusEl.textContent = 'Teste Verbindung...';
-      statusEl.className = 'connection-status testing';
-      statusEl.style.display = 'inline-block';
+      btn.textContent = 'Teste Verbindung...';
+      btn.classList.remove('success','error');
+      btn.classList.add('testing');
+      btn.disabled = true;
 
       var csrfToken = (function() {
         var meta = document.querySelector('meta[name="csrf-token"]');
@@ -198,17 +217,20 @@ document.addEventListener('DOMContentLoaded', function() {
         return resp.json();
       }).then(function(data) {
         if (data && data.success) {
-          statusEl.textContent = 'IMAP-Verbindung erfolgreich!';
-          statusEl.className = 'connection-status success';
+          btn.textContent = 'IMAP-Verbindung erfolgreich';
+          btn.classList.remove('testing','error');
+          btn.classList.add('success');
         } else {
-          statusEl.textContent = 'Fehler: ' + (data && data.error ? data.error : 'Unbekannter Fehler');
-          statusEl.className = 'connection-status error';
+          btn.textContent = 'Fehlgeschlagen: ' + (data && data.error ? data.error : 'Unbekannter Fehler');
+          btn.classList.remove('testing','success');
+          btn.classList.add('error');
         }
-        statusEl.style.display = 'inline-block';
       }).catch(function(err) {
-        statusEl.textContent = 'Fehler: ' + err.message;
-        statusEl.className = 'connection-status error';
-        statusEl.style.display = 'inline-block';
+        btn.textContent = 'Fehler: ' + err.message;
+        btn.classList.remove('testing','success');
+        btn.classList.add('error');
+      }).finally(function() {
+        btn.disabled = false;
       });
     });
   }
