@@ -1094,15 +1094,29 @@ class MailHandlerAdminController < ApplicationController
       
       selected_ids.each do |msg_id|
         begin
-          # Fetch the mail object first for proper logging
-          msg_data = imap.fetch(msg_id.to_i, 'RFC822')[0].attr['RFC822']
-          mail = msg_data.present? ? Mail.read_from_string(msg_data) : nil
-          
-          # Try to archive the message
-          @service.archive_message(imap, msg_id.to_i, mail)
-          # If we reach this point, archiving was successful
+          # Fetch mail to get a stable Message-ID (sequence numbers can shift)
+          fetch = imap.fetch(msg_id.to_i, 'RFC822')
+          msg_data = fetch && fetch[0] ? (fetch[0].attr['RFC822'] || fetch[0].attr['BODY[]']) : nil
+          next unless msg_data.present?
+
+          mail = Mail.read_from_string(msg_data)
+          next if mail.nil?
+
+          # Resolve current sequence number via Message-ID to avoid stale indices
+          resolved_seq = msg_id.to_i
+          if mail.message_id.present?
+            begin
+              search_result = imap.search(['HEADER', 'Message-ID', mail.message_id])
+              resolved_seq = search_result.first if search_result.present?
+            rescue => search_err
+              Rails.logger.warn("Message-ID search failed for #{msg_id}: #{search_err.message}")
+            end
+          end
+
+          # Archive using resolved sequence number
+          @service.archive_message(imap, resolved_seq, mail)
           archived_count += 1
-          Rails.logger.info("Successfully archived message #{msg_id}")
+          Rails.logger.info("Successfully archived message #{resolved_seq} (original #{msg_id})")
         rescue => e
           Rails.logger.error("Failed to archive message #{msg_id}: #{e.message}")
           # Don't increment counter on failure
