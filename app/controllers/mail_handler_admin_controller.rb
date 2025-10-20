@@ -277,20 +277,21 @@ class MailHandlerAdminController < ApplicationController
 
   def archive_deferred_mails
     selected_ids = params[:selected_ids] || []
-    
-    if selected_ids.empty?
+    selected_message_ids = params[:selected_message_ids] || []
+
+    if selected_ids.empty? && selected_message_ids.empty?
       flash[:error] = "Bitte wählen Sie mindestens eine E-Mail aus."
       redirect_to action: :deferred_mails
       return
     end
-    
+
     begin
-      archived_count = archive_selected_mails(selected_ids)
+      archived_count = archive_selected_mails(selected_ids, selected_message_ids)
       flash[:notice] = "#{archived_count} E-Mails wurden erfolgreich archiviert."
     rescue => e
       flash[:error] = "Fehler beim Archivieren: #{e.message}"
     end
-    
+
     redirect_to action: :deferred_mails
   end
 
@@ -1082,48 +1083,87 @@ class MailHandlerAdminController < ApplicationController
     end
   end
 
-  def archive_selected_mails(selected_ids)
+  def archive_selected_mails(selected_ids, selected_message_ids = nil)
     imap = @service.connect_to_imap
     return 0 unless imap
 
     begin
       deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
       imap.select(deferred_folder)
-      
+
       archived_count = 0
-      
-      selected_ids.each do |msg_id|
+
+      selected_ids.each_with_index do |msg_id, idx|
         begin
-          # Fetch mail to get a stable Message-ID (sequence numbers can shift)
-          fetch = imap.fetch(msg_id.to_i, 'RFC822')
-          msg_data = fetch && fetch[0] ? (fetch[0].attr['RFC822'] || fetch[0].attr['BODY[]']) : nil
-          next unless msg_data.present?
+          proposed_seq = msg_id.to_i
+          msgid = selected_message_ids && selected_message_ids[idx]
 
-          mail = Mail.read_from_string(msg_data)
-          next if mail.nil?
+          resolved_seq = nil
+          mail = nil
 
-          # Resolve current sequence number via Message-ID to avoid stale indices
-          resolved_seq = msg_id.to_i
-          if mail.message_id.present?
+          # Prefer resolving by Message-ID if available, because sequences can shift
+          if msgid.present?
             begin
-              search_result = imap.search(['HEADER', 'Message-ID', mail.message_id])
+              search_result = imap.search(['HEADER', 'Message-ID', msgid])
               resolved_seq = search_result.first if search_result.present?
             rescue => search_err
-              Rails.logger.warn("Message-ID search failed for #{msg_id}: #{search_err.message}")
+              Rails.logger.warn("Message-ID search failed for #{msgid}: #{search_err.message}")
             end
           end
 
-          # Archive using resolved sequence number
+          # If not found via Message-ID, try fetching by proposed sequence to obtain mail
+          if resolved_seq.nil? && proposed_seq > 0
+            begin
+              fetch = imap.fetch(proposed_seq, 'RFC822')
+              msg_data = fetch && fetch[0] ? (fetch[0].attr['RFC822'] || fetch[0].attr['BODY[]']) : nil
+              if msg_data.present?
+                mail = Mail.read_from_string(msg_data)
+                if mail&.message_id.present?
+                  begin
+                    search_result = imap.search(['HEADER', 'Message-ID', mail.message_id])
+                    resolved_seq = search_result.first if search_result.present?
+                  rescue => search_err
+                    Rails.logger.warn("Fallback Message-ID search failed for seq #{proposed_seq}: #{search_err.message}")
+                  end
+                else
+                  resolved_seq = proposed_seq
+                end
+              else
+                Rails.logger.warn("Fetch returned no data for proposed seq #{proposed_seq}")
+              end
+            rescue => e
+              Rails.logger.warn("Fetch failed for proposed seq #{proposed_seq}: #{e.message}")
+            end
+          end
+
+          # If still not resolved, skip this message
+          if resolved_seq.nil?
+            Rails.logger.warn("Could not resolve current sequence for message (proposed #{proposed_seq}, msgid #{msgid}). Skipping.")
+            next
+          end
+
+          # Ensure we have mail content when possible for logging
+          if mail.nil?
+            begin
+              fetch = imap.fetch(resolved_seq, 'RFC822')
+              msg_data = fetch && fetch[0] ? (fetch[0].attr['RFC822'] || fetch[0].attr['BODY[]']) : nil
+              mail = Mail.read_from_string(msg_data) if msg_data.present?
+            rescue => e
+              Rails.logger.warn("Unable to fetch mail content for seq #{resolved_seq}: #{e.message}")
+            end
+          end
+
           @service.archive_message(imap, resolved_seq, mail)
           archived_count += 1
-          Rails.logger.info("Successfully archived message #{resolved_seq} (original #{msg_id})")
+          Rails.logger.info("Successfully archived message seq #{resolved_seq} (proposed #{proposed_seq}, msgid #{msgid})")
         rescue => e
-          Rails.logger.error("Failed to archive message #{msg_id}: #{e.message}")
+          Rails.logger.error("Failed to archive message (proposed #{msg_id}, msgid #{msgid}): #{e.message}")
           # Don't increment counter on failure
         end
       end
-      
-      Rails.logger.info("Archive operation completed: #{archived_count} of #{selected_ids.length} messages archived")
+
+      total = selected_ids.length
+      Rails.logger.info("Archive operation completed: #{archived_count} of #{total} messages archived")
       archived_count
     ensure
       imap&.disconnect

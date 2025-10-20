@@ -85,6 +85,7 @@
             <tr class="<%= 'expired' if mail[:expired] %>">
               <td class="checkbox">
                 <%= check_box_tag 'selected_ids[]', mail[:id], false, :class => 'mail-checkbox' %>
+                <%= hidden_field_tag 'selected_message_ids[]', mail[:message_id] %>
               </td>
               <td><%= h(mail[:from]) %></td>
               <td><%= h(mail[:subject]) %></td>

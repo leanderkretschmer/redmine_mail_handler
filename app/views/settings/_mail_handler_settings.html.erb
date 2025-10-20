@@ -73,6 +73,7 @@
 
 <!-- Tab Content: Automation -->
 <div id="tab-automation" class="tab-content" style="display: none;">
+  <div class="box tabular settings">
     <h3>Import-Automatisierung</h3>
     <p><label for="settings_auto_import_enabled">Automatischer Import</label><%= check_box_tag 'settings[auto_import_enabled]', '1', @settings['auto_import_enabled'] == '1' %></p>
     <p><label for="settings_import_interval">Import-Intervall</label><%= text_field_tag 'settings[import_interval]', @settings['import_interval'], size: 10, placeholder: '5' %> <%= select_tag 'settings[import_interval_unit]', options_for_select([["Minuten", 'minutes'], ["Sekunden", 'seconds']], @settings['import_interval_unit'] || 'minutes') %></p>
@@ -148,6 +149,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (target) { target.style.display = 'block'; }
     });
   });
+
   // Ensure initial tab content visibility
   document.querySelectorAll('.tab-content').forEach(function(content) { content.style.display = 'none'; });
   var selectedTab = document.querySelector('.tabs a.selected');
@@ -157,6 +159,14 @@ document.addEventListener('DOMContentLoaded', function() {
   window.toggleSmtpFields = function(useImapSettings) {
     var container = document.getElementById('smtp_fields');
     if (container) container.style.display = useImapSettings ? 'none' : 'block';
+  }
+
+  function getCsrfToken() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta) return meta.getAttribute('content');
+    if (window.Rails && typeof window.Rails.csrfToken === 'function') return window.Rails.csrfToken();
+    var input = document.querySelector('input[name="authenticity_token"]');
+    return input ? input.value : null;
   }
 
   // IMAP-Verbindung testen: Status im Button anzeigen (grün/rot)
@@ -179,7 +189,6 @@ document.addEventListener('DOMContentLoaded', function() {
       var user = userEl && userEl.value ? userEl.value.trim() : '';
       var pass = passEl ? passEl.value : '';
 
-      // Validierung, Feedback im Button
       if (!host || !port || !user || !pass) {
         btn.textContent = 'Bitte Felder ausfüllen';
         btn.classList.remove('success','testing');
@@ -192,19 +201,11 @@ document.addEventListener('DOMContentLoaded', function() {
       btn.classList.add('testing');
       btn.disabled = true;
 
-      var csrfToken = (function() {
-        var meta = document.querySelector('meta[name="csrf-token"]');
-        if (meta) return meta.getAttribute('content');
-        if (window.Rails && typeof window.Rails.csrfToken === 'function') return window.Rails.csrfToken();
-        var input = document.querySelector('input[name="authenticity_token"]');
-        return input ? input.value : null;
-      })();
-
       fetch('/admin/mail_handler_admin/test_imap_connection', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': csrfToken || ''
+          'X-CSRF-Token': getCsrfToken() || ''
         },
         body: JSON.stringify({
           imap_host: host,
@@ -213,28 +214,171 @@ document.addEventListener('DOMContentLoaded', function() {
           imap_username: user,
           imap_password: pass
         })
-      }).then(function(resp) {
-        return resp.json();
-      }).then(function(data) {
-        if (data && data.success) {
-          btn.textContent = 'IMAP-Verbindung erfolgreich';
-          btn.classList.remove('testing','error');
-          btn.classList.add('success');
-        } else {
-          btn.textContent = 'Fehlgeschlagen: ' + (data && data.error ? data.error : 'Unbekannter Fehler');
+      }).then(function(resp) { return resp.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            btn.textContent = 'IMAP-Verbindung erfolgreich';
+            btn.classList.remove('testing','error');
+            btn.classList.add('success');
+          } else {
+            btn.textContent = 'Fehlgeschlagen: ' + (data && data.error ? data.error : 'Unbekannter Fehler');
+            btn.classList.remove('testing','success');
+            btn.classList.add('error');
+          }
+        }).catch(function(err) {
+          btn.textContent = 'Fehler: ' + err.message;
           btn.classList.remove('testing','success');
           btn.classList.add('error');
-        }
-      }).catch(function(err) {
-        btn.textContent = 'Fehler: ' + err.message;
-        btn.classList.remove('testing','success');
-        btn.classList.add('error');
-      }).finally(function() {
-        btn.disabled = false;
-      });
+        }).finally(function() {
+          btn.disabled = false;
+        });
     });
   }
 
-  // Other functions...
+  // SMTP-Verbindung testen (unterstützt "SMTP = IMAP")
+  var smtpBtn = document.getElementById('test_smtp_connection');
+  if (smtpBtn) {
+    smtpBtn.addEventListener('click', function() {
+      var btn = smtpBtn;
+      var useImap = document.querySelector('input[name="settings[smtp_same_as_imap]"]')?.checked;
+
+      var host, port, ssl, user, pass;
+      if (useImap) {
+        host = document.querySelector('input[name="settings[imap_host]"]').value.trim();
+        port = document.querySelector('input[name="settings[imap_port]"]').value.trim();
+        ssl = document.querySelector('input[name="settings[imap_ssl]"]').checked ? '1' : '0';
+        user = document.querySelector('input[name="settings[imap_username]"]').value.trim();
+        pass = document.querySelector('input[name="settings[imap_password]"]').value;
+      } else {
+        host = document.querySelector('input[name="settings[smtp_host]"]').value.trim();
+        port = document.querySelector('input[name="settings[smtp_port]"]').value.trim();
+        ssl = document.querySelector('input[name="settings[smtp_ssl]"]').checked ? '1' : '0';
+        user = document.querySelector('input[name="settings[smtp_username]"]').value.trim();
+        pass = document.querySelector('input[name="settings[smtp_password]"]').value;
+      }
+
+      if (!host || !port || !user || !pass) {
+        btn.textContent = 'Bitte Felder ausfüllen';
+        btn.classList.remove('success','testing');
+        btn.classList.add('error');
+        return;
+      }
+
+      btn.textContent = 'Teste SMTP...';
+      btn.classList.remove('success','error');
+      btn.classList.add('testing');
+      btn.disabled = true;
+
+      fetch('/admin/mail_handler_admin/test_smtp_connection', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': getCsrfToken() || ''
+        },
+        body: JSON.stringify({
+          smtp_host: host,
+          smtp_port: port,
+          smtp_ssl: ssl,
+          smtp_username: user,
+          smtp_password: pass
+        })
+      }).then(function(resp) { return resp.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            btn.textContent = 'SMTP-Verbindung erfolgreich';
+            btn.classList.remove('testing','error');
+            btn.classList.add('success');
+          } else {
+            btn.textContent = 'Fehlgeschlagen: ' + (data && data.error ? data.error : 'Unbekannter Fehler');
+            btn.classList.remove('testing','success');
+            btn.classList.add('error');
+          }
+        }).catch(function(err) {
+          btn.textContent = 'Fehler: ' + err.message;
+          btn.classList.remove('testing','success');
+          btn.classList.add('error');
+        }).finally(function() {
+          btn.disabled = false;
+        });
+    });
+  }
+
+  // IMAP Ordner laden für die drei Auswahllisten
+  function loadImapFolders(selectId, loadingId) {
+    var host = document.querySelector('input[name="settings[imap_host]"]').value.trim();
+    var port = document.querySelector('input[name="settings[imap_port]"]').value.trim();
+    var ssl = document.querySelector('input[name="settings[imap_ssl]"]').checked ? '1' : '0';
+    var user = document.querySelector('input[name="settings[imap_username]"]').value.trim();
+    var pass = document.querySelector('input[name="settings[imap_password]"]').value;
+
+    var selectEl = document.getElementById(selectId);
+    var loadingEl = document.getElementById(loadingId);
+
+    if (!host || !port || !user || !pass) {
+      if (selectEl) {
+        selectEl.innerHTML = '';
+        var opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'Bitte IMAP-Daten ausfüllen';
+        selectEl.appendChild(opt);
+      }
+      return;
+    }
+
+    if (loadingEl) loadingEl.style.display = 'inline';
+
+    fetch('/admin/mail_handler_admin/get_imap_folders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': getCsrfToken() || ''
+      },
+      body: JSON.stringify({
+        imap_host: host,
+        imap_port: port,
+        imap_ssl: ssl,
+        imap_username: user,
+        imap_password: pass
+      })
+    }).then(function(resp) { return resp.json(); })
+      .then(function(data) {
+        if (selectEl) {
+          selectEl.innerHTML = '';
+          if (data && data.success && Array.isArray(data.folders) && data.folders.length > 0) {
+            data.folders.forEach(function(folder) {
+              var opt = document.createElement('option');
+              opt.value = folder;
+              opt.textContent = folder;
+              selectEl.appendChild(opt);
+            });
+          } else {
+            var opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'Keine Ordner gefunden';
+            selectEl.appendChild(opt);
+          }
+        }
+      }).catch(function(err) {
+        if (selectEl) {
+          selectEl.innerHTML = '';
+          var opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'Fehler: ' + err.message;
+          selectEl.appendChild(opt);
+        }
+      }).finally(function() {
+        if (loadingEl) loadingEl.style.display = 'none';
+      });
+  }
+
+  var btnInbox = document.getElementById('load_inbox_folders');
+  if (btnInbox) btnInbox.addEventListener('click', function(){ loadImapFolders('settings_inbox_folder','inbox_loading'); });
+
+  var btnArchive = document.getElementById('load_archive_folders');
+  if (btnArchive) btnArchive.addEventListener('click', function(){ loadImapFolders('settings_archive_folder','archive_loading'); });
+
+  var btnIgnored = document.getElementById('load_ignored_folders');
+  if (btnIgnored) btnIgnored.addEventListener('click', function(){ loadImapFolders('settings_ignored_folder','ignored_loading'); });
+
 });
 </script>
