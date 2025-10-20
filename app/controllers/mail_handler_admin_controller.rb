@@ -1084,6 +1084,10 @@ class MailHandlerAdminController < ApplicationController
   end
 
   def archive_selected_mails(selected_ids, selected_message_ids = nil)
+    puts "=== ARCHIVE DEBUG: Starting archive_selected_mails ==="
+    puts "=== ARCHIVE DEBUG: selected_ids: #{selected_ids.inspect} ==="
+    puts "=== ARCHIVE DEBUG: selected_message_ids: #{selected_message_ids.inspect} ==="
+    
     imap = @service.connect_to_imap
     return 0 unless imap
 
@@ -1095,8 +1099,11 @@ class MailHandlerAdminController < ApplicationController
 
       selected_ids.each_with_index do |msg_id, idx|
         begin
+          puts "=== ARCHIVE DEBUG: Processing mail ID #{msg_id} (index #{idx}) ==="
+          
           proposed_seq = msg_id.to_i
           msgid = selected_message_ids && selected_message_ids[idx]
+          puts "=== ARCHIVE DEBUG: Message-ID for mail #{msg_id}: #{msgid} ==="
 
           resolved_seq = nil
           mail = nil
@@ -1104,9 +1111,13 @@ class MailHandlerAdminController < ApplicationController
           # Prefer resolving by Message-ID if available, because sequences can shift
           if msgid.present?
             begin
+              puts "=== ARCHIVE DEBUG: Searching for Message-ID: #{msgid} ==="
               search_result = imap.search(['HEADER', 'Message-ID', msgid])
+              puts "=== ARCHIVE DEBUG: Search results for Message-ID #{msgid}: #{search_result.inspect} ==="
               resolved_seq = search_result.first if search_result.present?
+              puts "=== ARCHIVE DEBUG: Found message with sequence number: #{resolved_seq}" if resolved_seq
             rescue => search_err
+              puts "=== ARCHIVE DEBUG: Message-ID search failed: #{search_err.message} ==="
               Rails.logger.warn("Message-ID search failed for #{msgid}: #{search_err.message}")
             end
           end
@@ -1114,6 +1125,7 @@ class MailHandlerAdminController < ApplicationController
           # If not found via Message-ID, try fetching by proposed sequence to obtain mail
           if resolved_seq.nil? && proposed_seq > 0
             begin
+              puts "=== ARCHIVE DEBUG: Message-ID not found, trying proposed sequence #{proposed_seq} ==="
               fetch = imap.fetch(proposed_seq, 'RFC822')
               msg_data = fetch && fetch[0] ? (fetch[0].attr['RFC822'] || fetch[0].attr['BODY[]']) : nil
               if msg_data.present?
@@ -1122,25 +1134,33 @@ class MailHandlerAdminController < ApplicationController
                   begin
                     search_result = imap.search(['HEADER', 'Message-ID', mail.message_id])
                     resolved_seq = search_result.first if search_result.present?
+                    puts "=== ARCHIVE DEBUG: Fallback search found sequence: #{resolved_seq} ==="
                   rescue => search_err
+                    puts "=== ARCHIVE DEBUG: Fallback Message-ID search failed: #{search_err.message} ==="
                     Rails.logger.warn("Fallback Message-ID search failed for seq #{proposed_seq}: #{search_err.message}")
                   end
                 else
                   resolved_seq = proposed_seq
+                  puts "=== ARCHIVE DEBUG: Using proposed sequence as fallback: #{resolved_seq} ==="
                 end
               else
+                puts "=== ARCHIVE DEBUG: Fetch returned no data for proposed seq #{proposed_seq} ==="
                 Rails.logger.warn("Fetch returned no data for proposed seq #{proposed_seq}")
               end
             rescue => e
+              puts "=== ARCHIVE DEBUG: Fetch failed for proposed seq #{proposed_seq}: #{e.message} ==="
               Rails.logger.warn("Fetch failed for proposed seq #{proposed_seq}: #{e.message}")
             end
           end
 
           # If still not resolved, skip this message
           if resolved_seq.nil?
+            puts "=== ARCHIVE DEBUG: Could not resolve sequence for message (proposed #{proposed_seq}, msgid #{msgid}). Skipping. ==="
             Rails.logger.warn("Could not resolve current sequence for message (proposed #{proposed_seq}, msgid #{msgid}). Skipping.")
             next
           end
+
+          puts "=== ARCHIVE DEBUG: Using sequence number: #{resolved_seq} ==="
 
           # Ensure we have mail content when possible for logging
           if mail.nil?
@@ -1148,21 +1168,33 @@ class MailHandlerAdminController < ApplicationController
               fetch = imap.fetch(resolved_seq, 'RFC822')
               msg_data = fetch && fetch[0] ? (fetch[0].attr['RFC822'] || fetch[0].attr['BODY[]']) : nil
               mail = Mail.read_from_string(msg_data) if msg_data.present?
+              if mail
+                puts "=== ARCHIVE DEBUG: Mail details - From: #{mail.from&.first}, Subject: #{mail.subject} ==="
+              else
+                puts "=== ARCHIVE DEBUG: Could not fetch mail content for sequence #{resolved_seq} ==="
+              end
             rescue => e
+              puts "=== ARCHIVE DEBUG: Unable to fetch mail content: #{e.message} ==="
               Rails.logger.warn("Unable to fetch mail content for seq #{resolved_seq}: #{e.message}")
             end
           end
 
+          puts "=== ARCHIVE DEBUG: Calling @service.archive_message for sequence #{resolved_seq} ==="
           @service.archive_message(imap, resolved_seq, mail)
           archived_count += 1
+          puts "=== ARCHIVE DEBUG: Successfully archived message #{resolved_seq} ==="
           Rails.logger.info("Successfully archived message seq #{resolved_seq} (proposed #{proposed_seq}, msgid #{msgid})")
         rescue => e
+          puts "=== ARCHIVE DEBUG: Error archiving mail #{msg_id}: #{e.message} ==="
+          puts "=== ARCHIVE DEBUG: Error backtrace: #{e.backtrace.join("\n")} ==="
           Rails.logger.error("Failed to archive message (proposed #{msg_id}, msgid #{msgid}): #{e.message}")
+          Rails.logger.error("Backtrace: #{e.backtrace.join("\n")}")
           # Don't increment counter on failure
         end
       end
 
       total = selected_ids.length
+      puts "=== ARCHIVE DEBUG: Finished archive_selected_mails, archived #{archived_count} of #{total} messages ==="
       Rails.logger.info("Archive operation completed: #{archived_count} of #{total} messages archived")
       archived_count
     ensure

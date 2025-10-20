@@ -84,8 +84,7 @@
           <% @deferred_mails.each do |mail| %>
             <tr class="<%= 'expired' if mail[:expired] %>">
               <td class="checkbox">
-                <%= check_box_tag 'selected_ids[]', mail[:id], false, :class => 'mail-checkbox' %>
-                <%= hidden_field_tag 'selected_message_ids[]', mail[:message_id] %>
+                <%= check_box_tag 'selected_ids[]', mail[:id], false, :class => 'mail-checkbox', :data => { :message_id => mail[:message_id] } %>
               </td>
               <td><%= h(mail[:from]) %></td>
               <td><%= h(mail[:subject]) %></td>
@@ -225,8 +224,36 @@ function submitArchive() {
     return false;
   }
   
-  // Change form action to archive
+  // Collect selected message IDs from data attributes
+  var selectedCheckboxes = document.querySelectorAll('.mail-checkbox:checked');
+  var messageIds = [];
+  
+  selectedCheckboxes.forEach(function(checkbox) {
+    var messageId = checkbox.getAttribute('data-message-id');
+    if (messageId) {
+      messageIds.push(messageId);
+    }
+  });
+  
+  // Add hidden fields for message IDs
   var form = document.getElementById('deferred_mails_form');
+  
+  // Remove existing message ID fields
+  var existingFields = form.querySelectorAll('input[name="selected_message_ids[]"]');
+  existingFields.forEach(function(field) {
+    field.remove();
+  });
+  
+  // Add new message ID fields
+  messageIds.forEach(function(messageId) {
+    var hiddenField = document.createElement('input');
+    hiddenField.type = 'hidden';
+    hiddenField.name = 'selected_message_ids[]';
+    hiddenField.value = messageId;
+    form.appendChild(hiddenField);
+  });
+  
+  // Change form action to archive
   form.action = '<%= url_for(:action => 'archive_deferred_mails') %>';
   return true;
 }
