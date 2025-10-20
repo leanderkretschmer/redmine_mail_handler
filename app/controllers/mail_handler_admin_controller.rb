@@ -662,7 +662,7 @@ class MailHandlerAdminController < ApplicationController
   def reload_deferred_mails
     begin
       # Teste IMAP-Verbindung
-      imap = @service.get_imap_connection
+      imap = @service.connect_to_imap
       if imap
         deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'INBOX.deferred'
         begin
@@ -736,7 +736,7 @@ class MailHandlerAdminController < ApplicationController
     init_service
     
     # Teste IMAP-Verbindung
-    imap = @service.get_imap_connection
+    imap = @service.connect_to_imap
     if imap.nil?
       flash[:error] = 'IMAP-Verbindung fehlgeschlagen. Bitte überprüfen Sie die Plugin-Einstellungen.'
       redirect_to deferred_mails_mail_handler_admin_index_path
@@ -831,9 +831,9 @@ class MailHandlerAdminController < ApplicationController
   def get_deferred_mails_from_imap
     Rails.logger.info("=== Starting get_deferred_mails_from_imap ===")
     
-    imap = @service.get_imap_connection
+    imap = @service.connect_to_imap
     if imap.nil?
-      Rails.logger.error("IMAP connection failed - @service.get_imap_connection returned nil")
+      Rails.logger.error("IMAP connection failed - @service.connect_to_imap returned nil")
       @imap_debug_info << "✗ IMAP-Verbindung fehlgeschlagen"
       return []
     end
@@ -862,7 +862,7 @@ class MailHandlerAdminController < ApplicationController
           end
         rescue => list_error
           Rails.logger.error("Could not list folders: #{list_error.message}")
-          @imap_debug_info << "✗ Konnte Ordner nicht auflisten: #{list_error.message}"
+          @imap_debug_info << "✗ Fehler beim Listen der Ordner: #{list_error.message}"
         end
         return []
       end
@@ -1122,7 +1122,7 @@ class MailHandlerAdminController < ApplicationController
 
   def test_imap_connection_available
     Rails.logger.info("=== Testing IMAP connection availability ===")
-    imap = @service.get_imap_connection
+    imap = @service.connect_to_imap
     if imap.nil?
       Rails.logger.error("IMAP connection failed - service returned nil")
       return false
