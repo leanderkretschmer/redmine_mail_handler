@@ -289,9 +289,9 @@ class MailHandlerAdminController < ApplicationController
     begin
       # Load current plugin settings to get the archive folder
       current_settings = Setting.plugin_redmine_mail_handler
-      archive_folder = current_settings['archive_folder']
+      archive_folder = current_settings['archive_folder'].presence || 'Archive'
       
-      # Check if archive folder is configured
+      # Verify archive folder is set (should always be true now with default)
       if archive_folder.blank?
         flash[:error] = "Kein Archiv-Ordner in den Plugin-Einstellungen konfiguriert. Bitte konfigurieren Sie den Archiv-Ordner unter Administration > Plugins > Mail Handler > Verarbeitung."
         redirect_to action: :deferred_mails
@@ -299,6 +299,9 @@ class MailHandlerAdminController < ApplicationController
       end
       
       Rails.logger.info "Using archive folder from plugin settings: #{archive_folder}"
+      
+      # Ensure archive folder is in settings before updating service
+      current_settings['archive_folder'] = archive_folder
       
       # Update service settings to ensure they are current
       @service.update_settings(current_settings)
@@ -633,11 +636,12 @@ class MailHandlerAdminController < ApplicationController
       return 0 unless imap
       
       # Wähle den deferred Ordner
-      deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
+      settings = Setting.plugin_redmine_mail_handler
+      deferred_folder = settings['deferred_folder'].presence || 'Deferred'
       imap.select(deferred_folder)
       
       # Wähle oder erstelle den Archive-Ordner gemäß Plugin-Einstellung
-      archived_folder = Setting.plugin_redmine_mail_handler['archive_folder'] || 'Archive'
+      archived_folder = settings['archive_folder'].presence || 'Archive'
       begin
         imap.select(archived_folder)
       rescue Net::IMAP::NoResponseError

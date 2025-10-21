@@ -35,7 +35,8 @@ class MailHandlerService
       return false unless imap
 
       # Wähle Posteingang
-      imap.select(@settings['inbox_folder'] || 'INBOX')
+      inbox_folder = @settings['inbox_folder'].presence || 'INBOX'
+      imap.select(inbox_folder)
       
       # Hole ungelesene Mails
       message_ids = imap.search(['UNSEEN'])
@@ -90,7 +91,7 @@ class MailHandlerService
     return unless imap
     
     begin
-      deferred_folder = @settings['deferred_folder'] || 'Deferred'
+      deferred_folder = @settings['deferred_folder'].presence || 'Deferred'
       
       # Prüfe ob Zurückgestellt-Ordner existiert
       begin
@@ -151,8 +152,8 @@ class MailHandlerService
       imap = connect_to_imap
       return 0 unless imap
       
-      deferred_folder = @settings['deferred_folder'] || 'Deferred'
-      archive_folder = @settings['archive_folder'] || 'Archive'
+      deferred_folder = @settings['deferred_folder'].presence || 'Deferred'
+      archive_folder = @settings['archive_folder'].presence || 'Archive'
       
       # Wähle deferred Ordner
       imap.select(deferred_folder)
@@ -487,7 +488,7 @@ class MailHandlerService
       imap = connect_to_imap
       return { total: 0, active: 0, expired: 0 } unless imap
       
-      deferred_folder = @settings['deferred_folder'] || 'Deferred'
+      deferred_folder = @settings['deferred_folder'].presence || 'Deferred'
       
       # Prüfe ob Ordner existiert
       begin
@@ -1199,15 +1200,21 @@ class MailHandlerService
     puts "=== ARCHIVE DEBUG: Current @settings: #{@settings.inspect} ==="
     puts "=== ARCHIVE DEBUG: Archive folder from @settings: '#{@settings['archive_folder']}' ==="
     
-    # Überspringe Archivierung wenn kein Archiv-Ordner konfiguriert ist
-    unless @settings['archive_folder'].present?
-      puts "=== ARCHIVE DEBUG: No archive folder configured ==="
+    # Verwende Standardwert falls nicht konfiguriert
+    archive_folder = @settings['archive_folder'].presence || 'Archive'
+    
+    # Überspringe Archivierung wenn immer noch leer
+    if archive_folder.blank?
+      puts "=== ARCHIVE DEBUG: No archive folder configured even after default ==="
       @logger.error("No archive folder configured, skipping archive for message #{msg_id}")
-      raise "Archive folder not configured"
+      raise "Archiv-Ordner ist nicht konfiguriert. Bitte konfigurieren Sie den Archiv-Ordner in den Plugin-Einstellungen unter Administration > Plugins > Mail Handler > Verarbeitung."
     end
     
-    puts "=== ARCHIVE DEBUG: Archive folder configured: '#{@settings['archive_folder']}' ==="
-    @logger.info("Archive folder configured: '#{@settings['archive_folder']}'")
+    # Update @settings with resolved archive folder
+    @settings['archive_folder'] = archive_folder
+    
+    puts "=== ARCHIVE DEBUG: Archive folder configured: '#{archive_folder}' ==="
+    @logger.info("Archive folder configured: '#{archive_folder}'")
     
     begin
       # Prüfe ob die Message-ID noch gültig ist
@@ -1217,7 +1224,7 @@ class MailHandlerService
       unless uid_data && uid_data.first
         puts "=== ARCHIVE DEBUG: Message #{msg_id} is invalid ==="
         @logger.error("Message #{msg_id} is invalid or already processed, skipping archive")
-        raise "Message #{msg_id} is invalid"
+        raise "Nachricht #{msg_id} ist ungültig oder wurde bereits verarbeitet"
       end
       
       puts "=== ARCHIVE DEBUG: Message #{msg_id} is valid, proceeding with archive ==="
@@ -1228,9 +1235,9 @@ class MailHandlerService
       ensure_archive_folder_exists(imap)
       
       # Verschiebe die Nachricht (markiert automatisch als gelesen)
-      puts "=== ARCHIVE DEBUG: Moving message #{msg_id} to archive folder '#{@settings['archive_folder']}' ==="
-      @logger.info("Moving message #{msg_id} to archive folder '#{@settings['archive_folder']}'")
-      imap.move(msg_id, @settings['archive_folder'])
+      puts "=== ARCHIVE DEBUG: Moving message #{msg_id} to archive folder '#{archive_folder}' ==="
+      @logger.info("Moving message #{msg_id} to archive folder '#{archive_folder}'")
+      imap.move(msg_id, archive_folder)
       # Ensure deleted messages are removed from source mailbox (for MOVE fallback)
       begin
         imap.expunge
@@ -1241,7 +1248,7 @@ class MailHandlerService
         @logger.warn("Expunge after move failed for message #{msg_id}: #{expunge_err.message}")
       end
       puts "=== ARCHIVE DEBUG: Successfully moved message #{msg_id} ==="
-      @logger.info_mail("Successfully moved message #{msg_id} to archive folder '#{@settings['archive_folder']}'", mail)
+      @logger.info_mail("Successfully moved message #{msg_id} to archive folder '#{archive_folder}'", mail)
       
     rescue Net::IMAP::BadResponseError, Net::IMAP::NoResponseError => e
       puts "=== ARCHIVE DEBUG: IMAP error: #{e.message} ==="
@@ -1251,27 +1258,27 @@ class MailHandlerService
       if msg.include?('Invalid messageset')
         puts "=== ARCHIVE DEBUG: Invalid messageset error ==="
         @logger.debug("Message #{msg_id} already moved or invalid, skipping archive")
-        raise "Message #{msg_id} already moved or invalid"
+        raise "Nachricht #{msg_id} wurde bereits verschoben oder ist ungültig"
       elsif msg.include?('TRYCREATE')
         puts "=== ARCHIVE DEBUG: TRYCREATE error, creating folder ==="
-        @logger.info("Archive folder '#{@settings['archive_folder']}' does not exist, creating it...")
+        @logger.info("Archive folder '#{archive_folder}' does not exist, creating it...")
         create_archive_folder(imap)
         # Versuche erneut zu verschieben
         begin
-          imap.move(msg_id, @settings['archive_folder'])
+          imap.move(msg_id, archive_folder)
           puts "=== ARCHIVE DEBUG: Successfully moved after creating folder ==="
           @logger.info("Successfully moved message #{msg_id} to newly created archive folder")
         rescue => retry_e
           puts "=== ARCHIVE DEBUG: Failed to move after creating folder: #{retry_e.message} ==="
           @logger.error("Failed to move message #{msg_id} to archive after creating folder: #{retry_e.message}")
-          raise retry_e
+          raise "Fehler beim Verschieben nach Ordner-Erstellung: #{retry_e.message}"
         end
       elsif msg =~ /NO MOVE|MOVE not supported/i
         puts "=== ARCHIVE DEBUG: NO MOVE error, trying fallback ==="
         @logger.warn("IMAP server does not support MOVE command for message #{msg_id}, trying COPY + EXPUNGE")
         # Fallback: COPY + STORE + EXPUNGE
         begin
-          imap.copy(msg_id, @settings['archive_folder'])
+          imap.copy(msg_id, archive_folder)
           imap.store(msg_id, '+FLAGS', [:Deleted])
           imap.expunge
           puts "=== ARCHIVE DEBUG: Successfully used fallback method ==="
@@ -1279,12 +1286,12 @@ class MailHandlerService
         rescue => copy_e
           puts "=== ARCHIVE DEBUG: Fallback method failed: #{copy_e.message} ==="
           @logger.error("Fallback archive method failed for message #{msg_id}: #{copy_e.message}")
-          raise copy_e
+          raise "Fallback-Archivierungsmethode fehlgeschlagen: #{copy_e.message}"
         end
       else
         puts "=== ARCHIVE DEBUG: Other IMAP error: #{e.message} ==="
         @logger.error("Failed to move message #{msg_id} to archive: #{e.message}")
-        raise e
+        raise "IMAP-Fehler beim Archivieren: #{e.message}"
       end
     rescue => e
       puts "=== ARCHIVE DEBUG: Unexpected error: #{e.message} ==="
@@ -1503,7 +1510,7 @@ class MailHandlerService
 
   # Verschiebe Nachricht in Ignored-Ordner (für Blacklist-Treffer)
   def move_to_ignored_folder(imap, msg_id, mail = nil)
-    ignored_folder = @settings['ignored_folder'] || 'Ignored'
+    ignored_folder = @settings['ignored_folder'].presence || 'Ignored'
     return if ignored_folder.blank?
 
     begin
@@ -1553,7 +1560,7 @@ class MailHandlerService
 
   # Verschiebe Nachricht in Zurückgestellt-Ordner
   def defer_message(imap, msg_id, mail, reason = 'unknown_user')
-    deferred_folder = @settings['deferred_folder'] || 'Deferred'
+    deferred_folder = @settings['deferred_folder'].presence || 'Deferred'
     
     begin
       # Stelle sicher, dass Zurückgestellt-Ordner existiert
@@ -1602,7 +1609,8 @@ class MailHandlerService
 
   # Stelle sicher, dass der Archiv-Ordner existiert
   def ensure_archive_folder_exists(imap)
-    return unless @settings['archive_folder'].present?
+    archive_folder = @settings['archive_folder'].presence || 'Archive'
+    return unless archive_folder.present?
     
     begin
       # Liste alle Ordner auf
@@ -1610,8 +1618,8 @@ class MailHandlerService
       folder_names = folders.map(&:name)
       normalized = folder_names.map { |n| n.to_s.downcase }
       
-      unless normalized.include?(@settings['archive_folder'].to_s.downcase)
-        @logger.info("Archive folder '#{@settings['archive_folder']}' not found, creating it...")
+      unless normalized.include?(archive_folder.to_s.downcase)
+        @logger.info("Archive folder '#{archive_folder}' not found, creating it...")
         create_archive_folder(imap)
       end
     rescue => e
@@ -1621,7 +1629,7 @@ class MailHandlerService
 
   # Stelle sicher, dass der Ignored-Ordner existiert
   def ensure_ignored_folder_exists(imap)
-    ignored_folder = @settings['ignored_folder'] || 'Ignored'
+    ignored_folder = @settings['ignored_folder'].presence || 'Ignored'
     return unless ignored_folder.present?
 
     begin
@@ -1638,7 +1646,7 @@ class MailHandlerService
 
   # Erstelle den Ignored-Ordner
   def create_ignored_folder(imap)
-    ignored_folder = @settings['ignored_folder'] || 'Ignored'
+    ignored_folder = @settings['ignored_folder'].presence || 'Ignored'
     begin
       imap.create(ignored_folder)
       @logger.info("Created ignored folder '#{ignored_folder}'")
@@ -1649,11 +1657,13 @@ class MailHandlerService
 
   # Erstelle den Archiv-Ordner
   def create_archive_folder(imap)
+    archive_folder = @settings['archive_folder'].presence || 'Archive'
     begin
-      imap.create(@settings['archive_folder'])
-      @logger.info("Created archive folder '#{@settings['archive_folder']}'")
+      imap.create(archive_folder)
+      @logger.info("Created archive folder '#{archive_folder}'")
     rescue => e
-      @logger.error("Failed to create archive folder '#{@settings['archive_folder']}': #{e.message}")
+      @logger.error("Failed to create archive folder '#{archive_folder}': #{e.message}")
+      raise "Fehler beim Erstellen des Archiv-Ordners '#{archive_folder}': #{e.message}"
     end
   end
 
@@ -1706,7 +1716,7 @@ class MailHandlerService
 
   # Stelle sicher, dass der Zurückgestellt-Ordner existiert
   def ensure_deferred_folder_exists(imap)
-    deferred_folder = @settings['deferred_folder'] || 'Deferred'
+    deferred_folder = @settings['deferred_folder'].presence || 'Deferred'
     return unless deferred_folder.present?
     
     begin
@@ -1725,7 +1735,7 @@ class MailHandlerService
 
   # Erstelle Zurückgestellt-Ordner
   def create_deferred_folder(imap)
-    deferred_folder = @settings['deferred_folder'] || 'Deferred'
+    deferred_folder = @settings['deferred_folder'].presence || 'Deferred'
     
     begin
       imap.create(deferred_folder)
@@ -1764,7 +1774,7 @@ class MailHandlerService
       imap = connect_to_imap
       return false unless imap
       
-      deferred_folder = @settings['deferred_folder'] || 'Deferred'
+      deferred_folder = @settings['deferred_folder'].presence || 'Deferred'
       
       # Prüfe ob Ordner existiert
       begin

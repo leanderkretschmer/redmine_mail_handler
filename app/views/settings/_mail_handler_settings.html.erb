@@ -38,9 +38,10 @@
 <div id="tab-processing" class="tab-content" style="display: none;">
   <div class="box tabular settings">
     <h3>IMAP-Ordner</h3>
-    <p><label for="settings_inbox_folder">Posteingang-Ordner</label><select name="settings[inbox_folder]" id="settings_inbox_folder"><option value="<%= @settings['inbox_folder'] %>"><%= @settings['inbox_folder'].present? ? @settings['inbox_folder'] : 'INBOX' %></option></select><button type="button" id="load_inbox_folders" class="small-button">Ordner laden</button><span id="inbox_loading" style="display: none;">Lade...</span></p>
-    <p><label for="settings_archive_folder">Archiv-Ordner</label><select name="settings[archive_folder]" id="settings_archive_folder"><option value="<%= @settings['archive_folder'] %>"><%= @settings['archive_folder'].present? ? @settings['archive_folder'] : 'Archive' %></option></select><button type="button" id="load_archive_folders" class="small-button">Ordner laden</button><span id="archive_loading" style="display: none;">Lade...</span></p>
-    <p><label for="settings_ignored_folder">Ignored-Ordner</label><select name="settings[ignored_folder]" id="settings_ignored_folder"><option value="<%= @settings['ignored_folder'] %>"><%= @settings['ignored_folder'].present? ? @settings['ignored_folder'] : 'Ignored' %></option></select><button type="button" id="load_ignored_folders" class="small-button">Ordner laden</button><span id="ignored_loading" style="display: none;">Lade...</span></p>
+    <p><label for="settings_inbox_folder">Posteingang-Ordner</label><select name="settings[inbox_folder]" id="settings_inbox_folder"><option value="<%= @settings['inbox_folder'] %>"><%= @settings['inbox_folder'].present? ? @settings['inbox_folder'] : 'INBOX' %></option></select><button type="button" id="load_inbox_folders" class="small-button">Ordner laden</button><span id="inbox_loading" style="display: none;">Lade...</span><em class="info">Ordner für eingehende E-Mails</em></p>
+    <p><label for="settings_archive_folder">Archiv-Ordner</label><select name="settings[archive_folder]" id="settings_archive_folder"><option value="<%= @settings['archive_folder'] %>"><%= @settings['archive_folder'].present? ? @settings['archive_folder'] : 'Archive' %></option></select><button type="button" id="load_archive_folders" class="small-button">Ordner laden</button><span id="archive_loading" style="display: none;">Lade...</span><em class="info">Ordner für verarbeitete E-Mails</em></p>
+    <p><label for="settings_deferred_folder">Zurückgestellt-Ordner</label><select name="settings[deferred_folder]" id="settings_deferred_folder"><option value="<%= @settings['deferred_folder'] %>"><%= @settings['deferred_folder'].present? ? @settings['deferred_folder'] : 'Deferred' %></option></select><button type="button" id="load_deferred_folders" class="small-button">Ordner laden</button><span id="deferred_loading" style="display: none;">Lade...</span><em class="info">Ordner für zurückgestellte E-Mails (unbekannte Absender)</em></p>
+    <p><label for="settings_ignored_folder">Ignoriert-Ordner</label><select name="settings[ignored_folder]" id="settings_ignored_folder"><option value="<%= @settings['ignored_folder'] %>"><%= @settings['ignored_folder'].present? ? @settings['ignored_folder'] : 'Ignored' %></option></select><button type="button" id="load_ignored_folders" class="small-button">Ordner laden</button><span id="ignored_loading" style="display: none;">Lade...</span><em class="info">Ordner für ignorierte E-Mails (Blacklist)</em></p>
   </div>
   <div class="box tabular settings">
     <h3>Ticket-Verarbeitung</h3>
@@ -381,6 +382,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
   var btnIgnored = document.getElementById('load_ignored_folders');
   if (btnIgnored) btnIgnored.addEventListener('click', function(){ loadImapFolders('settings_ignored_folder','ignored_loading'); });
+
+  var btnDeferred = document.getElementById('load_deferred_folders');
+  if (btnDeferred) btnDeferred.addEventListener('click', function(){ loadImapFolders('settings_deferred_folder','deferred_loading'); });
 
 });
 </script>
