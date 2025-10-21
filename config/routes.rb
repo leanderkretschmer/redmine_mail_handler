@@ -17,6 +17,8 @@ RedmineApp::Application.routes.draw do
         post :restart_scheduler
         post :toggle_load_balancing
         post :get_imap_folders
+        post :get_imap_folders_current
+        post :set_archive_folder
         post :process_deferred
         post :create_user_from_mail
         post :process_deferred_mail

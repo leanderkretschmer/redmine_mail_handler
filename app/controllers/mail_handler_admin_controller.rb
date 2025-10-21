@@ -154,6 +154,38 @@ class MailHandlerAdminController < ApplicationController
     render json: { success: false, error: e.message }
   end
 
+  # Lade IMAP-Ordner mit aktuellen Plugin-Einstellungen (für deferred page)
+  def get_imap_folders_current
+    init_service
+    folders = @service.list_imap_folders
+    render json: { success: true, folders: folders }
+  rescue => e
+    render json: { success: false, error: e.message }
+  end
+
+  # Setze Archiv-Ordner in Plugin-Einstellungen (für deferred page)
+  def set_archive_folder
+    archive_folder = params[:archive_folder]
+    
+    if archive_folder.blank?
+      render json: { success: false, error: 'Kein Archiv-Ordner angegeben' }
+      return
+    end
+
+    begin
+      # Aktuelle Plugin-Einstellungen laden
+      settings = Setting.plugin_redmine_mail_handler.dup
+      settings['archive_folder'] = archive_folder
+      
+      # Einstellungen speichern
+      Setting.plugin_redmine_mail_handler = settings
+      
+      render json: { success: true, message: "Archiv-Ordner erfolgreich auf '#{archive_folder}' gesetzt" }
+    rescue => e
+      render json: { success: false, error: e.message }
+    end
+  end
+
   def manual_import
     limit = params[:import_limit].to_i
     limit = nil if limit <= 0
