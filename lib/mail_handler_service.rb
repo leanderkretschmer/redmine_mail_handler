@@ -1195,6 +1195,10 @@ class MailHandlerService
     puts "=== ARCHIVE DEBUG: Starting archive_message for message #{msg_id} ==="
     @logger.info("Starting archive_message for message #{msg_id}")
     
+    # Debug: Zeige alle aktuellen Einstellungen
+    puts "=== ARCHIVE DEBUG: Current @settings: #{@settings.inspect} ==="
+    puts "=== ARCHIVE DEBUG: Archive folder from @settings: '#{@settings['archive_folder']}' ==="
+    
     # Überspringe Archivierung wenn kein Archiv-Ordner konfiguriert ist
     unless @settings['archive_folder'].present?
       puts "=== ARCHIVE DEBUG: No archive folder configured ==="
