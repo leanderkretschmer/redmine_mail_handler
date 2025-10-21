@@ -1188,6 +1188,8 @@ class MailHandlerService
     end
   end
 
+  public
+
   # Archiviere Nachricht
   def archive_message(imap, msg_id, mail = nil)
     puts "=== ARCHIVE DEBUG: Starting archive_message for message #{msg_id} ==="
