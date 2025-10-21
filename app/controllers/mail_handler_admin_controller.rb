@@ -1110,6 +1110,9 @@ class MailHandlerAdminController < ApplicationController
   def archive_selected_mails_simple(selected_ids)
     Rails.logger.info "Starting simple archive for IDs: #{selected_ids.inspect}"
     
+    # Initialize settings
+    @settings = Setting.plugin_redmine_mail_handler
+    
     archived_count = 0
     
     begin
