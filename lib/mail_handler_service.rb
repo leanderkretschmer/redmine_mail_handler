@@ -1288,6 +1288,11 @@ class MailHandlerService
       raise e
     end
   end
+
+  # Update settings for the service
+  def update_settings(new_settings)
+    @settings = new_settings
+  end
   
   private
   
@@ -2143,11 +2148,6 @@ class MailHandlerService
     end
     
     false
-  end
-
-  # Update settings for the service
-  def update_settings(new_settings)
-    @settings = new_settings
   end
 
   # Alias für Rückwärtskompatibilität
