@@ -154,40 +154,7 @@ class MailHandlerAdminController < ApplicationController
     render json: { success: false, error: e.message }
   end
 
-  # Lade IMAP-Ordner mit aktuellen Plugin-Einstellungen (für deferred page)
-  def get_imap_folders_current
-    init_service
-    folders = @service.list_imap_folders
-    render json: { success: true, folders: folders }
-  rescue => e
-    render json: { success: false, error: e.message }
-  end
 
-  # Setze Archiv-Ordner in Plugin-Einstellungen (für deferred page)
-  def set_archive_folder
-    archive_folder = params[:archive_folder]
-    
-    if archive_folder.blank?
-      render json: { success: false, error: 'Kein Archiv-Ordner angegeben' }
-      return
-    end
-
-    begin
-      # Aktuelle Plugin-Einstellungen laden
-      settings = Setting.plugin_redmine_mail_handler.dup
-      settings['archive_folder'] = archive_folder
-      
-      # Einstellungen speichern
-      Setting.plugin_redmine_mail_handler = settings
-      
-      Rails.logger.info "Archive folder updated to: #{archive_folder}"
-      
-      render json: { success: true, message: "Archiv-Ordner erfolgreich auf '#{archive_folder}' gesetzt" }
-    rescue => e
-      Rails.logger.error "Failed to set archive folder: #{e.message}"
-      render json: { success: false, error: e.message }
-    end
-  end
 
   def manual_import
     limit = params[:import_limit].to_i
@@ -320,16 +287,25 @@ class MailHandlerAdminController < ApplicationController
     end
 
     begin
-      # Reload settings from database to get the latest archive folder setting
-      @settings = Setting.plugin_redmine_mail_handler
-      Rails.logger.info "Archive folder setting: #{@settings['archive_folder'].inspect}"
+      # Load current plugin settings to get the archive folder
+      current_settings = Setting.plugin_redmine_mail_handler
+      archive_folder = current_settings['archive_folder']
+      
+      # Check if archive folder is configured
+      if archive_folder.blank?
+        flash[:error] = "Kein Archiv-Ordner in den Plugin-Einstellungen konfiguriert. Bitte konfigurieren Sie den Archiv-Ordner unter Administration > Plugins > Mail Handler > Verarbeitung."
+        redirect_to action: :deferred_mails
+        return
+      end
+      
+      Rails.logger.info "Using archive folder from plugin settings: #{archive_folder}"
       
       # Update service settings to ensure they are current
-      @service.update_settings(@settings)
+      @service.update_settings(current_settings)
       
       archived_count = archive_selected_mails_simple(selected_ids)
       if archived_count > 0
-        flash[:notice] = "#{archived_count} E-Mails wurden erfolgreich archiviert."
+        flash[:notice] = "#{archived_count} E-Mails wurden erfolgreich in '#{archive_folder}' archiviert."
       else
         flash[:warning] = "Keine E-Mails konnten archiviert werden."
       end

@@ -34,27 +34,6 @@
   <% end %>
 </div>
 
-<!-- Archiv-Ordner Auswahl -->
-<div class="archive-folder-selection">
-  <fieldset class="collapsible">
-    <legend onclick="toggleFieldset(this);">Archiv-Ordner auswählen</legend>
-    <div>
-      <p>
-        <label for="archive_folder_select">Archiv-Ordner:</label>
-        <select id="archive_folder_select" name="archive_folder" style="min-width: 200px;">
-          <option value="">Bitte IMAP-Ordner laden</option>
-        </select>
-        <button type="button" id="load_archive_folders_deferred" class="small-button">Ordner laden</button>
-        <span id="archive_loading_deferred" style="display: none;">Lade...</span>
-      </p>
-      <p>
-        <button type="button" id="set_archive_folder" class="small" disabled>Als Archiv-Ordner setzen</button>
-        <span id="archive_status" style="margin-left: 10px; font-style: italic;"></span>
-      </p>
-    </div>
-  </fieldset>
-</div>
-
 <% if @deferred_mails.empty? %>
   <div class="nodata">
     <% if @search_from.present? || @search_subject.present? %>
@@ -224,138 +203,34 @@ document.addEventListener('DOMContentLoaded', function() {
     form.setAttribute('data-search-from', '<%= @search_from %>');
     form.setAttribute('data-search-subject', '<%= @search_subject %>');
   }
-
-  // Archive folder loading functionality
-  var loadArchiveFoldersBtn = document.getElementById('load_archive_folders_deferred');
-  var archiveFolderSelect = document.getElementById('archive_folder_select');
-  var archiveLoadingSpan = document.getElementById('archive_loading_deferred');
-  var setArchiveFolderBtn = document.getElementById('set_archive_folder');
-  var archiveStatusSpan = document.getElementById('archive_status');
-
-  if (loadArchiveFoldersBtn) {
-    loadArchiveFoldersBtn.addEventListener('click', function() {
-      loadImapFoldersForDeferred();
-    });
-  }
-
-  if (setArchiveFolderBtn) {
-    setArchiveFolderBtn.addEventListener('click', function() {
-      setArchiveFolder();
-    });
-  }
-
-  if (archiveFolderSelect) {
-    archiveFolderSelect.addEventListener('change', function() {
-      setArchiveFolderBtn.disabled = !this.value;
-    });
-  }
-
-  function loadImapFoldersForDeferred() {
-    // Get IMAP settings from plugin settings (we'll use current settings)
-    if (archiveLoadingSpan) archiveLoadingSpan.style.display = 'inline';
-    if (loadArchiveFoldersBtn) loadArchiveFoldersBtn.disabled = true;
-
-    fetch('/admin/mail_handler_admin/get_imap_folders_current', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-      }
-    })
-    .then(function(response) {
-      return response.json();
-    })
-    .then(function(data) {
-      if (archiveLoadingSpan) archiveLoadingSpan.style.display = 'none';
-      if (loadArchiveFoldersBtn) loadArchiveFoldersBtn.disabled = false;
-
-      if (data.success && data.folders) {
-        // Clear existing options
-        archiveFolderSelect.innerHTML = '';
-        
-        // Add default option
-        var defaultOption = document.createElement('option');
-        defaultOption.value = '';
-        defaultOption.textContent = 'Ordner auswählen...';
-        archiveFolderSelect.appendChild(defaultOption);
-        
-        // Add folder options
-        data.folders.forEach(function(folder) {
-          var option = document.createElement('option');
-          option.value = folder;
-          option.textContent = folder;
-          archiveFolderSelect.appendChild(option);
-        });
-        
-        archiveStatusSpan.textContent = data.folders.length + ' Ordner geladen';
-        archiveStatusSpan.style.color = '#080';
-      } else {
-        archiveFolderSelect.innerHTML = '<option value="">Fehler beim Laden</option>';
-        archiveStatusSpan.textContent = 'Fehler: ' + (data.error || 'Unbekannter Fehler');
-        archiveStatusSpan.style.color = '#d00';
-      }
-    })
-    .catch(function(error) {
-      if (archiveLoadingSpan) archiveLoadingSpan.style.display = 'none';
-      if (loadArchiveFoldersBtn) loadArchiveFoldersBtn.disabled = false;
-      
-      archiveFolderSelect.innerHTML = '<option value="">Fehler beim Laden</option>';
-      archiveStatusSpan.textContent = 'Netzwerkfehler: ' + error.message;
-      archiveStatusSpan.style.color = '#d00';
-    });
-  }
-
-  function setArchiveFolder() {
-    var selectedFolder = archiveFolderSelect.value;
-    if (!selectedFolder) {
-      alert('Bitte wählen Sie einen Ordner aus.');
-      return;
-    }
-
-    if (!confirm('Möchten Sie "' + selectedFolder + '" als Archiv-Ordner setzen?')) {
-      return;
-    }
-
-    setArchiveFolderBtn.disabled = true;
-    archiveStatusSpan.textContent = 'Setze Archiv-Ordner...';
-    archiveStatusSpan.style.color = '#666';
-
-    fetch('/admin/mail_handler_admin/set_archive_folder', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-      },
-      body: JSON.stringify({
-        archive_folder: selectedFolder
-      })
-    })
-    .then(function(response) {
-      return response.json();
-    })
-    .then(function(data) {
-      setArchiveFolderBtn.disabled = false;
-      
-      if (data.success) {
-        archiveStatusSpan.textContent = 'Archiv-Ordner erfolgreich gesetzt: ' + selectedFolder;
-        archiveStatusSpan.style.color = '#080';
-      } else {
-        archiveStatusSpan.textContent = 'Fehler: ' + (data.error || 'Unbekannter Fehler');
-        archiveStatusSpan.style.color = '#d00';
-      }
-    })
-    .catch(function(error) {
-      setArchiveFolderBtn.disabled = false;
-      archiveStatusSpan.textContent = 'Netzwerkfehler: ' + error.message;
-      archiveStatusSpan.style.color = '#d00';
-    });
-  }
 });
 </script>
 
-<style>
+<style type="text/css">
 .deferred-mails {
   width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.deferred-mails th,
+.deferred-mails td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.deferred-mails th {
+  background-color: #f2f2f2;
+  font-weight: bold;
+}
+
+.deferred-mails tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.deferred-mails tr:hover {
+  background-color: #f5f5f5;
 }
 
 .deferred-mails th.checkbox,
