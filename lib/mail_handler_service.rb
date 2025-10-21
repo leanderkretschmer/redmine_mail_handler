@@ -1193,19 +1193,13 @@ class MailHandlerService
 
   # Archiviere Nachricht
   def archive_message(imap, msg_id, mail = nil)
-    puts "=== ARCHIVE DEBUG: Starting archive_message for message #{msg_id} ==="
     @logger.info("Starting archive_message for message #{msg_id}")
-    
-    # Debug: Zeige alle aktuellen Einstellungen
-    puts "=== ARCHIVE DEBUG: Current @settings: #{@settings.inspect} ==="
-    puts "=== ARCHIVE DEBUG: Archive folder from @settings: '#{@settings['archive_folder']}' ==="
     
     # Verwende Standardwert falls nicht konfiguriert
     archive_folder = @settings['archive_folder'].presence || 'Archive'
     
     # Überspringe Archivierung wenn immer noch leer
     if archive_folder.blank?
-      puts "=== ARCHIVE DEBUG: No archive folder configured even after default ==="
       @logger.error("No archive folder configured, skipping archive for message #{msg_id}")
       raise "Archiv-Ordner ist nicht konfiguriert. Bitte konfigurieren Sie den Archiv-Ordner in den Plugin-Einstellungen unter Administration > Plugins > Mail Handler > Verarbeitung."
     end
@@ -1213,89 +1207,69 @@ class MailHandlerService
     # Update @settings with resolved archive folder
     @settings['archive_folder'] = archive_folder
     
-    puts "=== ARCHIVE DEBUG: Archive folder configured: '#{archive_folder}' ==="
     @logger.info("Archive folder configured: '#{archive_folder}'")
     
     begin
       # Prüfe ob die Message-ID noch gültig ist
-      puts "=== ARCHIVE DEBUG: Checking if message #{msg_id} is valid... ==="
       @logger.debug("Checking if message #{msg_id} is valid...")
       uid_data = imap.fetch(msg_id, 'UID')
       unless uid_data && uid_data.first
-        puts "=== ARCHIVE DEBUG: Message #{msg_id} is invalid ==="
         @logger.error("Message #{msg_id} is invalid or already processed, skipping archive")
         raise "Nachricht #{msg_id} ist ungültig oder wurde bereits verarbeitet"
       end
       
-      puts "=== ARCHIVE DEBUG: Message #{msg_id} is valid, proceeding with archive ==="
       @logger.debug("Message #{msg_id} is valid, proceeding with archive")
       
       # Prüfe ob der Archiv-Ordner existiert, erstelle ihn falls nötig
-      puts "=== ARCHIVE DEBUG: Ensuring archive folder exists ==="
       ensure_archive_folder_exists(imap)
       
       # Verschiebe die Nachricht (markiert automatisch als gelesen)
-      puts "=== ARCHIVE DEBUG: Moving message #{msg_id} to archive folder '#{archive_folder}' ==="
       @logger.info("Moving message #{msg_id} to archive folder '#{archive_folder}'")
       imap.move(msg_id, archive_folder)
       # Ensure deleted messages are removed from source mailbox (for MOVE fallback)
       begin
         imap.expunge
-        puts "=== ARCHIVE DEBUG: Expunge completed on source mailbox ==="
         @logger.debug("Expunge completed on source mailbox after move for message #{msg_id}")
       rescue => expunge_err
-        puts "=== ARCHIVE DEBUG: Expunge failed: #{expunge_err.message} ==="
         @logger.warn("Expunge after move failed for message #{msg_id}: #{expunge_err.message}")
       end
-      puts "=== ARCHIVE DEBUG: Successfully moved message #{msg_id} ==="
       @logger.info_mail("Successfully moved message #{msg_id} to archive folder '#{archive_folder}'", mail)
       
     rescue Net::IMAP::BadResponseError, Net::IMAP::NoResponseError => e
-      puts "=== ARCHIVE DEBUG: IMAP error: #{e.message} ==="
       @logger.error("IMAP error while archiving message #{msg_id}: #{e.message}")
       msg = e.message.to_s
 
       if msg.include?('Invalid messageset')
-        puts "=== ARCHIVE DEBUG: Invalid messageset error ==="
         @logger.debug("Message #{msg_id} already moved or invalid, skipping archive")
         raise "Nachricht #{msg_id} wurde bereits verschoben oder ist ungültig"
       elsif msg.include?('TRYCREATE')
-        puts "=== ARCHIVE DEBUG: TRYCREATE error, creating folder ==="
         @logger.info("Archive folder '#{archive_folder}' does not exist, creating it...")
         create_archive_folder(imap)
         # Versuche erneut zu verschieben
         begin
           imap.move(msg_id, archive_folder)
-          puts "=== ARCHIVE DEBUG: Successfully moved after creating folder ==="
           @logger.info("Successfully moved message #{msg_id} to newly created archive folder")
         rescue => retry_e
-          puts "=== ARCHIVE DEBUG: Failed to move after creating folder: #{retry_e.message} ==="
           @logger.error("Failed to move message #{msg_id} to archive after creating folder: #{retry_e.message}")
           raise "Fehler beim Verschieben nach Ordner-Erstellung: #{retry_e.message}"
         end
       elsif msg =~ /NO MOVE|MOVE not supported/i
-        puts "=== ARCHIVE DEBUG: NO MOVE error, trying fallback ==="
         @logger.warn("IMAP server does not support MOVE command for message #{msg_id}, trying COPY + EXPUNGE")
         # Fallback: COPY + STORE + EXPUNGE
         begin
           imap.copy(msg_id, archive_folder)
           imap.store(msg_id, '+FLAGS', [:Deleted])
           imap.expunge
-          puts "=== ARCHIVE DEBUG: Successfully used fallback method ==="
           @logger.info("Successfully copied and deleted message #{msg_id} to archive folder (fallback method)")
         rescue => copy_e
-          puts "=== ARCHIVE DEBUG: Fallback method failed: #{copy_e.message} ==="
           @logger.error("Fallback archive method failed for message #{msg_id}: #{copy_e.message}")
           raise "Fallback-Archivierungsmethode fehlgeschlagen: #{copy_e.message}"
         end
       else
-        puts "=== ARCHIVE DEBUG: Other IMAP error: #{e.message} ==="
         @logger.error("Failed to move message #{msg_id} to archive: #{e.message}")
         raise "IMAP-Fehler beim Archivieren: #{e.message}"
       end
     rescue => e
-      puts "=== ARCHIVE DEBUG: Unexpected error: #{e.message} ==="
-      puts "=== ARCHIVE DEBUG: Backtrace: #{e.backtrace.join("\n")} ==="
       @logger.error("Unexpected error while archiving message #{msg_id}: #{e.message}")
       @logger.error("Backtrace: #{e.backtrace.join("\n")}")
       raise e

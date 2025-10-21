@@ -191,7 +191,7 @@ class MailHandlerScheduler
         
         # Verwende die konfigurierte Reminder-Funktionalität
         ActiveRecord::Base.connection_pool.with_connection do
-          send_bulk_reminder
+          send_redmine_reminders
         end
       rescue => e
         @@logger.error("Daily reminder process failed: #{e.message}")

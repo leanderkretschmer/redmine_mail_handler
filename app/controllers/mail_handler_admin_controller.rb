@@ -372,12 +372,6 @@ class MailHandlerAdminController < ApplicationController
     redirect_to action: :index
   end
 
-  def cleanup_old_logs
-    # Entfernt – Logging nur im Terminal
-    flash[:notice] = "Logging erfolgt im Terminal – Aufräumen nicht erforderlich."
-    redirect_to action: :index
-  end
-
   def toggle_load_balancing
     settings = Setting.plugin_redmine_mail_handler
     current_state = settings['load_balanced_enabled'] == '1'
@@ -863,7 +857,6 @@ class MailHandlerAdminController < ApplicationController
   end
 
   def get_deferred_mails_from_imap
-    Rails.logger.info("=== Starting get_deferred_mails_from_imap ===")
     
     imap = @service.connect_to_imap
     if imap.nil?
@@ -1072,11 +1065,10 @@ class MailHandlerAdminController < ApplicationController
         end
       end
 
-      Rails.logger.info("=== Returning #{mails.length} processed mails ===")
       @imap_debug_info << "✓ Erfolgreich #{mails.length} E-Mails verarbeitet und zurückgegeben"
       mails.sort_by { |m| m[:deferred_at] || Time.current }.reverse
     rescue => e
-      Rails.logger.error("=== Error in get_deferred_mails_from_imap: #{e.message} ===")
+      Rails.logger.error("Error in get_deferred_mails_from_imap: #{e.message}")
       Rails.logger.error("Backtrace: #{e.backtrace.join("\n")}")
       @imap_debug_info << "✗ Schwerwiegender Fehler in get_deferred_mails_from_imap: #{e.message}"
       []
@@ -1187,7 +1179,6 @@ class MailHandlerAdminController < ApplicationController
   end
 
   def test_imap_connection_available
-    Rails.logger.info("=== Testing IMAP connection availability ===")
     imap = @service.connect_to_imap
     if imap.nil?
       Rails.logger.error("IMAP connection failed - service returned nil")
