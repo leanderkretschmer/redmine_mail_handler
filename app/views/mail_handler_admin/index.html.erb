@@ -3,7 +3,7 @@
 <% end %>
 
 <div class="contextual">
-  <%= link_to 'Logs anzeigen', { controller: 'mail_handler_logs', action: 'index' }, class: 'icon icon-report' %>
+  <%= link_to 'Logs anzeigen', '/logs/index', class: 'icon icon-report' %>
   <%= link_to 'Plugin-Konfiguration', { :controller => 'settings', :action => 'plugin', :id => 'redmine_mail_handler' }, :class => 'icon icon-settings' %>
 </div>
 

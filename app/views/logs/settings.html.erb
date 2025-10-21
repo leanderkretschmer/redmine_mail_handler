@@ -1,0 +1,125 @@
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag 'mail_handler', :plugin => 'redmine_mail_handler' %>
+<% end %>
+
+<div class="contextual">
+  <%= link_to 'Zurück zu Logs', logs_path, class: 'icon icon-report' %>
+</div>
+
+<h2>Log-Einstellungen</h2>
+
+<%= form_tag({ action: 'update_settings' }, { method: :post, class: 'tabular' }) do %>
+  <div class="box tabular settings">
+    <h3>Log-Bereinigung</h3>
+    <p>
+      <label for="log_cleanup_enabled">Log-Bereinigung aktiviert</label>
+      <%= check_box_tag 'settings[log_cleanup_enabled]', '1', @settings['log_cleanup_enabled'] == '1' %>
+      <em class="info">Automatische Bereinigung alter Log-Einträge</em>
+    </p>
+    <p>
+      <label for="log_cleanup_method">Bereinigungsmethode</label>
+      <%= select_tag 'settings[log_cleanup_method]', 
+          options_for_select([["Nach Anzahl", 'count'], ["Nach Alter", 'days']], @settings['log_cleanup_method'] || 'count') %>
+      <em class="info">Bereinigung nach Anzahl der Einträge oder nach Alter</em>
+    </p>
+    <p>
+      <label for="log_max_entries">Max. Anzahl Logs</label>
+      <%= number_field_tag 'settings[log_max_entries]', @settings['log_max_entries'] || '1000', 
+          min: 100, max: 50000, step: 100 %>
+      <em class="info">Maximale Anzahl Log-Einträge pro Datei (bei Bereinigung nach Anzahl)</em>
+    </p>
+    <p>
+      <label for="log_retention_days">Aufbewahrung (Tage)</label>
+      <%= number_field_tag 'settings[log_retention_days]', @settings['log_retention_days'] || '30', 
+          min: 1, max: 365, step: 1 %>
+      <em class="info">Anzahl Tage, die Logs aufbewahrt werden (bei Bereinigung nach Alter)</em>
+    </p>
+    <p>
+      <label for="log_file_mode">Log-Datei Modus</label>
+      <%= select_tag 'settings[log_file_mode]', 
+          options_for_select([["Getrennte Dateien", 'separate'], ["Eine Datei", 'single']], @settings['log_file_mode'] || 'separate') %>
+      <em class="info">Getrennte Dateien: Error, Info, Deferred in eigenen Dateien. Eine Datei: Alle Logs in einer Datei.</em>
+    </p>
+  </div>
+
+  <div class="box tabular settings">
+    <h3>Log-Verwaltung</h3>
+    <p>
+      <label>&nbsp;</label>
+      <%= link_to 'Alle Logs löschen', { action: 'clear' }, 
+          method: :delete, 
+          class: 'icon icon-del', 
+          confirm: 'Sind Sie sicher, dass Sie alle Log-Dateien löschen möchten?' %>
+      <em class="info">Löscht alle Log-Dateien unwiderruflich</em>
+    </p>
+    <p>
+      <label>&nbsp;</label>
+      <%= link_to 'Alte Logs bereinigen', { action: 'cleanup' }, 
+          method: :delete, 
+          class: 'icon icon-package', 
+          confirm: 'Sind Sie sicher, dass Sie alte Log-Einträge bereinigen möchten?' %>
+      <em class="info">Bereinigt Logs basierend auf den obigen Einstellungen</em>
+    </p>
+  </div>
+
+  <p>
+    <%= submit_tag 'Einstellungen speichern', class: 'button' %>
+  </p>
+<% end %>
+
+<style>
+.box.tabular.settings {
+  margin-bottom: 20px;
+}
+
+.box.tabular.settings h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 5px;
+}
+
+.box.tabular.settings p {
+  margin-bottom: 15px;
+}
+
+.box.tabular.settings label {
+  display: inline-block;
+  width: 200px;
+  font-weight: bold;
+  vertical-align: top;
+}
+
+.box.tabular.settings em.info {
+  display: block;
+  margin-left: 205px;
+  font-style: italic;
+  color: #666;
+  font-size: 0.9em;
+}
+
+.icon.icon-del {
+  background-color: #dc3545;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 3px;
+  text-decoration: none;
+}
+
+.icon.icon-del:hover {
+  background-color: #c82333;
+}
+
+.icon.icon-package {
+  background-color: #ffc107;
+  color: #212529;
+  padding: 5px 10px;
+  border-radius: 3px;
+  text-decoration: none;
+}
+
+.icon.icon-package:hover {
+  background-color: #e0a800;
+}
+</style>

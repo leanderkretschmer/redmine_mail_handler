@@ -1,0 +1,172 @@
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag 'mail_handler', :plugin => 'redmine_mail_handler' %>
+<% end %>
+
+<div class="contextual">
+  <%= link_to 'Log-Einstellungen', { action: 'settings' }, class: 'icon icon-settings' %>
+  <%= form_with url: cleanup_logs_path, method: :delete, local: true, class: 'inline-form' do |f| %>
+    <%= f.number_field :days, value: 30, min: 1, max: 365, placeholder: 'Tage' %>
+    <%= f.submit 'Logs bereinigen', class: 'icon icon-del', 
+        confirm: 'Sind Sie sicher, dass Sie alte Logs löschen möchten?' %>
+  <% end %>
+  
+  <%= link_to 'Alle Logs löschen', clear_logs_path, method: :delete, 
+      class: 'icon icon-del', 
+      confirm: 'Sind Sie sicher, dass Sie alle Logs löschen möchten?' %>
+      
+  <%= link_to 'Export (CSV)', export_logs_path(format: :csv), class: 'icon icon-save' %>
+  <%= link_to 'Export (TXT)', export_logs_path(format: :txt), class: 'icon icon-save' %>
+</div>
+
+<h2>Mail Handler Logs</h2>
+
+<div class="box">
+  <h3>Log-Dateien</h3>
+  
+  <div class="log-file-selector">
+    <%= form_with url: logs_path, method: :get, local: true do |f| %>
+      <%= f.select :file, 
+          options_for_select([['Alle Logs', 'all']] + @log_files.map { |k, v| [k.humanize, k] }, @selected_file),
+          {}, 
+          { onchange: 'this.form.submit();', class: 'log-file-select' } %>
+    <% end %>
+  </div>
+  
+  <% if @selected_file == 'all' %>
+    <div class="log-content">
+      <h4>Alle Logs (letzte 1000 Einträge)</h4>
+      <% if @logs.any? %>
+        <table class="list logs">
+          <thead>
+            <tr>
+              <th>Zeitstempel</th>
+              <th>Level</th>
+              <th>Nachricht</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @logs.each do |log| %>
+              <tr class="log-<%= log.level.downcase %>">
+                <td class="timestamp"><%= log.timestamp %></td>
+                <td class="level">
+                  <span class="log-level log-level-<%= log.level.downcase %>">
+                    <%= log.level %>
+                  </span>
+                </td>
+                <td class="message"><%= truncate(log.message, length: 200) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% else %>
+        <p class="nodata">Keine Logs verfügbar.</p>
+      <% end %>
+    </div>
+  <% elsif @file_logs %>
+    <div class="log-content">
+      <h4><%= @selected_file.humanize %> Logs (letzte 500 Einträge)</h4>
+      
+      <div class="contextual">
+        <%= link_to "#{@selected_file.humanize} Log löschen", 
+            clear_logs_path(file: @selected_file), 
+            method: :delete, 
+            class: 'icon icon-del', 
+            confirm: "Sind Sie sicher, dass Sie die #{@selected_file} Log-Datei löschen möchten?" %>
+      </div>
+      
+      <% if @file_logs.any? %>
+        <table class="list logs">
+          <thead>
+            <tr>
+              <th>Zeitstempel</th>
+              <th>Level</th>
+              <th>Nachricht</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @file_logs.each do |log| %>
+              <tr class="log-<%= log.level.downcase %>">
+                <td class="timestamp"><%= log.timestamp %></td>
+                <td class="level">
+                  <span class="log-level log-level-<%= log.level.downcase %>">
+                    <%= log.level %>
+                  </span>
+                </td>
+                <td class="message"><%= truncate(log.message, length: 200) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% else %>
+        <p class="nodata">Keine Logs in dieser Datei verfügbar.</p>
+      <% end %>
+    </div>
+  <% end %>
+</div>
+
+<style>
+.log-content {
+  margin-top: 15px;
+}
+
+.log-file-selector {
+  margin-bottom: 15px;
+}
+
+.log-file-select {
+  min-width: 200px;
+}
+
+.logs td.timestamp {
+  width: 180px;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.logs td.level {
+  width: 80px;
+  text-align: center;
+}
+
+.logs td.message {
+  word-break: break-word;
+}
+
+.log-level {
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.log-level-info {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.log-level-warn {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.log-level-error {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.log-level-debug {
+  background-color: #e2e3e5;
+  color: #383d41;
+}
+
+.inline-form {
+  display: inline-block;
+  margin-right: 10px;
+}
+
+.inline-form input[type="number"] {
+  width: 60px;
+  margin-right: 5px;
+}
+</style>

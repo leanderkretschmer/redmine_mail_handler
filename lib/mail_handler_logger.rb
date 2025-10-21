@@ -16,79 +16,112 @@ class MailHandlerLogger
   @@import_session_logs = []
   @@import_session_start = nil
   @@custom_logger = nil
+  @@error_logger = nil
+  @@info_logger = nil
+  @@deferred_logger = nil
 
   def initialize
     @settings = Setting.plugin_redmine_mail_handler
     # File-basiertes Logging: keine DB-Tabellenprüfung notwendig
-    setup_custom_logger
+    setup_custom_loggers
   end
 
   private
 
-  def setup_custom_logger
-    return if @@custom_logger
+  def setup_custom_loggers
+    return if @@custom_logger && @@error_logger && @@info_logger && @@deferred_logger
 
-    # Primärer Pfad: /usr/src/redmine/log/redmine_mail_handler.log
-    # Fallback-Pfad: Rails.root/log/redmine_mail_handler.log
-    primary_log_path = '/usr/src/redmine/log/redmine_mail_handler.log'
-    fallback_log_path = defined?(Rails) && Rails.root ? 
-                        File.join(Rails.root, 'log', 'redmine_mail_handler.log') :
-                        File.join(Dir.pwd, 'log', 'redmine_mail_handler.log')
+    # Basis-Pfade definieren
+    primary_log_dir = '/usr/src/redmine/log'
+    fallback_log_dir = defined?(Rails) && Rails.root ? 
+                       File.join(Rails.root, 'log') :
+                       File.join(Dir.pwd, 'log')
     
-    log_file_path = nil
+    log_dir = nil
     
     begin
       # Versuche primären Pfad zu verwenden
-      log_dir = File.dirname(primary_log_path)
-      if Dir.exist?(log_dir) || (FileUtils.mkdir_p(log_dir) rescue false)
-        log_file_path = primary_log_path
+      if Dir.exist?(primary_log_dir) || (FileUtils.mkdir_p(primary_log_dir) rescue false)
+        log_dir = primary_log_dir
       else
         raise "Cannot create primary log directory"
       end
     rescue => e
       # Fallback auf Rails log Verzeichnis
       begin
-        log_dir = File.dirname(fallback_log_path)
-        FileUtils.mkdir_p(log_dir) unless Dir.exist?(log_dir)
-        log_file_path = fallback_log_path
-        Rails.logger.warn "[MailHandler] Using fallback log path: #{log_file_path} (Primary path failed: #{e.message})"
+        FileUtils.mkdir_p(fallback_log_dir) unless Dir.exist?(fallback_log_dir)
+        log_dir = fallback_log_dir
+        Rails.logger.warn "[MailHandler] Using fallback log directory: #{log_dir} (Primary path failed: #{e.message})"
       rescue => fallback_error
-        Rails.logger.error "[MailHandler] Failed to setup custom logger: #{fallback_error.message}"
-        @@custom_logger = nil
+        Rails.logger.error "[MailHandler] Failed to setup custom loggers: #{fallback_error.message}"
         return
       end
     end
     
     begin
-      # Erstelle Custom Logger
-      @@custom_logger = ::Logger.new(log_file_path, 'daily')
-      @@custom_logger.level = ::Logger::DEBUG
-      @@custom_logger.formatter = proc do |severity, datetime, progname, msg|
-        "[#{datetime.strftime('%Y-%m-%d %H:%M:%S')}] #{severity}: #{msg}\n"
-      end
+      # Erstelle separate Logger für verschiedene Kategorien
+      setup_individual_logger(:error, File.join(log_dir, 'redmine_mail_handler_error.log'))
+      setup_individual_logger(:info, File.join(log_dir, 'redmine_mail_handler_info.log'))
+      setup_individual_logger(:deferred, File.join(log_dir, 'redmine_mail_handler_deferred.log'))
+      setup_individual_logger(:general, File.join(log_dir, 'redmine_mail_handler.log'))
       
-      Rails.logger.info "[MailHandler] Custom logger initialized: #{log_file_path}"
+      Rails.logger.info "[MailHandler] Multi-file loggers initialized in: #{log_dir}"
     rescue => e
-      Rails.logger.error "[MailHandler] Failed to setup custom logger: #{e.message}"
-      @@custom_logger = nil
+      Rails.logger.error "[MailHandler] Failed to setup custom loggers: #{e.message}"
+    end
+  end
+
+  def setup_individual_logger(type, log_file_path)
+    logger = ::Logger.new(log_file_path, 'daily')
+    logger.level = ::Logger::DEBUG
+    logger.formatter = proc do |severity, datetime, progname, msg|
+      "[#{datetime.strftime('%Y-%m-%d %H:%M:%S')}] #{severity}: #{msg}\n"
+    end
+    
+    case type
+    when :error
+      @@error_logger = logger
+    when :info
+      @@info_logger = logger
+    when :deferred
+      @@deferred_logger = logger
+    when :general
+      @@custom_logger = logger
     end
   end
 
   def write_to_custom_log(level, message)
-    return unless @@custom_logger
+    # Schreibe in General Log
+    write_to_logger(@@custom_logger, level, message) if @@custom_logger
+    
+    # Schreibe zusätzlich in spezifische Log-Dateien basierend auf Level
+    case level.to_s.downcase
+    when 'error'
+      write_to_logger(@@error_logger, level, message) if @@error_logger
+    when 'info', 'debug'
+      write_to_logger(@@info_logger, level, message) if @@info_logger
+    when 'warn'
+      # Warnings gehen sowohl in Info als auch Error Log
+      write_to_logger(@@info_logger, level, message) if @@info_logger
+      write_to_logger(@@error_logger, level, message) if @@error_logger
+    end
+  end
+
+  def write_to_logger(logger, level, message)
+    return unless logger
     
     begin
       case level.to_s.downcase
       when 'debug'
-        @@custom_logger.debug(message)
+        logger.debug(message)
       when 'info'
-        @@custom_logger.info(message)
+        logger.info(message)
       when 'warn'
-        @@custom_logger.warn(message)
+        logger.warn(message)
       when 'error'
-        @@custom_logger.error(message)
+        logger.error(message)
       else
-        @@custom_logger.info(message)
+        logger.info(message)
       end
     rescue => e
       Rails.logger.error "[MailHandler] Failed to write to custom log: #{e.message}"
@@ -96,6 +129,13 @@ class MailHandlerLogger
   end
 
   public
+
+  def write_to_deferred_log(level, message)
+    # Spezielle Methode für Deferred Mail Logs
+    write_to_logger(@@deferred_logger, level, message) if @@deferred_logger
+    # Zusätzlich auch in General Log
+    write_to_logger(@@custom_logger, level, "[DEFERRED] #{message}") if @@custom_logger
+  end
 
   def debug(message)
     log('debug', message)
@@ -214,6 +254,9 @@ class MailHandlerLogger
       end
       # Immer in Rails-Log schreiben (keine DB-Speicherung)
       Rails.logger.send(level, "[MailHandler] #{message}")
+      
+      # Zusätzlich in Custom Log schreiben
+      write_to_custom_log(level, message)
     end
   end
 

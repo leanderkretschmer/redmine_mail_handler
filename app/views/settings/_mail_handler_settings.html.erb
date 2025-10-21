@@ -96,11 +96,7 @@
   </div>
   <div class="box tabular settings">
     <h3>Logging</h3>
-    <p><label for="settings_log_level">Log-Level</label><%= select_tag 'settings[log_level]', options_for_select([["Debug", 'debug'], ["Info", 'info'], ["Warning", 'warn'], ["Error", 'error']], @settings['log_level']) %></p>
-    <p><label for="settings_log_cleanup_enabled">Log-Bereinigung</label><%= check_box_tag 'settings[log_cleanup_enabled]', '1', @settings['log_cleanup_enabled'] == '1' %></p>
-    <p><label for="settings_log_cleanup_method">Bereinigungsmethode</label><%= select_tag 'settings[log_cleanup_method]', options_for_select([["Nach Anzahl", 'count'], ["Nach Alter", 'days']], @settings['log_cleanup_method'] || 'count') %></p>
-    <p><label for="settings_log_max_entries">Max. Anzahl Logs</label><%= number_field_tag 'settings[log_max_entries]', @settings['log_max_entries'] || '1000', min: 100, max: 50000, step: 100 %></p>
-    <p><label for="settings_log_retention_days">Aufbewahrung (Tage)</label><%= number_field_tag 'settings[log_retention_days]', @settings['log_retention_days'] || '30', min: 1, max: 365, step: 1 %></p>
+    <p><label for="settings_log_file_mode">Log-Datei Modus</label><%= select_tag 'settings[log_file_mode]', options_for_select([["Getrennte Dateien", 'separate'], ["Eine Datei", 'single']], @settings['log_file_mode'] || 'separate') %><em class="info">Getrennte Dateien: Error, Info, Deferred in eigenen Dateien. Eine Datei: Alle Logs in einer Datei.</em></p>
   </div>
 </div>
 

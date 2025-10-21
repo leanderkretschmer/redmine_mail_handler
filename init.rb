@@ -48,6 +48,9 @@ Redmine::Plugin.register :redmine_mail_handler do
   # Menü-Einträge hinzufügen
   menu :admin_menu, :mail_handler, { :controller => 'mail_handler_admin', :action => 'index' }, 
        :caption => 'Mail Handler', :html => {:class => 'icon icon-email'}
+  
+  menu :admin_menu, :mail_handler_logs, { :controller => 'logs', :action => 'index' }, 
+       :caption => 'Mail Handler Logs', :html => {:class => 'icon icon-report'}
 
   # Berechtigungen definieren
   project_module :mail_handler do

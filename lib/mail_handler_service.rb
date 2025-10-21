@@ -85,7 +85,7 @@ class MailHandlerService
 
   # Verarbeite zurückgestellte Mails
   def process_deferred_mails
-    @logger.info("Starting deferred mail processing")
+    @logger.write_to_deferred_log('info', "Starting deferred mail processing")
     
     imap = connect_to_imap
     return unless imap
@@ -97,18 +97,18 @@ class MailHandlerService
       begin
         imap.select(deferred_folder)
       rescue Net::IMAP::NoResponseError
-        @logger.info("Deferred folder '#{deferred_folder}' does not exist, nothing to process")
+        @logger.write_to_deferred_log('info', "Deferred folder '#{deferred_folder}' does not exist, nothing to process")
         return
       end
       
-      @logger.info("Selected deferred folder: #{deferred_folder}")
+      @logger.write_to_deferred_log('info', "Selected deferred folder: #{deferred_folder}")
       
       # Hole alle Nachrichten-IDs aus Zurückgestellt
       message_ids = imap.search(['ALL'])
-      @logger.info("Found #{message_ids.length} messages in deferred")
+      @logger.write_to_deferred_log('info', "Found #{message_ids.length} messages in deferred")
       
       if message_ids.empty?
-        @logger.info("No deferred messages to process")
+        @logger.write_to_deferred_log('info', "No deferred messages to process")
         return
       end
       
@@ -126,18 +126,18 @@ class MailHandlerService
             expired_count += 1
           end
         rescue => e
-          @logger.error("Error processing deferred message #{msg_id}: #{e.class.name} - #{e.message}")
+          @logger.write_to_deferred_log('error', "Error processing deferred message #{msg_id}: #{e.class.name} - #{e.message}")
           # Weiter mit nächster Nachricht
         end
       end
       
-      @logger.info("Deferred processing completed: #{processed_count} processed, #{expired_count} expired")
+      @logger.write_to_deferred_log('info', "Deferred processing completed: #{processed_count} processed, #{expired_count} expired")
       
       # Automatische Log-Bereinigung nach Zurückgestellt-Verarbeitung
       MailHandlerLog.run_scheduled_cleanup
       
     rescue => e
-      @logger.error("Deferred processing failed: #{e.class.name} - #{e.message}")
+      @logger.write_to_deferred_log('error', "Deferred processing failed: #{e.class.name} - #{e.message}")
       @logger.debug("Backtrace: #{e.backtrace.first(10).join('\n')}")
     ensure
       imap&.disconnect
@@ -146,7 +146,7 @@ class MailHandlerService
 
   # Bereinige abgelaufene Zurückgestellt-Einträge
   def cleanup_expired_deferred
-    @logger.info("Starting cleanup of expired deferred entries")
+    @logger.write_to_deferred_log('info', "Starting cleanup of expired deferred entries")
         begin
       # Verbinde zu IMAP und prüfe deferred Ordner
       imap = connect_to_imap
@@ -173,7 +173,7 @@ class MailHandlerService
           
           # Prüfe IMAP Flag für Deferred-Datum
           if mail_deferred_expired?(mail)
-            @logger.info("Deferral expired for message #{msg_id}, moving to archive")
+            @logger.write_to_deferred_log('info', "Deferral expired for message #{msg_id}, moving to archive")
             
             # Verschiebe zu Archiv
             ensure_folder_exists(imap, archive_folder)
@@ -182,17 +182,17 @@ class MailHandlerService
             moved_count += 1
           end
         rescue => e
-          @logger.error("Failed to process deferred message #{msg_id}: #{e.message}")
+          @logger.write_to_deferred_log('error', "Failed to process deferred message #{msg_id}: #{e.message}")
         end
       end
       
       # Expunge gelöschte Nachrichten
       imap.expunge
       
-      @logger.info("Cleanup completed: #{moved_count} expired deferred entries moved to archive")
+      @logger.write_to_deferred_log('info', "Cleanup completed: #{moved_count} expired deferred entries moved to archive")
       moved_count
     rescue => e
-      @logger.error("Failed to cleanup expired deferred entries: #{e.message}")
+      @logger.write_to_deferred_log('error', "Failed to cleanup expired deferred entries: #{e.message}")
       @logger.error("Backtrace: #{e.backtrace.join("\n")}")
       0
     ensure
@@ -207,26 +207,26 @@ class MailHandlerService
       msg_data = imap.fetch(msg_id, 'RFC822')[0].attr['RFC822']
       
       if msg_data.blank?
-        @logger.error("Empty mail data for deferred message #{msg_id}, skipping")
+        @logger.write_to_deferred_log('error', "Empty mail data for deferred message #{msg_id}, skipping")
         return :skipped
       end
       
       mail = Mail.read_from_string(msg_data)
       
       if mail.nil?
-        @logger.error("Failed to parse deferred mail object for message #{msg_id}, skipping")
+        @logger.write_to_deferred_log('error', "Failed to parse deferred mail object for message #{msg_id}, skipping")
         return :skipped
       end
       
     rescue => e
-      @logger.error("Failed to fetch deferred mail data for message #{msg_id}: #{e.message}")
+      @logger.write_to_deferred_log('error', "Failed to fetch deferred mail data for message #{msg_id}: #{e.message}")
       return :skipped
     end
     
     # Prüfe ob Deferred-Zeit abgelaufen ist
     if mail_deferred_expired?(mail)
       # Zurückstellung abgelaufen → in Archiv verschieben und Tag entfernen
-      @logger.info("Deferral expired for message #{msg_id}, moving to archive")
+      @logger.write_to_deferred_log('info', "Deferral expired for message #{msg_id}, moving to archive")
       
       # Entferne Deferred-Tag vor Archivierung
       remove_deferred_timestamp(mail)
@@ -243,7 +243,7 @@ class MailHandlerService
     
     if existing_user
       # Benutzer existiert jetzt → Mail normal verarbeiten
-      @logger.info("User #{from_address} now exists, processing deferred message #{msg_id}")
+      @logger.write_to_deferred_log('info', "User #{from_address} now exists, processing deferred message #{msg_id}")
       
       begin
         # Extrahiere Ticket-ID (falls vorhanden)
@@ -258,16 +258,16 @@ class MailHandlerService
         # Mail archivieren
         archive_message(imap, msg_id, mail)
         
-        @logger.info("Successfully processed deferred message #{msg_id} for user #{from_address}")
+        @logger.write_to_deferred_log('info', "Successfully processed deferred message #{msg_id} for user #{from_address}")
         return :processed
       rescue => e
-        @logger.error("Failed to process deferred message #{msg_id} for user #{from_address}: #{e.message}")
+        @logger.write_to_deferred_log('error', "Failed to process deferred message #{msg_id} for user #{from_address}: #{e.message}")
         @logger.error("Backtrace: #{e.backtrace.join("\n")}")
         return :skipped
       end
     else
       # Benutzer existiert noch nicht → zurückgestellt lassen
-      @logger.debug("User #{from_address} still does not exist, keeping message #{msg_id} deferred")
+      @logger.write_to_deferred_log('debug', "User #{from_address} still does not exist, keeping message #{msg_id} deferred")
       return :kept
     end
   end
@@ -371,9 +371,9 @@ class MailHandlerService
     begin
       # Entferne Custom Header
       mail.header.delete('X-Redmine-Deferred')
-      @logger.debug("Removed deferred timestamp from message #{mail.message_id}")
+      @logger.write_to_deferred_log('debug', "Removed deferred timestamp from message #{mail.message_id}")
     rescue => e
-      @logger.error("Failed to remove deferred timestamp from message #{mail.message_id}: #{e.message}")
+      @logger.write_to_deferred_log('error', "Failed to remove deferred timestamp from message #{mail.message_id}: #{e.message}")
     end
   end
 
@@ -516,7 +516,7 @@ class MailHandlerService
             active_count += 1
           end
         rescue => e
-          @logger.warn("Failed to check deferred status for message #{msg_id}: #{e.message}")
+          @logger.write_to_deferred_log('warn', "Failed to check deferred status for message #{msg_id}: #{e.message}")
           # Bei Fehlern als aktiv zählen
           active_count += 1
         end
@@ -524,7 +524,7 @@ class MailHandlerService
       
       { total: total_count, active: active_count, expired: expired_count }
     rescue => e
-      @logger.error("Failed to count deferred messages: #{e.message}")
+      @logger.write_to_deferred_log('error', "Failed to count deferred messages: #{e.message}")
       { total: 0, active: 0, expired: 0 }
     ensure
       imap&.disconnect
@@ -549,7 +549,7 @@ class MailHandlerService
         reason: deferred_info['reason']
       }
     rescue => e
-      @logger.warn("Failed to parse deferred info for mail #{mail.message_id}: #{e.message}")
+      @logger.write_to_deferred_log('warn', "Failed to parse deferred info for mail #{mail.message_id}: #{e.message}")
       nil
     end
   end
@@ -564,7 +564,7 @@ class MailHandlerService
       
       expires_at < Time.current
     rescue => e
-      @logger.warn("Failed to parse deferred info for mail #{mail.message_id}: #{e.message}")
+      @logger.write_to_deferred_log('warn', "Failed to parse deferred info for mail #{mail.message_id}: #{e.message}")
       # Fallback: Wenn kein gültiger Header vorhanden, als abgelaufen betrachten
       true
     end
@@ -753,7 +753,7 @@ class MailHandlerService
       end
     else
       # Unbekannter Benutzer ohne Ticket-ID → zurückstellen
-      @logger.info("Moving mail from unknown user #{from_address} without ticket ID to deferred")
+      @logger.write_to_deferred_log('info', "Moving mail from unknown user #{from_address} without ticket ID to deferred")
       defer_message(imap, msg_id, mail)
       return # Nicht archivieren, da zurückgestellt
     end
@@ -1568,7 +1568,7 @@ class MailHandlerService
       
       # Verschiebe Mail in Zurückgestellt-Ordner
       imap.move(msg_id, deferred_folder)
-      @logger.info_mail("Successfully moved message #{msg_id} to deferred folder '#{deferred_folder}'", mail)
+      @logger.write_to_deferred_log('info', "Successfully moved message #{msg_id} to deferred folder '#{deferred_folder}' (from: #{mail.from&.first}, subject: #{mail.subject})")
       
       # Speichere Zurückgestellt-Zeitstempel mit Grund
       save_deferred_timestamp(mail, Time.current, reason)
@@ -1577,15 +1577,15 @@ class MailHandlerService
       if e.message.include?('Invalid messageset')
         @logger.debug("Message #{msg_id} already moved or invalid, skipping quarantine")
       elsif e.message.include?('TRYCREATE')
-        @logger.info("Deferred folder '#{deferred_folder}' does not exist, creating it...")
+        @logger.write_to_deferred_log('info', "Deferred folder '#{deferred_folder}' does not exist, creating it...")
         create_deferred_folder(imap)
         # Versuche erneut zu verschieben
         begin
           imap.move(msg_id, deferred_folder)
-          @logger.info("Successfully moved message #{msg_id} to newly created deferred folder")
+          @logger.write_to_deferred_log('info', "Successfully moved message #{msg_id} to newly created deferred folder")
           save_deferred_timestamp(mail, Time.current)
         rescue => retry_e
-          @logger.error("Failed to move message #{msg_id} to deferred after creating folder: #{retry_e.message}")
+          @logger.write_to_deferred_log('error', "Failed to move message #{msg_id} to deferred after creating folder: #{retry_e.message}")
         end
       elsif e.message.include?('NO MOVE')
         @logger.warn("IMAP server does not support MOVE command for message #{msg_id}, trying COPY + EXPUNGE")
@@ -1594,16 +1594,16 @@ class MailHandlerService
           imap.copy(msg_id, deferred_folder)
           imap.store(msg_id, '+FLAGS', [:Deleted])
           imap.expunge
-          @logger.info("Successfully copied and deleted message #{msg_id} to deferred folder (fallback method)")
+          @logger.write_to_deferred_log('info', "Successfully copied and deleted message #{msg_id} to deferred folder (fallback method)")
           save_deferred_timestamp(mail, Time.current)
         rescue => copy_e
-          @logger.error("Fallback defer method failed for message #{msg_id}: #{copy_e.message}")
+          @logger.write_to_deferred_log('error', "Fallback defer method failed for message #{msg_id}: #{copy_e.message}")
         end
       else
         @logger.warn("Failed to defer message #{msg_id}: #{e.message}")
       end
     rescue => e
-      @logger.error("Unexpected error deferring message #{msg_id}: #{e.class.name} - #{e.message}")
+      @logger.write_to_deferred_log('error', "Unexpected error deferring message #{msg_id}: #{e.class.name} - #{e.message}")
     end
   end
 
@@ -1725,11 +1725,11 @@ class MailHandlerService
       folder_names = folders.map(&:name)
       
       unless folder_names.include?(deferred_folder)
-        @logger.info("Deferred folder '#{deferred_folder}' not found, creating it...")
+        @logger.write_to_deferred_log('info', "Deferred folder '#{deferred_folder}' not found, creating it...")
         create_deferred_folder(imap)
       end
     rescue => e
-      @logger.warn("Could not check deferred folder existence: #{e.message}")
+      @logger.write_to_deferred_log('warn', "Could not check deferred folder existence: #{e.message}")
     end
   end
 
@@ -1739,9 +1739,9 @@ class MailHandlerService
     
     begin
       imap.create(deferred_folder)
-      @logger.info("Successfully created deferred folder '#{deferred_folder}'")
+      @logger.write_to_deferred_log('info', "Successfully created deferred folder '#{deferred_folder}'")
     rescue => e
-      @logger.error("Failed to create deferred folder '#{deferred_folder}': #{e.message}")
+      @logger.write_to_deferred_log('error', "Failed to create deferred folder '#{deferred_folder}': #{e.message}")
     end
   end
 
@@ -1760,9 +1760,9 @@ class MailHandlerService
       # Füge Header zur Mail hinzu (wird beim Verschieben in deferred Ordner gespeichert)
       mail.header['X-Redmine-Deferred'] = deferred_info.to_json
       
-      @logger.debug("Set deferred timestamp for message #{mail.message_id} with reason: #{reason}")
+      @logger.write_to_deferred_log('debug', "Set deferred timestamp for message #{mail.message_id} with reason: #{reason}")
     rescue => e
-      @logger.error("Failed to set deferred timestamp for message #{mail.message_id}: #{e.message}")
+      @logger.write_to_deferred_log('error', "Failed to set deferred timestamp for message #{mail.message_id}: #{e.message}")
     end
   end
 
@@ -1795,14 +1795,14 @@ class MailHandlerService
           
           return true if mail.message_id == message_id
         rescue => e
-          @logger.warn("Failed to check message #{msg_id} in deferred folder: #{e.message}")
+          @logger.write_to_deferred_log('warn', "Failed to check message #{msg_id} in deferred folder: #{e.message}")
           next
         end
       end
       
       false
     rescue => e
-      @logger.error("Failed to check if mail already deferred: #{e.message}")
+      @logger.write_to_deferred_log('error', "Failed to check if mail already deferred: #{e.message}")
       false
     ensure
       imap&.disconnect
@@ -2159,7 +2159,7 @@ class MailHandlerService
     
     # Prüfe in deferred Ordner ob diese Message-ID bereits zurückgestellt wurde
     if mail_already_deferred?(mail.message_id)
-      @logger.debug("Found duplicate mail in deferred folder: Message-ID #{mail.message_id}")
+      @logger.write_to_deferred_log('debug', "Found duplicate mail in deferred folder: Message-ID #{mail.message_id}")
       return true
     end
     

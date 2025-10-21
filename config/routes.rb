@@ -38,4 +38,15 @@ RedmineApp::Application.routes.draw do
       end
     end
   end
+  
+  # Logs-Routen (außerhalb von /admin)
+  resources :logs, :only => [:index] do
+    collection do
+      delete :clear
+      delete :cleanup
+      get :export
+      get :settings
+      post :update_settings
+    end
+  end
 end

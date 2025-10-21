@@ -212,20 +212,20 @@ class MailHandlerScheduler
     
     @@scheduler.cron "0 #{deferred_recheck_time.split(':')[1]} #{deferred_recheck_time.split(':')[0]} * * *" do
       begin
-        @@logger.info("Starting scheduled deferred processing")
+        MailHandlerLogger.write_to_deferred_log('info', "Starting scheduled deferred processing")
         
         ActiveRecord::Base.connection_pool.with_connection do
           service = MailHandlerService.new
           service.process_deferred_mails
         end
       rescue => e
-        @@logger.error("Scheduled deferred processing failed: #{e.message}")
+        MailHandlerLogger.write_to_deferred_log('error', "Scheduled deferred processing failed: #{e.message}")
       ensure
         ActiveRecord::Base.connection_handler.clear_active_connections!
       end
     end
     
-    @@logger.info("Scheduled deferred processing at #{deferred_recheck_time}")
+    MailHandlerLogger.write_to_deferred_log('info', "Scheduled deferred processing at #{deferred_recheck_time}")
   end
 
   def self.schedule_deferred_cleanup
@@ -236,20 +236,20 @@ class MailHandlerScheduler
     
     @@scheduler.cron "0 #{cleanup_time.split(':')[1]} #{cleanup_time.split(':')[0]} * * *" do
       begin
-        @@logger.info("Starting scheduled deferred cleanup")
+        MailHandlerLogger.write_to_deferred_log('info', "Starting scheduled deferred cleanup")
         
         ActiveRecord::Base.connection_pool.with_connection do
           service = MailHandlerService.new
           service.cleanup_expired_deferred
         end
       rescue => e
-        @@logger.error("Scheduled deferred cleanup failed: #{e.message}")
+        MailHandlerLogger.write_to_deferred_log('error', "Scheduled deferred cleanup failed: #{e.message}")
       ensure
         ActiveRecord::Base.connection_handler.clear_active_connections!
       end
     end
     
-    @@logger.info("Scheduled deferred cleanup at #{cleanup_time}")
+    MailHandlerLogger.write_to_deferred_log('info', "Scheduled deferred cleanup at #{cleanup_time}")
   end
 
   def self.send_redmine_reminders
