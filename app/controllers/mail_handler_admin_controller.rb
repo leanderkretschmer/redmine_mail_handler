@@ -180,8 +180,11 @@ class MailHandlerAdminController < ApplicationController
       # Einstellungen speichern
       Setting.plugin_redmine_mail_handler = settings
       
+      Rails.logger.info "Archive folder updated to: #{archive_folder}"
+      
       render json: { success: true, message: "Archiv-Ordner erfolgreich auf '#{archive_folder}' gesetzt" }
     rescue => e
+      Rails.logger.error "Failed to set archive folder: #{e.message}"
       render json: { success: false, error: e.message }
     end
   end
@@ -317,8 +320,10 @@ class MailHandlerAdminController < ApplicationController
     end
 
     begin
-      # Initialize settings needed for archiving
+      # Reload settings from database to get the latest archive folder setting
       @settings = Setting.plugin_redmine_mail_handler
+      Rails.logger.info "Archive folder setting: #{@settings['archive_folder'].inspect}"
+      
       # Update service settings to ensure they are current
       @service.update_settings(@settings)
       
