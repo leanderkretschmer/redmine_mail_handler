@@ -452,4 +452,10 @@ class MailHandlerLogger
     # Zusätzlich in Custom Log schreiben
     write_to_custom_log(level, message)
   end
+
+  # Klassenmethode für write_to_deferred_log
+  def self.write_to_deferred_log(level, message)
+    logger = new
+    logger.write_to_deferred_log(level, message)
+  end
 end
