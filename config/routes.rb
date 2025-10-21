@@ -30,5 +30,12 @@ RedmineApp::Application.routes.draw do
         post :archive_deferred_mails
       end
     end
+    resources :mail_handler_logs, :only => [:index, :show, :destroy] do
+      collection do
+        delete :clear
+        delete :cleanup
+        get :export
+      end
+    end
   end
 end

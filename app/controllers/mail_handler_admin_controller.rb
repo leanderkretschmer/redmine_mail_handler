@@ -154,6 +154,8 @@ class MailHandlerAdminController < ApplicationController
     render json: { success: false, error: e.message }
   end
 
+
+
   def manual_import
     limit = params[:import_limit].to_i
     limit = nil if limit <= 0
@@ -277,20 +279,45 @@ class MailHandlerAdminController < ApplicationController
 
   def archive_deferred_mails
     selected_ids = params[:selected_ids] || []
-    
+
     if selected_ids.empty?
       flash[:error] = "Bitte wählen Sie mindestens eine E-Mail aus."
       redirect_to action: :deferred_mails
       return
     end
-    
+
     begin
-      archived_count = archive_selected_mails(selected_ids)
-      flash[:notice] = "#{archived_count} E-Mails wurden erfolgreich archiviert."
+      # Load current plugin settings to get the archive folder
+      current_settings = Setting.plugin_redmine_mail_handler
+      archive_folder = current_settings['archive_folder'].presence || 'Archive'
+      
+      # Verify archive folder is set (should always be true now with default)
+      if archive_folder.blank?
+        flash[:error] = "Kein Archiv-Ordner in den Plugin-Einstellungen konfiguriert. Bitte konfigurieren Sie den Archiv-Ordner unter Administration > Plugins > Mail Handler > Verarbeitung."
+        redirect_to action: :deferred_mails
+        return
+      end
+      
+      Rails.logger.info "Using archive folder from plugin settings: #{archive_folder}"
+      
+      # Ensure archive folder is in settings before updating service
+      current_settings['archive_folder'] = archive_folder
+      
+      # Update service settings to ensure they are current
+      @service.update_settings(current_settings)
+      
+      archived_count = archive_selected_mails_simple(selected_ids)
+      if archived_count > 0
+        flash[:notice] = "#{archived_count} E-Mails wurden erfolgreich in '#{archive_folder}' archiviert."
+      else
+        flash[:warning] = "Keine E-Mails konnten archiviert werden."
+      end
     rescue => e
+      Rails.logger.error "Archive error: #{e.message}"
+      Rails.logger.error "Backtrace: #{e.backtrace.join("\n")}"
       flash[:error] = "Fehler beim Archivieren: #{e.message}"
     end
-    
+
     redirect_to action: :deferred_mails
   end
 
@@ -605,19 +632,19 @@ class MailHandlerAdminController < ApplicationController
     return 0 if expired_mails.empty?
     
     begin
-      imap = @service.get_imap_connection
+      imap = @service.connect_to_imap
       return 0 unless imap
       
       # Wähle den deferred Ordner
-      deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'INBOX.deferred'
+      settings = Setting.plugin_redmine_mail_handler
+      deferred_folder = settings['deferred_folder'].presence || 'Deferred'
       imap.select(deferred_folder)
       
-      # Wähle oder erstelle den archived Ordner
-      archived_folder = Setting.plugin_redmine_mail_handler['archived_folder'] || 'INBOX.archived'
+      # Wähle oder erstelle den Archive-Ordner gemäß Plugin-Einstellung
+      archived_folder = settings['archive_folder'].presence || 'Archive'
       begin
         imap.select(archived_folder)
       rescue Net::IMAP::NoResponseError
-        # Erstelle den archived Ordner falls er nicht existiert
         imap.create(archived_folder)
         imap.select(archived_folder)
       end
@@ -632,10 +659,17 @@ class MailHandlerAdminController < ApplicationController
           search_result = imap.search(['HEADER', 'Message-ID', mail[:message_id]])
           next if search_result.empty?
           
-          uid = search_result.first
+          msg_seq = search_result.first
           
-          # Verschiebe die E-Mail zum archived Ordner
-          imap.move(uid, archived_folder)
+          # Verschiebe die E-Mail zum Archive-Ordner
+          imap.move(msg_seq, archived_folder)
+          # Entferne gelöschte Nachrichten aus dem Quellordner
+          begin
+            imap.expunge
+          rescue => expunge_err
+            Rails.logger.warn("Expunge nach MOVE fehlgeschlagen: #{expunge_err.message}")
+          end
+          
           expired_count += 1
           
         rescue => e
@@ -663,6 +697,7 @@ class MailHandlerAdminController < ApplicationController
     begin
       # Teste IMAP-Verbindung
       imap = @service.connect_to_imap
+<<<<<<< HEAD
       if imap
         deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'INBOX.deferred'
         begin
@@ -674,7 +709,20 @@ class MailHandlerAdminController < ApplicationController
         imap.disconnect rescue nil
       else
         flash[:error] = "IMAP-Verbindung fehlgeschlagen. Überprüfen Sie die Plugin-Einstellungen."
+=======
+    if imap
+      deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
+      begin
+        imap.select(deferred_folder)
+        flash[:notice] = "IMAP-Verbindung erfolgreich. Deferred Ordner '#{deferred_folder}' gefunden."
+      rescue Net::IMAP::NoResponseError
+        flash[:error] = "IMAP-Verbindung erfolgreich, aber deferred Ordner '#{deferred_folder}' nicht gefunden."
+>>>>>>> c9355c6b8de98cf1e8f388aa5415d9935223b4f1
       end
+      imap.disconnect rescue nil
+    else
+      flash[:error] = "IMAP-Verbindung fehlgeschlagen. Überprüfen Sie die Plugin-Einstellungen."
+    end
     rescue => e
       flash[:error] = "IMAP-Verbindungsfehler: #{e.message}"
     end
@@ -792,7 +840,7 @@ class MailHandlerAdminController < ApplicationController
   end
 
   def get_mail_by_message_id(message_id)
-    imap = @service.get_imap_connection
+    imap = @service.connect_to_imap
     return nil unless imap
 
     begin
@@ -886,10 +934,10 @@ class MailHandlerAdminController < ApplicationController
       
       # Versuche verschiedene Suchkriterien um ALLE E-Mails zu finden
       search_criteria_list = [
-        ['ALL'],                    # Alle E-Mails
+        ['NOT', 'DELETED'],         # Nicht gelöschte E-Mails zuerst bevorzugen
         ['UNSEEN'],                 # Ungelesene E-Mails
         ['SEEN'],                   # Gelesene E-Mails
-        ['NOT', 'DELETED'],         # Nicht gelöschte E-Mails
+        ['ALL'],                    # Alle E-Mails (inkl. \Deleted)
         []                          # Leere Suche (sollte alle zurückgeben)
       ]
       
@@ -1076,38 +1124,70 @@ class MailHandlerAdminController < ApplicationController
     end
   end
 
-  def archive_selected_mails(selected_ids)
-    imap = @service.connect_to_imap
-    return 0 unless imap
-
+  # Einfache Archivierungs-Methode ohne komplexe Message-ID Logik
+  def archive_selected_mails_simple(selected_ids)
+    Rails.logger.info "Starting simple archive for IDs: #{selected_ids.inspect}"
+    
+    # Initialize settings
+    @settings = Setting.plugin_redmine_mail_handler
+    
+    archived_count = 0
+    
     begin
-      deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
-      imap.select(deferred_folder)
+      # IMAP-Verbindung über Service aufbauen
+      imap = @service.connect_to_imap
+      unless imap
+        Rails.logger.error "Could not establish IMAP connection"
+        raise "IMAP-Verbindung konnte nicht hergestellt werden"
+      end
       
-      archived_count = 0
+      # Deferred-Ordner auswählen
+      imap.select(@settings['deferred_folder'])
+      Rails.logger.info "Selected deferred folder: #{@settings['deferred_folder']}"
       
-      selected_ids.each do |msg_id|
+      # Alle Nachrichten im Ordner abrufen
+      all_messages = imap.search('ALL')
+      Rails.logger.info "Found #{all_messages.length} messages in deferred folder"
+      
+      # Iteriere durch die ausgewählten IDs (diese sind die Sequenznummern aus der Tabelle)
+      selected_ids.each do |sequence_id|
         begin
-          # Fetch the mail object first for proper logging
-          msg_data = imap.fetch(msg_id.to_i, 'RFC822')[0].attr['RFC822']
-          mail = msg_data.present? ? Mail.read_from_string(msg_data) : nil
+          seq_num = sequence_id.to_i
           
-          # Try to archive the message
-          @service.archive_message(imap, msg_id.to_i, mail)
-          # If we reach this point, archiving was successful
-          archived_count += 1
-          Rails.logger.info("Successfully archived message #{msg_id}")
+          # Prüfe ob die Sequenznummer gültig ist
+          if seq_num > 0 && seq_num <= all_messages.length
+            actual_uid = all_messages[seq_num - 1] # Array ist 0-basiert, Sequenznummern 1-basiert
+            
+            Rails.logger.info "Archiving message at sequence #{seq_num} (UID: #{actual_uid})"
+            
+            # Archiviere die Nachricht über den Service
+            @service.archive_message(imap, actual_uid)
+            archived_count += 1
+            
+            Rails.logger.info "Successfully archived message #{actual_uid}"
+          else
+            Rails.logger.warn "Invalid sequence number: #{seq_num} (total messages: #{all_messages.length})"
+          end
+          
         rescue => e
-          Rails.logger.error("Failed to archive message #{msg_id}: #{e.message}")
-          # Don't increment counter on failure
+          Rails.logger.error "Error archiving message #{sequence_id}: #{e.message}"
+          # Weiter mit der nächsten Nachricht
         end
       end
       
-      Rails.logger.info("Archive operation completed: #{archived_count} of #{selected_ids.length} messages archived")
-      archived_count
     ensure
-      imap&.disconnect
+      # IMAP-Verbindung schließen
+      if imap
+        begin
+          imap.disconnect
+        rescue => e
+          Rails.logger.warn "Error disconnecting IMAP: #{e.message}"
+        end
+      end
     end
+    
+    Rails.logger.info "Archive operation completed: #{archived_count} messages archived"
+    archived_count
   end
 
   def get_current_hour_mail_count

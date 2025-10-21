@@ -2,7 +2,10 @@
   <%= stylesheet_link_tag 'mail_handler', :plugin => 'redmine_mail_handler' %>
 <% end %>
 
-<div class="contextual"></div>
+<div class="contextual">
+  <%= link_to 'Logs anzeigen', { controller: 'mail_handler_logs', action: 'index' }, class: 'icon icon-report' %>
+  <%= link_to 'Plugin-Konfiguration', { :controller => 'settings', :action => 'plugin', :id => 'redmine_mail_handler' }, :class => 'icon icon-settings' %>
+</div>
 
 <h2>Mail Handler Administration</h2>
 
@@ -26,138 +29,33 @@
       <td><strong>Automatischer Import:</strong></td>
       <td><%= @settings['auto_import_enabled'] == '1' ? 'Aktiviert' : 'Deaktiviert' %></td>
     </tr>
-    <tr>
-      <td><strong>Import-Intervall:</strong></td>
-      <td>
-        <%= @settings['import_interval'] %> 
-        <%= (@settings['import_interval_unit'] == 'seconds') ? 'Sekunden' : 'Minuten' %>
-      </td>
-    </tr>
-    <tr>
-      <td><strong>Tägliche Reminder:</strong></td>
-      <td><%= @settings['reminder_enabled'] == '1' ? "Aktiviert (#{@settings['reminder_time']})" : 'Deaktiviert' %></td>
-    </tr>
-    <tr>
-      <td><strong>Aktionen:</strong></td>
-      <td class="buttons">
-        <%= link_to 'Manueller Import', { :action => 'manual_import' }, :method => :post, :class => 'icon icon-email' %>
-        <%= link_to 'Test-Mail senden', { :action => 'test_mail' }, :method => :post, :class => 'icon icon-email-go' %>
-        <%= link_to 'Zurückgestellte E-Mails', { :action => 'deferred_mails' }, :class => 'icon icon-time' %>
-        <%= link_to 'Zurückgestellt verarbeiten', { :action => 'process_deferred' }, :method => :post, :class => 'icon icon-reload' %>
-        <% if @settings['inbox_ticket_id'].present? && @settings['inbox_ticket_id'].to_i > 0 %>
-          <%= link_to 'Alle Kommentare & Dateien löschen', 
-                       { :action => 'delete_all_comments' }, 
-                       :method => :post, 
-                       :class => 'icon icon-del delete-comments-btn',
-                       :confirm => 'Sind Sie sicher, dass Sie alle Kommentare und angehängten Dateien aus dem Posteingang-Ticket löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden!',
-                       :title => "Löscht alle Kommentare und Dateien aus Ticket ##{@settings['inbox_ticket_id']}" %>
-          <%= link_to "Anonyme Kommentare löschen", 
-              { :action => 'delete_anonymous_comments' }, 
-              :method => :delete, 
-              :data => { :confirm => "Sind Sie sicher, dass Sie alle anonymen Kommentare löschen möchten?" }, 
-              :class => 'icon icon-del' %>
-          <%= link_to "Unzugeordnete Dateien löschen", 
-              { :action => 'delete_orphaned_attachments' }, 
-              :method => :delete, 
-              :data => { :confirm => "Sind Sie sicher, dass Sie alle unzugeordneten Dateien löschen möchten?" }, 
-              :class => 'icon icon-del' %>
-        <% end %>
-      </td>
-    </tr>
   </table>
 </div>
 
 <div class="box">
-  <h3>Zurückgestellt-Status</h3>
-  <div id="deferred-status">
-     <% begin %>
-       <% deferred_stats = @service.count_deferred_messages %>
-     <% rescue => e %>
-       <% deferred_stats = { total: 0, active: 0, expired: 0 } %>
-       <div class="flash error">Fehler beim Abrufen der Deferred-Statistiken: <%= e.message %></div>
-     <% end %>
-    <table class="list">
-      <tr>
-        <td><strong>Zurückgestellte Mails:</strong></td>
-        <td><%= deferred_stats[:active] %> aktiv, <%= deferred_stats[:expired] %> abgelaufen</td>
-      </tr>
-      <tr>
-        <td><strong>Zurückgestellt-Ordner:</strong></td>
-        <td><%= @settings['deferred_folder'] || 'Deferred' %></td>
-      </tr>
-      <tr>
-        <td><strong>Aufbewahrungszeit:</strong></td>
-        <td><%= @settings['deferred_lifetime_days'] || '30' %> Tage</td>
-      </tr>
-      <tr>
-        <td><strong>Prüfzeit:</strong></td>
-        <td><%= @settings['deferred_recheck_time'] || '02:00' %></td>
-      </tr>
-    </table>
-    
-    <p>
-      <%= link_to 'Zurückgestellt-Status', { :action => 'deferred_mails' }, :class => 'icon icon-email' %>
-    </p>
-  </div>
-</div>
-
-<div class="box">
-  <h3>Load-Balanced Importing</h3>
-  <table class="list">
-    <tr>
-      <td><strong>Load-Balancing:</strong></td>
-      <td><%= @load_balanced_enabled ? 'Aktiviert' : 'Deaktiviert' %></td>
-    </tr>
-    <% if @load_balanced_enabled %>
-    <tr>
-      <td><strong>Mails pro Stunde:</strong></td>
-      <td><%= @mails_per_hour %></td>
-    </tr>
-    <tr>
-      <td><strong>Stunden-Status:</strong></td>
-      <td>
-        <% remaining_mails = [@mails_per_hour - @current_hour_count, 0].max %>
-        <span style="font-weight: bold; color: <%= @current_hour_count >= @mails_per_hour ? '#d9534f' : '#5cb85c' %>;">
-          <%= @current_hour_count %> mails verarbeitet von <%= @mails_per_hour %> mails erlaubt pro stunde (<%= remaining_mails %> mails übrig)
-        </span>
-        <br>
-        <small style="color: #666;">Reset alle Stunde (nächster Reset: <%= @next_reset_time.strftime('%H:%M') %>)</small>
-        <% if @current_hour_count >= @mails_per_hour %>
-          <br>
-          <small style="color: #d9534f; font-weight: bold;">⚠️ Limit erreicht - Import pausiert bis zum Reset</small>
-        <% end %>
-      </td>
-    </tr>
-    <% end %>
-    <tr>
-      <td><strong>Max. parallele Imports:</strong></td>
-      <td><%= @max_parallel_imports %></td>
-    </tr>
-    <tr>
-      <td><strong>Import-Batch-Größe:</strong></td>
-      <td><%= @import_batch_size %> E-Mails pro Batch</td>
-    </tr>
-    <tr>
-      <td><strong>Worker-Timeout:</strong></td>
-      <td><%= @worker_timeout %> Sekunden</td>
-    </tr>
-  </table>
+  <h3>Zurückgestellte Mails</h3>
+  <% deferred_stats = @service.count_deferred_messages rescue { total: 0, active: 0, expired: 0 } %>
   <p>
-    <%= form_tag({ :action => 'toggle_load_balancing' }, :method => :post) do %>
-      <%= submit_tag (@load_balanced_enabled ? 'Load-Balancing deaktivieren' : 'Load-Balancing aktivieren'), :class => 'icon icon-settings' %>
-    <% end %>
+    <%= deferred_stats[:active] %> aktiv, <%= deferred_stats[:expired] %> abgelaufen.
+    <%= link_to 'Details anzeigen', { :action => 'deferred_mails' }, :class => 'icon icon-time' %>
+    |
+    <%= link_to 'Jetzt verarbeiten', { :action => 'process_deferred' }, :method => :post, :class => 'icon icon-reload' %>
   </p>
-  <p><em>Load-Balanced Importing verteilt große E-Mail-Mengen auf mehrere Worker-Prozesse für bessere Performance.</em></p>
 </div>
 
 <div class="box">
-  <h3>IMAP-Verbindung testen</h3>
-  <p>Testen Sie die Verbindung zu Ihrem IMAP-Server:</p>
-  <%= link_to 'IMAP-Verbindung testen', { :action => 'test_connection' }, :method => :post, :class => 'icon icon-test' %>
+  <h3>Manueller Import</h3>
+  <%= form_tag({ :action => 'manual_import' }, :method => :post) do %>
+    <p>
+      <label for="import_limit">Anzahl E-Mails (leer = alle):</label>
+      <%= text_field_tag 'import_limit', '', :size => 10, :placeholder => '10' %>
+      <%= submit_tag 'Manuellen Import starten', :confirm => 'Sind Sie sicher?' %>
+    </p>
+  <% end %>
 </div>
 
 <div class="box">
-  <h3>Test-E-Mail senden</h3>
+  <h3>Test-E-Mail</h3>
   <%= form_tag({ :action => 'test_mail' }, :method => :post) do %>
     <p>
       <label for="test_email">E-Mail-Adresse:</label>
@@ -167,26 +65,3 @@
   <% end %>
 </div>
 
-<div class="box">
-  <h3>Manueller E-Mail-Import</h3>
-  <p>Für Entwicklung und Tests können Sie E-Mails manuell importieren:</p>
-  <%= form_tag({ :action => 'manual_import' }, :method => :post) do %>
-    <p>
-      <label for="import_limit">Anzahl E-Mails (leer = alle):</label>
-      <%= text_field_tag 'import_limit', '', :size => 10, :placeholder => '10' %>
-      <%= submit_tag 'Manuellen Import starten', :confirm => 'Sind Sie sicher, dass Sie den manuellen Import starten möchten?' %>
-    </p>
-  <% end %>
-</div>
-
-<!-- Log-Verwaltung entfernt: Logging erfolgt ausschließlich im Terminal/Rails-Log -->
-
-<!-- Kurzübersicht der Logs entfernt -->
-
-
-
-<div class="box">
-  <h3>Konfiguration</h3>
-  <p>Ändern Sie die Plugin-Einstellungen unter:</p>
-  <p><%= link_to 'Administration → Plugins → Redmine Mail Handler → Konfiguration', { :controller => 'settings', :action => 'plugin', :id => 'redmine_mail_handler' }, :class => 'icon icon-settings' %></p>
-</div>

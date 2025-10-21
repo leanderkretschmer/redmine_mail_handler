@@ -6,7 +6,6 @@
 <div class="contextual">
   <%= link_to "Zurück zur Übersicht", { :action => 'index' }, :class => 'icon icon-back' %>
   <%= link_to "Aktualisieren", { :action => 'deferred_mails' }, :class => 'icon icon-reload', :title => 'Seite neu laden' %>
-  <%= link_to 'IMAP testen & neu laden', { :action => 'reload_deferred_mails' }, :method => :post, :class => 'icon icon-test', :title => 'IMAP-Verbindung testen und E-Mails neu laden' %>
 </div>
 
 <h2>Zurückgestellte E-Mails verwalten</h2>
@@ -195,70 +194,42 @@
 <% end %>
 
 <script type="text/javascript">
-function toggleDebugInfo() {
-  var content = document.getElementById('debug-content');
-  var toggle = document.getElementById('debug-toggle');
-  
-  if (content.style.display === 'none') {
-    content.style.display = 'block';
-    toggle.textContent = '▲';
-  } else {
-    content.style.display = 'none';
-    toggle.textContent = '▼';
-  }
-}
-
-function toggleAllCheckboxes(masterCheckbox) {
-  var checkboxes = document.querySelectorAll('.mail-checkbox');
-  checkboxes.forEach(function(checkbox) {
-    checkbox.checked = masterCheckbox.checked;
-  });
-}
-
-function confirmAction(message) {
-  return confirm(message);
-}
-
-function submitArchive() {
-  if (!confirm('Möchten Sie die ausgewählten E-Mails wirklich archivieren?')) {
-    return false;
-  }
-  
-  // Change form action to archive
-  var form = document.getElementById('deferred_mails_form');
-  form.action = '<%= url_for(:action => 'archive_deferred_mails') %>';
-  return true;
-}
-
-function toggleFieldset(legend) {
-  var fieldset = legend.parentNode;
-  var div = fieldset.querySelector('div');
-  if (div.style.display === 'none') {
-    div.style.display = 'block';
-    fieldset.classList.remove('collapsed');
-  } else {
-    div.style.display = 'none';
-    fieldset.classList.add('collapsed');
-  }
-}
-
-// Suchformular beim Laden der Seite einklappen wenn keine Suchkriterien vorhanden
+// Set the archive URL for the external JavaScript
 document.addEventListener('DOMContentLoaded', function() {
-  var searchFrom = '<%= @search_from %>';
-  var searchSubject = '<%= @search_subject %>';
-  var fieldset = document.querySelector('.search-form fieldset');
-  
-  if (!searchFrom && !searchSubject && fieldset) {
-    var div = fieldset.querySelector('div');
-    div.style.display = 'none';
-    fieldset.classList.add('collapsed');
+  var form = document.getElementById('deferred_mails_form');
+  if (form) {
+    form.setAttribute('data-archive-url', '<%= url_for(:action => 'archive_deferred_mails') %>');
+    form.setAttribute('data-search-from', '<%= @search_from %>');
+    form.setAttribute('data-search-subject', '<%= @search_subject %>');
   }
 });
 </script>
 
-<style>
+<style type="text/css">
 .deferred-mails {
   width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.deferred-mails th,
+.deferred-mails td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.deferred-mails th {
+  background-color: #f2f2f2;
+  font-weight: bold;
+}
+
+.deferred-mails tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.deferred-mails tr:hover {
+  background-color: #f5f5f5;
 }
 
 .deferred-mails th.checkbox,
@@ -358,6 +329,48 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .per-page-options a:hover {
   text-decoration: underline;
+}
+
+/* Archive folder selection styles */
+.archive-folder-selection {
+  margin: 20px 0;
+}
+
+.archive-folder-selection fieldset {
+  border: 1px solid #ddd;
+  padding: 10px;
+  margin: 10px 0;
+}
+
+.archive-folder-selection legend {
+  cursor: pointer;
+  padding: 0 10px;
+  font-weight: bold;
+  color: #007acc;
+}
+
+.archive-folder-selection legend:hover {
+  text-decoration: underline;
+}
+
+.archive-folder-selection p {
+  margin: 10px 0;
+}
+
+.archive-folder-selection label {
+  display: inline-block;
+  width: 100px;
+  font-weight: bold;
+}
+
+.archive-folder-selection select {
+  margin-left: 10px;
+}
+
+.small-button {
+  padding: 3px 8px;
+  font-size: 11px;
+  margin-left: 5px;
 }
 
 /* Suchformular Styles */
