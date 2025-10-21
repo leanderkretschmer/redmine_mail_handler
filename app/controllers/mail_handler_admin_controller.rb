@@ -277,18 +277,23 @@ class MailHandlerAdminController < ApplicationController
 
   def archive_deferred_mails
     selected_ids = params[:selected_ids] || []
-    selected_message_ids = params[:selected_message_ids] || []
 
-    if selected_ids.empty? && selected_message_ids.empty?
+    if selected_ids.empty?
       flash[:error] = "Bitte wählen Sie mindestens eine E-Mail aus."
       redirect_to action: :deferred_mails
       return
     end
 
     begin
-      archived_count = archive_selected_mails(selected_ids, selected_message_ids)
-      flash[:notice] = "#{archived_count} E-Mails wurden erfolgreich archiviert."
+      archived_count = archive_selected_mails_simple(selected_ids)
+      if archived_count > 0
+        flash[:notice] = "#{archived_count} E-Mails wurden erfolgreich archiviert."
+      else
+        flash[:warning] = "Keine E-Mails konnten archiviert werden."
+      end
     rescue => e
+      Rails.logger.error "Archive error: #{e.message}"
+      Rails.logger.error "Backtrace: #{e.backtrace.join("\n")}"
       flash[:error] = "Fehler beim Archivieren: #{e.message}"
     end
 
@@ -1083,7 +1088,68 @@ class MailHandlerAdminController < ApplicationController
     end
   end
 
-  def archive_selected_mails(selected_ids, selected_message_ids = nil)
+  # Einfache Archivierungs-Methode ohne komplexe Message-ID Logik
+  def archive_selected_mails_simple(selected_ids)
+    Rails.logger.info "Starting simple archive for IDs: #{selected_ids.inspect}"
+    
+    archived_count = 0
+    
+    begin
+      # IMAP-Verbindung über Service aufbauen
+      imap = @service.connect_to_imap
+      unless imap
+        Rails.logger.error "Could not establish IMAP connection"
+        raise "IMAP-Verbindung konnte nicht hergestellt werden"
+      end
+      
+      # Deferred-Ordner auswählen
+      imap.select(@settings['deferred_folder'])
+      Rails.logger.info "Selected deferred folder: #{@settings['deferred_folder']}"
+      
+      # Alle Nachrichten im Ordner abrufen
+      all_messages = imap.search('ALL')
+      Rails.logger.info "Found #{all_messages.length} messages in deferred folder"
+      
+      # Iteriere durch die ausgewählten IDs (diese sind die Sequenznummern aus der Tabelle)
+      selected_ids.each do |sequence_id|
+        begin
+          seq_num = sequence_id.to_i
+          
+          # Prüfe ob die Sequenznummer gültig ist
+          if seq_num > 0 && seq_num <= all_messages.length
+            actual_uid = all_messages[seq_num - 1] # Array ist 0-basiert, Sequenznummern 1-basiert
+            
+            Rails.logger.info "Archiving message at sequence #{seq_num} (UID: #{actual_uid})"
+            
+            # Archiviere die Nachricht über den Service
+            @service.archive_message(imap, actual_uid)
+            archived_count += 1
+            
+            Rails.logger.info "Successfully archived message #{actual_uid}"
+          else
+            Rails.logger.warn "Invalid sequence number: #{seq_num} (total messages: #{all_messages.length})"
+          end
+          
+        rescue => e
+          Rails.logger.error "Error archiving message #{sequence_id}: #{e.message}"
+          # Weiter mit der nächsten Nachricht
+        end
+      end
+      
+    ensure
+      # IMAP-Verbindung schließen
+      if imap
+        begin
+          imap.disconnect
+        rescue => e
+          Rails.logger.warn "Error disconnecting IMAP: #{e.message}"
+        end
+      end
+    end
+    
+    Rails.logger.info "Archive operation completed: #{archived_count} messages archived"
+    archived_count
+  end
     puts "=== ARCHIVE DEBUG: Starting archive_selected_mails ==="
     puts "=== ARCHIVE DEBUG: selected_ids: #{selected_ids.inspect} ==="
     puts "=== ARCHIVE DEBUG: selected_message_ids: #{selected_message_ids.inspect} ==="
