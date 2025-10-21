@@ -285,6 +285,9 @@ class MailHandlerAdminController < ApplicationController
     end
 
     begin
+      # Initialize settings needed for archiving
+      @settings = Setting.plugin_redmine_mail_handler
+      
       archived_count = archive_selected_mails_simple(selected_ids)
       if archived_count > 0
         flash[:notice] = "#{archived_count} E-Mails wurden erfolgreich archiviert."
