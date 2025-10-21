@@ -287,6 +287,8 @@ class MailHandlerAdminController < ApplicationController
     begin
       # Initialize settings needed for archiving
       @settings = Setting.plugin_redmine_mail_handler
+      # Update service settings to ensure they are current
+      @service.update_settings(@settings)
       
       archived_count = archive_selected_mails_simple(selected_ids)
       if archived_count > 0

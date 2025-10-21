@@ -2145,6 +2145,11 @@ class MailHandlerService
     false
   end
 
+  # Update settings for the service
+  def update_settings(new_settings)
+    @settings = new_settings
+  end
+
   # Alias für Rückwärtskompatibilität
   alias_method :get_smtp_settings, :get_smtp_configuration
 end
