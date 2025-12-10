@@ -16,6 +16,7 @@ class MailHandlerLogger
   @@import_session_logs = []
   @@import_session_start = nil
   @@custom_logger = nil
+  MAX_IMPORT_SESSION_LOGS = 1000  # Limit to prevent unbounded memory growth
 
   def initialize
     @settings = Setting.plugin_redmine_mail_handler
@@ -175,16 +176,10 @@ class MailHandlerLogger
         mail_message_id = mail.message_id.to_s.strip if mail.message_id
       end
       
-      # Immer in Rails-Log schreiben (keine DB-Speicherung)
+      # Always write to Rails log (no DB storage)
       Rails.logger.send(level, "[MailHandler] #{message}")
       
-      # Zusätzlich in Custom Log schreiben
-      write_to_custom_log(level, message)
-      
-      # Zusätzlich in Custom Log schreiben
-      write_to_custom_log(level, message)
-      
-      # Zusätzlich in Custom Log schreiben
+      # Additionally write to custom log
       write_to_custom_log(level, message)
     end
   end
@@ -230,11 +225,11 @@ class MailHandlerLogger
     updated_message = message + count_suffix
     Rails.logger.send(level, "[MailHandler] #{updated_message}")
     
-    # Zusätzlich in Custom Log schreiben
+    # Additionally write to custom log
     write_to_custom_log(level, updated_message)
   end
 
-  # File-basierter Log-Reader
+  # File-based log reader
   def self.read_logs(max_lines: 5000)
     require 'ostruct'
     log_file = File.join(Rails.root.to_s, 'log', "#{Rails.env}.log")
@@ -313,7 +308,7 @@ class MailHandlerLogger
     entries.sort_by { |e| -e.created_at.to_f }
   end
   
-  # Prüfe ob die Nachricht Teil einer Mail-Import-Session ist
+  # Check if message is part of a mail import session
   def is_import_session_message?(message)
     import_keywords = [
       'Starting scheduled mail import',
@@ -325,46 +320,60 @@ class MailHandlerLogger
     import_keywords.any? { |keyword| message.match?(/#{keyword}/i) }
   end
   
-  # Behandle Mail-Import-Session-Nachrichten
+  # Handle mail import session messages
   def handle_import_session_message(level, message)
     case message
     when /Starting scheduled mail import/i
-      # Neue Import-Session beginnt
+      # New import session starts
       finalize_previous_import_session if @@import_session_logs.any?
       @@import_session_start = Time.current
       @@import_session_logs = [{ level: level, message: message, timestamp: Time.current }]
       
     when /Starting mail import process/i
-      # Import-Prozess startet (Teil der Session)
-      @@import_session_logs << { level: level, message: message, timestamp: Time.current }
+      # Import process starts (part of session)
+      add_to_session_logs(level, message)
       
     when /Found (\\d+) unread messages/i
-      # Anzahl gefundener Nachrichten
-      @@import_session_logs << { level: level, message: message, timestamp: Time.current }
+      # Number of found messages
+      add_to_session_logs(level, message)
       
     when /Processed (\\d+) messages successfully/i
-      # Import abgeschlossen - Session finalisieren
-      @@import_session_logs << { level: level, message: message, timestamp: Time.current }
+      # Import completed - finalize session
+      add_to_session_logs(level, message)
       finalize_import_session
       
     else
-      # Andere Import-bezogene Nachrichten
-      @@import_session_logs << { level: level, message: message, timestamp: Time.current }
+      # Other import-related messages
+      add_to_session_logs(level, message)
     end
     
-    # Immer auch in Rails-Log schreiben
+    # Always write to Rails log
     Rails.logger.send(level, "[MailHandler] #{message}")
     
-    # Zusätzlich in Custom Log schreiben
+    # Additionally write to custom log
     write_to_custom_log(level, message)
   end
   
-  # Finalisiere die aktuelle Import-Session
+  # Add log entry to session logs with size limit protection
+  def add_to_session_logs(level, message)
+    # Prevent unbounded memory growth
+    if @@import_session_logs.size >= MAX_IMPORT_SESSION_LOGS
+      Rails.logger.warn("[MailHandler] Import session logs limit reached (#{MAX_IMPORT_SESSION_LOGS}), finalizing session early")
+      finalize_import_session
+      # Start new session
+      @@import_session_start = Time.current
+      @@import_session_logs = [{ level: level, message: message, timestamp: Time.current }]
+    else
+      @@import_session_logs << { level: level, message: message, timestamp: Time.current }
+    end
+  end
+  
+  # Finalize current import session
   def finalize_import_session
     return if @@import_session_logs.empty?
     
     begin
-      # Zusammenfassung nur ins Rails-Log schreiben
+      # Write summary to Rails log only
       duration = Time.current - @@import_session_start if @@import_session_start
       found_messages = extract_number_from_logs(/Found (\\d+) unread messages/i)
       processed_messages = extract_number_from_logs(/Processed (\\d+) messages successfully/i)
@@ -374,7 +383,7 @@ class MailHandlerLogger
       summary_message += " (Dauer: #{duration.round(2)}s)" if duration
       Rails.logger.info("[MailHandler] #{summary_message}")
       
-      # Zusätzlich in Custom Log schreiben
+      # Additionally write to custom log
       write_to_custom_log('info', summary_message)
     rescue => e
       Rails.logger.error "Failed to finalize import session: #{e.message}"
@@ -382,18 +391,18 @@ class MailHandlerLogger
         write_single_log_entry(log_entry[:level], log_entry[:message], log_entry[:timestamp])
       end
     ensure
-      # Session zurücksetzen
+      # Reset session
       @@import_session_logs = []
       @@import_session_start = nil
     end
   end
   
-  # Finalisiere vorherige Session falls eine neue beginnt
+  # Finalize previous session if a new one starts
   def finalize_previous_import_session
     finalize_import_session
   end
   
-  # Extrahiere Zahlen aus Log-Nachrichten
+  # Extract numbers from log messages
   def extract_number_from_logs(pattern)
     log_entry = @@import_session_logs.find { |log| log[:message].match?(pattern) }
     return nil unless log_entry
@@ -402,11 +411,11 @@ class MailHandlerLogger
     match ? match[1].to_i : nil
   end
   
-  # Schreibe einen einzelnen Log-Eintrag
+  # Write a single log entry
   def write_single_log_entry(level, message, timestamp)
     Rails.logger.send(level, "[MailHandler] #{message}")
     
-    # Zusätzlich in Custom Log schreiben
+    # Additionally write to custom log
     write_to_custom_log(level, message)
   end
 end

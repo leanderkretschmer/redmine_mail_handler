@@ -23,10 +23,10 @@ class MailHandlerService
     @logger = MailHandlerLogger.new
   end
 
-  # Hauptmethode für Mail-Import
+  # Main method for mail import
   def import_mails(limit = nil)
     begin
-      # Setze Logger-Status zurück für neue Import-Session
+      # Reset logger state for new import session
       MailHandlerLogger.reset_logger_state
       
       @logger.info("Starting mail import process")
@@ -34,11 +34,11 @@ class MailHandlerService
       imap = connect_to_imap
       return false unless imap
 
-      # Wähle Posteingang
+      # Select inbox
       inbox_folder = @settings['inbox_folder'].presence || 'INBOX'
       imap.select(inbox_folder)
       
-      # Hole ungelesene Mails
+      # Fetch unread mails
       message_ids = imap.search(['UNSEEN'])
       
       if limit
@@ -48,8 +48,8 @@ class MailHandlerService
       @logger.info("Found #{message_ids.count} unread messages")
       
       processed_count = 0
-      # Verarbeite Nachrichten in umgekehrter Reihenfolge, da das Archivieren
-      # die Message-IDs der nachfolgenden Nachrichten ungültig macht
+      # Process messages in reverse order, as archiving
+      # invalidates message IDs of subsequent messages
       message_ids.reverse.each do |msg_id|
         begin
           process_message(imap, msg_id)
@@ -72,7 +72,7 @@ class MailHandlerService
 
       @logger.info("Processed #{processed_count} messages successfully")
       
-      # Automatische Log-Bereinigung nach Mail-Import
+      # Automatic log cleanup after mail import
       MailHandlerLog.run_scheduled_cleanup
       
       imap.disconnect
@@ -83,7 +83,7 @@ class MailHandlerService
     end
   end
 
-  # Verarbeite zurückgestellte Mails
+  # Process deferred mails
   def process_deferred_mails
     @logger.info("Starting deferred mail processing")
     
@@ -93,7 +93,7 @@ class MailHandlerService
     begin
       deferred_folder = @settings['deferred_folder'].presence || 'Deferred'
       
-      # Prüfe ob Zurückgestellt-Ordner existiert
+      # Check if deferred folder exists
       begin
         imap.select(deferred_folder)
       rescue Net::IMAP::NoResponseError
@@ -103,7 +103,7 @@ class MailHandlerService
       
       @logger.info("Selected deferred folder: #{deferred_folder}")
       
-      # Hole alle Nachrichten-IDs aus Zurückgestellt
+      # Fetch all message IDs from deferred folder
       message_ids = imap.search(['ALL'])
       @logger.info("Found #{message_ids.length} messages in deferred")
       
@@ -668,9 +668,9 @@ class MailHandlerService
      content.to_s.force_encoding('UTF-8')
    end
 
-  # Verarbeite einzelne Nachricht
+  # Process single message
   def process_message(imap, msg_id)
-    # Prüfe ob die Message-ID noch gültig ist
+    # Check if message ID is still valid
     begin
       imap.fetch(msg_id, 'UID')
     rescue Net::IMAP::BadResponseError => e
@@ -682,11 +682,11 @@ class MailHandlerService
       end
     end
     
-    # Hole Mail-Daten
+    # Fetch mail data
     begin
       msg_data = imap.fetch(msg_id, 'RFC822')[0].attr['RFC822']
       
-      # Validiere Mail-Daten
+      # Validate mail data
       if msg_data.blank?
         @logger.error("Empty mail data for message #{msg_id}, skipping")
         return
@@ -694,7 +694,7 @@ class MailHandlerService
       
       mail = Mail.read_from_string(msg_data)
       
-      # Validiere Mail-Objekt
+      # Validate mail object
       if mail.nil?
         @logger.error("Failed to parse mail object for message #{msg_id}, skipping")
         return
@@ -705,7 +705,7 @@ class MailHandlerService
       raise e
     end
     
-    # Validiere From-Adresse
+    # Validate from address
     from_address = mail.from&.first
     if from_address.blank?
       @logger.error("Mail has no valid from address, skipping message #{msg_id}")
@@ -714,37 +714,37 @@ class MailHandlerService
     
     @logger.debug_mail("Processing mail from #{from_address} with subject: #{mail.subject}", mail)
 
-    # Prüfe ob E-Mail ignoriert werden soll (vor Deduplizierung)
+    # Check if email should be ignored (before deduplication)
     if should_ignore_email?(from_address)
       @logger.info("Mail from #{from_address} matches ignore pattern, moving to ignored folder")
       move_to_ignored_folder(imap, msg_id, mail)
-      return # Nicht archivieren
+      return # Don't archive
     end
 
-    # Prüfe auf Duplikate basierend auf Message-ID (wenn aktiviert)
+    # Check for duplicates based on Message-ID (if enabled)
     if @settings['deduplication_enabled'] == '1' && is_duplicate_mail?(mail)
       @logger.info_mail("Skipping duplicate mail based on Message-ID: #{mail.message_id}", mail)
       archive_message(imap, msg_id, mail)
       return
     end
     
-    # Extrahiere Ticket-ID aus Betreff
+    # Extract ticket ID from subject
     ticket_id = extract_ticket_id(mail.subject)
     
-    # Prüfe ob Benutzer bereits existiert
+    # Check if user already exists
     existing_user = find_existing_user(from_address)
     
     if existing_user
-      # Bekannter Benutzer - kann immer verarbeitet werden
+      # Known user - can always be processed
       if ticket_id
-        # Bekannter Benutzer + Ticket-ID → an spezifisches Ticket
+        # Known user + ticket ID → add to specific ticket
         add_mail_to_ticket(mail, ticket_id, existing_user)
       else
-        # Bekannter Benutzer ohne Ticket-ID → an Posteingang-Ticket
+        # Known user without ticket ID → add to inbox ticket
         add_mail_to_inbox_ticket(mail, existing_user)
       end
     elsif ticket_id
-      # Unbekannter Benutzer + Ticket-ID → Benutzer erstellen und Mail verarbeiten
+      # Unknown user + ticket ID → create user and process mail
       new_user = create_new_user(from_address)
       if new_user
         add_mail_to_ticket(mail, ticket_id, new_user)
@@ -752,42 +752,56 @@ class MailHandlerService
         @logger.error("Failed to create user for #{from_address}, cannot process mail")
       end
     else
-      # Unbekannter Benutzer ohne Ticket-ID → zurückstellen
+      # Unknown user without ticket ID → defer
       @logger.info("Moving mail from unknown user #{from_address} without ticket ID to deferred")
       defer_message(imap, msg_id, mail)
-      return # Nicht archivieren, da zurückgestellt
+      return # Don't archive, as deferred
     end
     
-    # Mail archivieren (move() markiert automatisch als gelesen)
-    # Wichtig: move() macht die Message-ID ungültig, daher zuerst archivieren
-    archive_message(imap, msg_id, mail)
+    # Archive mail (move() automatically marks as read)
+    # IMPORTANT: Order matters for transactional safety:
+    # 1. DB operations (add_mail_to_ticket) happen first - if they fail, archive_message is not called
+    # 2. IMAP archive operation happens last - if it fails, DB entry exists but message remains in inbox
+    #    This is safer than the reverse order (archive first, then DB), because:
+    #    - If DB fails after archive, message is lost from inbox but no journal entry exists
+    #    - If archive fails after DB, message remains in inbox and can be reprocessed (deduplication prevents duplicates)
+    # NOTE: This is not fully atomic - IMAP and DB operations are separate systems.
+    # If archive fails after successful DB write, the message will remain in inbox and may be reprocessed.
+    # Deduplication (if enabled) prevents duplicate journal entries.
+    begin
+      archive_message(imap, msg_id, mail)
+    rescue => archive_error
+      @logger.error("Failed to archive message #{msg_id} after successful DB operation: #{archive_error.message}")
+      @logger.warn("Message #{msg_id} remains in inbox - may be reprocessed on next import (deduplication will prevent duplicates)")
+      raise archive_error
+    end
   end
 
-  # Extrahiere Ticket-ID aus Betreff
+  # Extract ticket ID from subject
   def extract_ticket_id(subject)
     return nil unless subject
     
-    # Unterstütze beide Formate:
-    # [#123] - klassisches Format
-    # [Text #123] - neues Format mit Text vor der ID
+    # Support both formats:
+    # [#123] - classic format
+    # [Text #123] - new format with text before ID
     match = subject.match(/\[(?:.*?\s)?#(\d+)\]/) || subject.match(/\[#(\d+)\]/)
     match ? match[1].to_i : nil
   end
 
-  # Füge Mail zu spezifischem Ticket hinzu
+  # Add mail to specific ticket
   def add_mail_to_ticket(mail, ticket_id, user)
     ticket = Issue.find_by(id: ticket_id)
     unless ticket
       @logger.error_mail("Ticket ##{ticket_id} not found, forwarding to inbox ticket", mail, ticket_id)
-      # Fallback: Leite E-Mail an Posteingang-Ticket weiter
+      # Fallback: forward email to inbox ticket
       add_mail_to_inbox_ticket(mail, user)
       return
     end
     
-    # Dekodiere Mail-Inhalt
+    # Decode mail content
     content = decode_mail_content(mail)
     
-    # Erstelle Journal-Eintrag
+    # Create journal entry
     journal = ticket.init_journal(user, content)
     
     # Rückdatierung anwenden, wenn aktiviert
@@ -1191,21 +1205,15 @@ class MailHandlerService
 
   public
 
-  # Archiviere Nachricht
+  # Archive message
   def archive_message(imap, msg_id, mail = nil)
-    puts "=== ARCHIVE DEBUG: Starting archive_message for message #{msg_id} ==="
     @logger.info("Starting archive_message for message #{msg_id}")
     
-    # Debug: Zeige alle aktuellen Einstellungen
-    puts "=== ARCHIVE DEBUG: Current @settings: #{@settings.inspect} ==="
-    puts "=== ARCHIVE DEBUG: Archive folder from @settings: '#{@settings['archive_folder']}' ==="
-    
-    # Verwende Standardwert falls nicht konfiguriert
+    # Use default value if not configured
     archive_folder = @settings['archive_folder'].presence || 'Archive'
     
-    # Überspringe Archivierung wenn immer noch leer
+    # Skip archiving if still empty
     if archive_folder.blank?
-      puts "=== ARCHIVE DEBUG: No archive folder configured even after default ==="
       @logger.error("No archive folder configured, skipping archive for message #{msg_id}")
       raise "Archiv-Ordner ist nicht konfiguriert. Bitte konfigurieren Sie den Archiv-Ordner in den Plugin-Einstellungen unter Administration > Plugins > Mail Handler > Verarbeitung."
     end
@@ -1213,89 +1221,69 @@ class MailHandlerService
     # Update @settings with resolved archive folder
     @settings['archive_folder'] = archive_folder
     
-    puts "=== ARCHIVE DEBUG: Archive folder configured: '#{archive_folder}' ==="
     @logger.info("Archive folder configured: '#{archive_folder}'")
     
     begin
-      # Prüfe ob die Message-ID noch gültig ist
-      puts "=== ARCHIVE DEBUG: Checking if message #{msg_id} is valid... ==="
+      # Check if message ID is still valid
       @logger.debug("Checking if message #{msg_id} is valid...")
       uid_data = imap.fetch(msg_id, 'UID')
       unless uid_data && uid_data.first
-        puts "=== ARCHIVE DEBUG: Message #{msg_id} is invalid ==="
         @logger.error("Message #{msg_id} is invalid or already processed, skipping archive")
         raise "Nachricht #{msg_id} ist ungültig oder wurde bereits verarbeitet"
       end
       
-      puts "=== ARCHIVE DEBUG: Message #{msg_id} is valid, proceeding with archive ==="
       @logger.debug("Message #{msg_id} is valid, proceeding with archive")
       
-      # Prüfe ob der Archiv-Ordner existiert, erstelle ihn falls nötig
-      puts "=== ARCHIVE DEBUG: Ensuring archive folder exists ==="
+      # Check if archive folder exists, create if necessary
       ensure_archive_folder_exists(imap)
       
-      # Verschiebe die Nachricht (markiert automatisch als gelesen)
-      puts "=== ARCHIVE DEBUG: Moving message #{msg_id} to archive folder '#{archive_folder}' ==="
+      # Move message (automatically marks as read)
       @logger.info("Moving message #{msg_id} to archive folder '#{archive_folder}'")
       imap.move(msg_id, archive_folder)
       # Ensure deleted messages are removed from source mailbox (for MOVE fallback)
       begin
         imap.expunge
-        puts "=== ARCHIVE DEBUG: Expunge completed on source mailbox ==="
         @logger.debug("Expunge completed on source mailbox after move for message #{msg_id}")
       rescue => expunge_err
-        puts "=== ARCHIVE DEBUG: Expunge failed: #{expunge_err.message} ==="
         @logger.warn("Expunge after move failed for message #{msg_id}: #{expunge_err.message}")
       end
-      puts "=== ARCHIVE DEBUG: Successfully moved message #{msg_id} ==="
       @logger.info_mail("Successfully moved message #{msg_id} to archive folder '#{archive_folder}'", mail)
       
     rescue Net::IMAP::BadResponseError, Net::IMAP::NoResponseError => e
-      puts "=== ARCHIVE DEBUG: IMAP error: #{e.message} ==="
       @logger.error("IMAP error while archiving message #{msg_id}: #{e.message}")
       msg = e.message.to_s
 
       if msg.include?('Invalid messageset')
-        puts "=== ARCHIVE DEBUG: Invalid messageset error ==="
         @logger.debug("Message #{msg_id} already moved or invalid, skipping archive")
         raise "Nachricht #{msg_id} wurde bereits verschoben oder ist ungültig"
       elsif msg.include?('TRYCREATE')
-        puts "=== ARCHIVE DEBUG: TRYCREATE error, creating folder ==="
         @logger.info("Archive folder '#{archive_folder}' does not exist, creating it...")
         create_archive_folder(imap)
-        # Versuche erneut zu verschieben
+        # Retry moving
         begin
           imap.move(msg_id, archive_folder)
-          puts "=== ARCHIVE DEBUG: Successfully moved after creating folder ==="
           @logger.info("Successfully moved message #{msg_id} to newly created archive folder")
         rescue => retry_e
-          puts "=== ARCHIVE DEBUG: Failed to move after creating folder: #{retry_e.message} ==="
           @logger.error("Failed to move message #{msg_id} to archive after creating folder: #{retry_e.message}")
           raise "Fehler beim Verschieben nach Ordner-Erstellung: #{retry_e.message}"
         end
       elsif msg =~ /NO MOVE|MOVE not supported/i
-        puts "=== ARCHIVE DEBUG: NO MOVE error, trying fallback ==="
         @logger.warn("IMAP server does not support MOVE command for message #{msg_id}, trying COPY + EXPUNGE")
         # Fallback: COPY + STORE + EXPUNGE
         begin
           imap.copy(msg_id, archive_folder)
           imap.store(msg_id, '+FLAGS', [:Deleted])
           imap.expunge
-          puts "=== ARCHIVE DEBUG: Successfully used fallback method ==="
           @logger.info("Successfully copied and deleted message #{msg_id} to archive folder (fallback method)")
         rescue => copy_e
-          puts "=== ARCHIVE DEBUG: Fallback method failed: #{copy_e.message} ==="
           @logger.error("Fallback archive method failed for message #{msg_id}: #{copy_e.message}")
           raise "Fallback-Archivierungsmethode fehlgeschlagen: #{copy_e.message}"
         end
       else
-        puts "=== ARCHIVE DEBUG: Other IMAP error: #{e.message} ==="
         @logger.error("Failed to move message #{msg_id} to archive: #{e.message}")
         raise "IMAP-Fehler beim Archivieren: #{e.message}"
       end
     rescue => e
-      puts "=== ARCHIVE DEBUG: Unexpected error: #{e.message} ==="
-      puts "=== ARCHIVE DEBUG: Backtrace: #{e.backtrace.join("\n")} ==="
       @logger.error("Unexpected error while archiving message #{msg_id}: #{e.message}")
       @logger.error("Backtrace: #{e.backtrace.join("\n")}")
       raise e
