@@ -692,14 +692,13 @@ class MailHandlerAdminController < ApplicationController
     end
   end
 
-  # Teste IMAP-Verbindung und lade E-Mails neu
+  # Test IMAP connection and reload emails
   def reload_deferred_mails
     begin
-      # Teste IMAP-Verbindung
+      # Test IMAP connection
       imap = @service.connect_to_imap
-<<<<<<< HEAD
       if imap
-        deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'INBOX.deferred'
+        deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
         begin
           imap.select(deferred_folder)
           flash[:notice] = "IMAP-Verbindung erfolgreich. Deferred Ordner '#{deferred_folder}' gefunden."
@@ -709,20 +708,7 @@ class MailHandlerAdminController < ApplicationController
         imap.disconnect rescue nil
       else
         flash[:error] = "IMAP-Verbindung fehlgeschlagen. Überprüfen Sie die Plugin-Einstellungen."
-=======
-    if imap
-      deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
-      begin
-        imap.select(deferred_folder)
-        flash[:notice] = "IMAP-Verbindung erfolgreich. Deferred Ordner '#{deferred_folder}' gefunden."
-      rescue Net::IMAP::NoResponseError
-        flash[:error] = "IMAP-Verbindung erfolgreich, aber deferred Ordner '#{deferred_folder}' nicht gefunden."
->>>>>>> c9355c6b8de98cf1e8f388aa5415d9935223b4f1
       end
-      imap.disconnect rescue nil
-    else
-      flash[:error] = "IMAP-Verbindung fehlgeschlagen. Überprüfen Sie die Plugin-Einstellungen."
-    end
     rescue => e
       flash[:error] = "IMAP-Verbindungsfehler: #{e.message}"
     end
