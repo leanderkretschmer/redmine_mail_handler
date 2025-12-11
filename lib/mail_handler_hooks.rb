@@ -38,6 +38,60 @@ class MailHandlerHooks < Redmine::Hook::ViewListener
     # Hier könnten projektspezifische Mail-Handler-Einstellungen hinzugefügt werden
   end
   
+  # Hook für Journal-Anzeige (Kommentare)
+  def view_issues_history_journal_bottom(context = {})
+    journal = context[:journal]
+    issue = context[:issue]
+    
+    return '' unless journal && issue
+    
+    # Nur für Admins anzeigen
+    return '' unless User.current && User.current.admin?
+    
+    settings = Setting.plugin_redmine_mail_handler || {}
+    
+    # Prüfe ob Block-User-Buttons aktiviert sind
+    return '' unless settings['block_user_buttons_enabled'] == '1'
+    
+    # Prüfe ob es sich um das Posteingang-Ticket handelt
+    inbox_ticket_id = settings['inbox_ticket_id'].to_i
+    return '' unless inbox_ticket_id > 0 && issue.id == inbox_ticket_id
+    
+    # Prüfe ob der Journal-Eintrag einen Benutzer hat (nicht anonym)
+    return '' unless journal.user && journal.user != User.anonymous
+    
+    # Prüfe ob der Benutzer eine E-Mail-Adresse hat
+    user_email = journal.user.mail || journal.user.email_addresses.first&.address
+    return '' unless user_email.present?
+    
+    # Prüfe ob der Benutzer bereits blockiert ist
+    ignore_list = settings['ignore_email_addresses'] || ''
+    is_blocked = ignore_list.split("\n").map(&:strip).reject(&:blank?).any? do |pattern|
+      if pattern.include?('*')
+        regex_pattern = pattern.gsub('*', '.*')
+        user_email.match?(/\A#{regex_pattern}\z/i)
+      else
+        user_email.downcase == pattern.downcase
+      end
+    end
+    
+    # Rendere Block-Button
+    controller = context[:controller]
+    if controller
+      controller.render_to_string(
+        partial: 'mail_handler/block_user_button',
+        locals: {
+          journal: journal,
+          issue: issue,
+          user: journal.user,
+          user_email: user_email,
+          is_blocked: is_blocked
+        }
+      )
+    else
+      ''
+    end
+  end
 
 end
 

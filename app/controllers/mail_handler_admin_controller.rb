@@ -1257,4 +1257,86 @@ class MailHandlerAdminController < ApplicationController
   end
 
   # Logging-Helfer entfernt
+  
+  def block_user
+    # Prüfe Admin-Berechtigung
+    unless User.current.admin?
+      render_403
+      return
+    end
+    
+    journal_id = params[:journal_id]
+    user_id = params[:user_id]
+    user_email = params[:user_email]
+    
+    unless journal_id.present? && user_email.present?
+      if request.xhr?
+        render json: { success: false, error: l(:error_missing_parameters) }
+      else
+        flash[:error] = l(:error_missing_parameters)
+        redirect_back(fallback_location: root_path)
+      end
+      return
+    end
+    
+    begin
+      journal = Journal.find_by(id: journal_id)
+      unless journal
+        if request.xhr?
+          render json: { success: false, error: l(:error_journal_not_found) }
+        else
+          flash[:error] = l(:error_journal_not_found)
+          redirect_back(fallback_location: root_path)
+        end
+        return
+      end
+      
+      settings = Setting.plugin_redmine_mail_handler || {}
+      ignore_list = settings['ignore_email_addresses'] || ''
+      
+      # Prüfe ob E-Mail bereits in der Liste ist
+      ignore_patterns = ignore_list.split("\n").map(&:strip).reject(&:blank?)
+      
+      if ignore_patterns.any? { |pattern|
+          if pattern.include?('*')
+            regex_pattern = pattern.gsub('*', '.*')
+            user_email.match?(/\A#{regex_pattern}\z/i)
+          else
+            user_email.downcase == pattern.downcase
+          end
+        }
+        message = l(:notice_user_already_blocked, email: user_email)
+        flash[:notice] = message unless request.xhr?
+      else
+        # Füge E-Mail zur Ignore-Liste hinzu
+        new_ignore_list = ignore_list.blank? ? user_email : "#{ignore_list}\n#{user_email}"
+        settings['ignore_email_addresses'] = new_ignore_list
+        Setting.plugin_redmine_mail_handler = settings
+        
+        logger = MailHandlerLogger.new
+        logger.info("User #{user_email} blocked from journal ##{journal_id}")
+        
+        message = l(:notice_user_blocked, email: user_email)
+        flash[:notice] = message unless request.xhr?
+      end
+      
+      if request.xhr?
+        render json: { success: true, message: message }
+      else
+        redirect_to issue_path(journal.issue)
+      end
+      
+    rescue => e
+      logger = MailHandlerLogger.new
+      logger.error("Error blocking user #{user_email}: #{e.message}")
+      error_message = l(:error_blocking_user, error: e.message)
+      
+      if request.xhr?
+        render json: { success: false, error: error_message }
+      else
+        flash[:error] = error_message
+        redirect_back(fallback_location: root_path)
+      end
+    end
+  end
 end

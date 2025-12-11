@@ -150,3 +150,14 @@ en:
   text_confirm_manual_import: "Are you sure you want to start the manual import?"
   text_confirm_clear_logs: "Are you sure you want to clear all logs?"
   text_confirm_cleanup_logs: "Are you sure you want to cleanup old logs?"
+  text_confirm_block_user: "Do you really want to block user %{email}? Future emails from this address will be ignored."
+  
+  # Block-User-Function
+  label_block_user_from_email: "Block user"
+  label_user_blocked: "User blocked"
+  button_block_user: "Block user"
+  notice_user_blocked: "User %{email} has been successfully blocked."
+  notice_user_already_blocked: "User %{email} is already blocked."
+  error_blocking_user: "Error blocking user: %{error}"
+  error_missing_parameters: "Missing parameters."
+  error_journal_not_found: "Journal entry not found."

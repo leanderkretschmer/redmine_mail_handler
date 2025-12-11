@@ -1,0 +1,53 @@
+<% if defined?(journal) && defined?(user) && defined?(user_email) %>
+  <div class="mail-handler-block-user" id="block-user-<%= journal.id %>" style="margin-top: 10px; padding: 8px; background-color: #f5f5f5; border-left: 3px solid #d9534f; border-radius: 3px;">
+    <% if is_blocked %>
+      <span style="color: #d9534f; font-weight: bold;">
+        <span class="icon icon-lock"></span> <%= l(:label_user_blocked) %>: <%= user_email %>
+      </span>
+    <% else %>
+      <span style="margin-right: 10px;">
+        <%= l(:label_block_user_from_email) %>: <strong><%= user_email %></strong>
+      </span>
+      <%= link_to(
+        l(:button_block_user),
+        {
+          controller: 'mail_handler_admin',
+          action: 'block_user',
+          journal_id: journal.id,
+          user_id: user.id,
+          user_email: user_email
+        },
+        method: :post,
+        class: 'icon icon-lock',
+        style: 'color: #d9534f; text-decoration: none;',
+        data: {
+          confirm: l(:text_confirm_block_user, email: user_email)
+        },
+        remote: true,
+        id: "block-user-btn-#{journal.id}"
+      ) %>
+    <% end %>
+  </div>
+  
+  <script>
+    // AJAX-Handler für Block-User-Button
+    document.addEventListener('DOMContentLoaded', function() {
+      var blockBtn = document.getElementById('block-user-btn-<%= journal.id %>');
+      if (blockBtn) {
+        blockBtn.addEventListener('ajax:success', function(event) {
+          var data = event.detail[0];
+          var container = document.getElementById('block-user-<%= journal.id %>');
+          if (container && data.success) {
+            container.innerHTML = '<span style="color: #d9534f; font-weight: bold;"><span class="icon icon-lock"></span> <%= l(:label_user_blocked) %>: <%= user_email %></span>';
+          }
+        });
+        
+        blockBtn.addEventListener('ajax:error', function(event) {
+          var data = event.detail[0];
+          alert(data.error || '<%= l(:error_blocking_user, error: "Unbekannter Fehler") %>');
+        });
+      }
+    });
+  </script>
+<% end %>
+

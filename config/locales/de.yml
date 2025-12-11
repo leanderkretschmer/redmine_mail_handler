@@ -151,3 +151,14 @@ de:
   text_confirm_manual_import: "Sind Sie sicher, dass Sie den manuellen Import starten möchten?"
   text_confirm_clear_logs: "Sind Sie sicher, dass Sie alle Logs löschen möchten?"
   text_confirm_cleanup_logs: "Sind Sie sicher, dass Sie alte Logs löschen möchten?"
+  text_confirm_block_user: "Möchten Sie den Benutzer %{email} wirklich blockieren? Zukünftige E-Mails von dieser Adresse werden ignoriert."
+  
+  # Block-User-Funktion
+  label_block_user_from_email: "Benutzer blockieren"
+  label_user_blocked: "Benutzer blockiert"
+  button_block_user: "Benutzer blockieren"
+  notice_user_blocked: "Benutzer %{email} wurde erfolgreich blockiert."
+  notice_user_already_blocked: "Benutzer %{email} ist bereits blockiert."
+  error_blocking_user: "Fehler beim Blockieren des Benutzers: %{error}"
+  error_missing_parameters: "Fehlende Parameter."
+  error_journal_not_found: "Journal-Eintrag nicht gefunden."

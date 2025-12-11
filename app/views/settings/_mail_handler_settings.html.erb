@@ -56,6 +56,7 @@
   <div class="box tabular settings">
     <h3>E-Mail-Filter</h3>
     <p><label for="settings_ignore_email_addresses">Zu ignorierende E-Mail-Adressen</label><%= text_area_tag 'settings[ignore_email_addresses]', @settings['ignore_email_addresses'], rows: 5, placeholder: 'email@example.com' + "\n" + '*@spam.com' + "\n" + 'user@*' %><em class="info">Eine E-Mail-Adresse pro Zeile. Unterstützt Wildcards (*) für Muster wie *@spam.com oder user@*</em></p>
+    <p><label for="settings_block_user_buttons_enabled">Block-User-Buttons bei Kommentaren</label><%= check_box_tag 'settings[block_user_buttons_enabled]', '1', @settings['block_user_buttons_enabled'] == '1' %><em class="info">Wenn aktiviert, werden bei Kommentaren im Posteingang-Ticket Block-Buttons angezeigt, um Benutzer zu blockieren.</em></p>
   </div>
   <div class="box tabular settings">
     <h3>Dummy Mails</h3>
