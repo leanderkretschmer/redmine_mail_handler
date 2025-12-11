@@ -831,6 +831,15 @@ class MailHandlerService
     # Decode mail content
     content = decode_mail_content(mail)
     
+    # Verarbeite Anhänge und sammle blockierte Anhänge (vor Journal-Erstellung, damit wir den Content aktualisieren können)
+    blocked_attachments = process_mail_attachments(mail, ticket, user)
+    
+    # Füge Meldung über blockierte Anhänge hinzu, falls vorhanden
+    if blocked_attachments.any?
+      blocked_list = blocked_attachments.map { |name| "`#{name}`" }.join(", ")
+      content += "\n\n*⚠️ Die folgenden Anhänge konnten nicht angehängt werden (von Redmine blockiert): #{blocked_list}*"
+    end
+    
     # Create journal entry
     journal = ticket.init_journal(user, content)
     
@@ -838,9 +847,6 @@ class MailHandlerService
     if @settings['backdate_comments'] == '1' && mail.date.present?
       backdate_journal(journal, mail.date)
     end
-    
-    # Verarbeite Anhänge
-    process_mail_attachments(mail, ticket, user)
     
     if ticket.save
       @logger.info_mail("Added mail content to ticket ##{ticket_id}", mail, ticket_id)
@@ -942,10 +948,6 @@ class MailHandlerService
       content += mail_body
     end
     
-    # Hinweis auf Anhänge (werden separat als Redmine-Attachments verarbeitet)
-    if mail.attachments.any?
-      content += "\n\n*Diese E-Mail enthält #{mail.attachments.count} Anhang(e), die als separate Dateien angehängt wurden.*"
-    end
     
     content
   end
@@ -1375,7 +1377,10 @@ class MailHandlerService
 
 
   # Verarbeite E-Mail-Anhänge als Redmine-Attachments
+  # Gibt eine Liste der blockierten Anhänge zurück
   def process_mail_attachments(mail, ticket, user)
+    blocked_attachments = []
+    
     # Verarbeite reguläre Anhänge
     if mail.attachments.any?
       mail.attachments.each do |attachment|
@@ -1408,11 +1413,16 @@ class MailHandlerService
             ticket.attachments << redmine_attachment
             @logger.info("Successfully attached file: #{attachment.filename} to ticket ##{ticket.id}")
           else
-            @logger.error("Failed to save attachment #{attachment.filename}: #{redmine_attachment.errors.full_messages.join(', ')}")
+            # Anhang konnte nicht gespeichert werden - wahrscheinlich von Redmine blockiert
+            error_message = redmine_attachment.errors.full_messages.join(', ')
+            @logger.error("Failed to save attachment #{attachment.filename}: #{error_message}")
+            blocked_attachments << attachment.filename
           end
           
         rescue => e
           @logger.error("Error processing attachment #{attachment.filename}: #{e.message}")
+          # Bei Fehlern auch als blockiert markieren
+          blocked_attachments << attachment.filename
         ensure
           # Bereinige temporäre Datei
           temp_file&.close
@@ -1425,6 +1435,8 @@ class MailHandlerService
     if @settings['html_attachment_enabled'] == '1'
       create_html_attachment(mail, ticket, user)
     end
+    
+    blocked_attachments
   end
   
   # Erstelle HTML-Anhang aus E-Mail-Inhalt
