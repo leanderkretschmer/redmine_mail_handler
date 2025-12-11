@@ -47,6 +47,15 @@ Redmine::Plugin.register :redmine_mail_handler do
       'html_attachment_enabled' => '0',
       'backdate_comments' => '0',
       'mail_decoder_enabled' => '0',
+      'html_structure_filter_enabled' => '0',
+      'regex_filter_enabled' => '0',
+      'regex_separators' => "Am .* schrieb .*:\nVon:\nGesendet:\nAn:\nBetreff:\n-----Original Message-----\n-------- Ursprüngliche Nachricht --------",
+      'whitespace_filter_enabled' => '0',
+      'normalize_paragraphs_enabled' => '0',
+      'max_consecutive_paragraphs' => '1',
+      'markdown_link_filter_enabled' => '0',
+      'exclude_attachments_enabled' => '0',
+      'excluded_attachment_patterns' => '',
       'deduplication_enabled' => '0'
     }, :partial => 'settings/mail_handler_settings'
 

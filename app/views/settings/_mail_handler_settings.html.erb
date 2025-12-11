@@ -72,13 +72,17 @@
     <p><label>&nbsp;</label><%= button_tag 'Standardwerte zurücksetzen', type: 'button', id: 'reset_parser_defaults', class: 'button' %><em class="info">Setzt alle Parser-Einstellungen auf ihre Standardwerte zurück</em></p>
     <p><label for="settings_parser_mode">Parser-Modus</label><%= select_tag 'settings[parser_mode]', options_for_select([["HTML zu Text (Standard)", 'html_to_text'], ['Text-Repräsentation', 'text_representation']], @settings['parser_mode'] || 'html_to_text') %><em class="info">HTML zu Text: Konvertiert HTML-Inhalt zu sauberem Text. Text-Repräsentation: Nutzt die Textversion der E-Mail.</em></p>
     <p><label for="settings_html_attachment_enabled">HTML als Anhang speichern</label><%= check_box_tag 'settings[html_attachment_enabled]', '1', @settings['html_attachment_enabled'] == '1' %><em class="info">Wenn aktiviert, wird der HTML-Inhalt der E-Mail als .html Datei an das Ticket angehängt.</em></p>
-    <p><label for="settings_mail_decoder_enabled">Mail-Decoder verwenden</label><%= check_box_tag 'settings[mail_decoder_enabled]', '1', @settings['mail_decoder_enabled'] == '1' %><em class="info">Aktiviert robusteres Charset-Handling mit mail-decoder und html2text.</em></p>
-    <p><label for="settings_html_structure_filter_enabled">HTML-Struktur-Filter</label><%= check_box_tag 'settings[html_structure_filter_enabled]', '1', @settings['html_structure_filter_enabled'] == '1' %><em class="info">Entfernt störende HTML-Elemente wie Zitate und Signaturen.</em></p>
-    <p><label for="settings_regex_filter_enabled">Regex-Filter</label><%= check_box_tag 'settings[regex_filter_enabled]', '1', @settings['regex_filter_enabled'] == '1' %><em class="info">Entfernt Text ab typischen E-Mail-Trennern.</em></p>
-    <p><label for="settings_regex_separators">Regex-Trenner</label><%= text_area_tag 'settings[regex_separators]', @settings['regex_separators'] || "Am .* schrieb .*:\nVon:\nGesendet:\nAn:\nBetreff:\n-----Original Message-----\n-------- Ursprüngliche Nachricht --------", rows: 4 %><em class="info">Ein Muster pro Zeile.</em></p>
-    <p><label for="settings_normalize_paragraphs_enabled">Absätze normalisieren</label><%= check_box_tag 'settings[normalize_paragraphs_enabled]', '1', @settings['normalize_paragraphs_enabled'] == '1' %><em class="info">Reduziert mehrere aufeinanderfolgende leere Zeilen.</em></p>
-    <p><label for="settings_max_consecutive_paragraphs">Max. leere Zeilen</label><%= number_field_tag 'settings[max_consecutive_paragraphs]', @settings['max_consecutive_paragraphs'] || '1', min: 1, max: 5, step: 1 %></p>
-    <p><label for="settings_markdown_link_filter_enabled">Link-Formate konvertieren</label><%= check_box_tag 'settings[markdown_link_filter_enabled]', '1', @settings['markdown_link_filter_enabled'] == '1' %><em class="info">Konvertiert verschiedene Link-Formate in Markdown.</em></p>
+    <p><label for="settings_backdate_comments">Kommentare rückdatieren</label><%= check_box_tag 'settings[backdate_comments]', '1', @settings['backdate_comments'] == '1' %><em class="info">Wenn aktiviert, werden Kommentare auf das Empfangsdatum der E-Mail zurückdatiert.</em></p>
+    <p><label for="settings_mail_decoder_enabled">Mail-Decoder verwenden</label><%= check_box_tag 'settings[mail_decoder_enabled]', '1', @settings['mail_decoder_enabled'] == '1' %><em class="info">Aktiviert robusteres Charset-Handling und bessere HTML-zu-Text-Konvertierung mit mail-decoder und html2text.</em></p>
+    <p><label for="settings_html_structure_filter_enabled">HTML-Struktur-Filter aktivieren</label><%= check_box_tag 'settings[html_structure_filter_enabled]', '1', @settings['html_structure_filter_enabled'] == '1' %><em class="info">Entfernt störende HTML-Elemente wie Zitate, Signaturen und E-Mail-Client-spezifische Tags vor der Text-Konvertierung.</em></p>
+    <p><label for="settings_regex_filter_enabled">Regex-Filter aktivieren</label><%= check_box_tag 'settings[regex_filter_enabled]', '1', @settings['regex_filter_enabled'] == '1' %><em class="info">Entfernt Text ab typischen E-Mail-Trennern wie "Am ... schrieb" oder "-----Original Message-----".</em></p>
+    <p><label for="settings_regex_separators">Regex-Trenner (einer pro Zeile)</label><%= text_area_tag 'settings[regex_separators]', @settings['regex_separators'] || "Am .* schrieb .*:\nVon:\nGesendet:\nAn:\nBetreff:\n-----Original Message-----\n-------- Ursprüngliche Nachricht --------", rows: 4 %><em class="info">Regex-Muster für E-Mail-Trenner. Text ab dem ersten gefundenen Trenner wird entfernt. Ein Muster pro Zeile.</em></p>
+    <p><label for="settings_whitespace_filter_enabled">Führende Leerzeichen entfernen</label><%= check_box_tag 'settings[whitespace_filter_enabled]', '1', @settings['whitespace_filter_enabled'] == '1' %><em class="info">Entfernt alle führenden Leerzeichen und Tabs am Anfang jeder Zeile.</em></p>
+    <p><label for="settings_normalize_paragraphs_enabled">Absätze normalisieren</label><%= check_box_tag 'settings[normalize_paragraphs_enabled]', '1', @settings['normalize_paragraphs_enabled'] == '1' %><em class="info">Reduziert mehrere aufeinanderfolgende Absätze auf die angegebene Anzahl.</em></p>
+    <p><label for="settings_max_consecutive_paragraphs">Maximale aufeinanderfolgende Absätze</label><%= number_field_tag 'settings[max_consecutive_paragraphs]', @settings['max_consecutive_paragraphs'] || '1', min: 1, max: 5, step: 1 %><em class="info">Anzahl der maximal erlaubten aufeinanderfolgenden leeren Zeilen (Standard: 1).</em></p>
+    <p><label for="settings_markdown_link_filter_enabled">Link-Formate konvertieren</label><%= check_box_tag 'settings[markdown_link_filter_enabled]', '1', @settings['markdown_link_filter_enabled'] == '1' %><em class="info">Konvertiert verschiedene Link-Formate: [alt-text](link) → "alt-text":link und "text" ( `url` ) → "text":url</em></p>
+    <p><label for="settings_exclude_attachments_enabled">Datei-Ausschluss aktivieren</label><%= check_box_tag 'settings[exclude_attachments_enabled]', '1', @settings['exclude_attachments_enabled'] == '1' %><em class="info">Aktiviert den Ausschluss bestimmter Dateien von der Anhang-Verarbeitung.</em></p>
+    <p><label for="settings_excluded_attachment_patterns">Ausgeschlossene Datei-Muster (eines pro Zeile)</label><%= text_area_tag 'settings[excluded_attachment_patterns]', @settings['excluded_attachment_patterns'], rows: 4, placeholder: '*.exe' + "\n" + '*.bat' + "\n" + 'virus.*' %><em class="info">Dateinamen-Muster für ausgeschlossene Anhänge. Unterstützt Wildcards (*). Ein Muster pro Zeile.</em></p>
     <p><label for="settings_deduplication_enabled">Mail-Deduplizierung</label><%= check_box_tag 'settings[deduplication_enabled]', '1', @settings['deduplication_enabled'] == '1' %><em class="info">Verhindert die Verarbeitung von doppelten E-Mails.</em></p>
   </div>
 </div>
@@ -442,6 +446,18 @@ document.addEventListener('DOMContentLoaded', function() {
         
         var markdownLink = document.querySelector('input[name="settings[markdown_link_filter_enabled]"]');
         if (markdownLink) markdownLink.checked = false;
+        
+        var backdateComments = document.querySelector('input[name="settings[backdate_comments]"]');
+        if (backdateComments) backdateComments.checked = false;
+        
+        var whitespaceFilter = document.querySelector('input[name="settings[whitespace_filter_enabled]"]');
+        if (whitespaceFilter) whitespaceFilter.checked = false;
+        
+        var excludeAttachments = document.querySelector('input[name="settings[exclude_attachments_enabled]"]');
+        if (excludeAttachments) excludeAttachments.checked = false;
+        
+        var excludedPatterns = document.querySelector('textarea[name="settings[excluded_attachment_patterns]"]');
+        if (excludedPatterns) excludedPatterns.value = '';
         
         var deduplication = document.querySelector('input[name="settings[deduplication_enabled]"]');
         if (deduplication) deduplication.checked = false;

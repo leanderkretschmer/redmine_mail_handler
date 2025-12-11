@@ -924,7 +924,7 @@ class MailHandlerService
       end
       
       # Whitespace-Filter anwenden wenn aktiviert
-      if @settings['remove_leading_whitespace_enabled'] == '1'
+      if @settings['whitespace_filter_enabled'] == '1'
         mail_body = apply_whitespace_filter(mail_body)
       end
       
@@ -993,7 +993,7 @@ class MailHandlerService
       end
       
       # Whitespace-Filter anwenden wenn aktiviert
-      if @settings['remove_leading_whitespace_enabled'] == '1'
+      if @settings['whitespace_filter_enabled'] == '1'
         mail_body = apply_whitespace_filter(mail_body)
       end
       
@@ -1180,7 +1180,7 @@ class MailHandlerService
         end
         
         # Whitespace-Filter anwenden wenn aktiviert
-        if @settings['remove_leading_whitespace_enabled'] == '1'
+        if @settings['whitespace_filter_enabled'] == '1'
           mail_body = apply_whitespace_filter(mail_body)
         end
         
