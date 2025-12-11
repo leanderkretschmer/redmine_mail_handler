@@ -182,12 +182,14 @@ document.addEventListener('DOMContentLoaded', function() {
   tabs.forEach(function(tab) {
     tab.addEventListener('click', function(event) {
       event.preventDefault();
+      event.stopPropagation(); // Stelle sicher, dass das Event nicht weiter propagiert
       tabs.forEach(function(t) { t.classList.remove('selected'); });
       this.classList.add('selected');
       document.querySelectorAll('.tab-content').forEach(function(content) { content.style.display = 'none'; });
       var targetSel = this.getAttribute('href');
       var target = targetSel ? document.querySelector(targetSel) : null;
       if (target) { target.style.display = 'block'; }
+      return false; // Zusätzliche Sicherheit
     });
   });
 
@@ -477,29 +479,49 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Debug: Prüfe ob Formular existiert und füge Submit-Handler hinzu
-  var settingsForm = document.querySelector('form[action*="plugin"]');
+  // Stelle sicher, dass das Formular korrekt funktioniert
+  // Finde das Redmine-Einstellungsformular
+  var settingsForm = document.querySelector('form[action*="plugin"]') || 
+                     document.querySelector('form#plugin_settings') || 
+                     document.querySelector('form');
+  
   if (settingsForm) {
-    console.log('Settings form found:', settingsForm.action);
+    // Entferne alle Event-Listener, die preventDefault() aufrufen könnten
+    // und stelle sicher, dass das Standard-Submit funktioniert
     
-    // Füge Submit-Handler hinzu für Debugging
-    settingsForm.addEventListener('submit', function(event) {
-      console.log('Form submit triggered');
-      console.log('Form action:', this.action);
-      console.log('Form method:', this.method);
+    // Füge einen Submit-Handler hinzu, der sicherstellt, dass alle Felder korrekt sind
+    settingsForm.addEventListener('submit', function(e) {
+      // Wichtig: Kein preventDefault() - lass das Standard-Submit zu!
       
-      // Prüfe ob alle Felder vorhanden sind
-      var formData = new FormData(this);
-      var settingsData = {};
-      for (var pair of formData.entries()) {
-        if (pair[0].startsWith('settings[')) {
-          settingsData[pair[0]] = pair[1];
+      // Stelle sicher, dass alle Tab-Inhalte beim Submit sichtbar sind
+      // (auch wenn display: none eigentlich kein Problem sein sollte)
+      var hiddenTabs = document.querySelectorAll('.tab-content[style*="display: none"]');
+      hiddenTabs.forEach(function(tab) {
+        // Entferne display: none temporär, damit alle Felder gesendet werden
+        tab.style.display = '';
+      });
+      
+      // Stelle sicher, dass alle Checkboxen korrekt sind
+      var checkboxes = this.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach(function(checkbox) {
+        // Rails check_box_tag erstellt automatisch versteckte Felder
+        // aber wir stellen sicher, dass sie vorhanden sind
+        if (!checkbox.checked) {
+          var name = checkbox.name;
+          var hiddenField = this.querySelector('input[type="hidden"][name="' + name + '"]');
+          if (!hiddenField && name) {
+            // Erstelle verstecktes Feld falls es fehlt
+            var hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = name;
+            hidden.value = '0';
+            checkbox.parentNode.insertBefore(hidden, checkbox);
+          }
         }
-      }
-      console.log('Settings data:', settingsData);
-    });
+      }.bind(this));
+    }, false);
   } else {
-    console.warn('Settings form not found!');
+    console.error('Einstellungsformular nicht gefunden!');
   }
 
 });
