@@ -10,8 +10,6 @@ RedmineApp::Application.routes.draw do
         post :test_imap_connection
         post :test_smtp_connection
         post :test_mail
-        post :test_reminder
-        post :send_bulk_reminder
         post :manual_import
         post :toggle_scheduler
         post :restart_scheduler

@@ -692,30 +692,6 @@ class MailHandlerAdminController < ApplicationController
     end
   end
 
-  # Test IMAP connection and reload emails
-  def reload_deferred_mails
-    begin
-      # Test IMAP connection
-      imap = @service.connect_to_imap
-      if imap
-        deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
-        begin
-          imap.select(deferred_folder)
-          flash[:notice] = "IMAP-Verbindung erfolgreich. Deferred Ordner '#{deferred_folder}' gefunden."
-        rescue Net::IMAP::NoResponseError
-          flash[:error] = "IMAP-Verbindung erfolgreich, aber deferred Ordner '#{deferred_folder}' nicht gefunden."
-        end
-        imap.disconnect rescue nil
-      else
-        flash[:error] = "IMAP-Verbindung fehlgeschlagen. Überprüfen Sie die Plugin-Einstellungen."
-      end
-    rescue => e
-      flash[:error] = "IMAP-Verbindungsfehler: #{e.message}"
-    end
-    
-    redirect_to action: 'deferred_mails'
-  end
-
   # Erstelle Beispiel-Daten für die Anzeige wenn keine echten E-Mails verfügbar sind
   def create_sample_deferred_mails
     [
@@ -818,8 +794,6 @@ class MailHandlerAdminController < ApplicationController
   def require_admin
     render_403 unless User.current.admin?
   end
-  
-  private
 
   def init_service
     @service = MailHandlerService.new

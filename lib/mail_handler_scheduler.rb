@@ -46,9 +46,12 @@ class MailHandlerScheduler
   
   def self.get_current_hour_mail_count
     current_hour_start = Time.current.beginning_of_hour
-    MailHandlerLog.where(
-      created_at: current_hour_start..Time.current
-    ).where("message LIKE ?", "%[LOAD-BALANCED]%").count
+    logs = MailHandlerLogger.read_logs(max_lines: 5000)
+    logs.count { |e| 
+      e.created_at >= current_hour_start && 
+      e.created_at <= Time.current && 
+      e.message.include?("[LOAD-BALANCED]")
+    }
   end
 
   def self.schedule_mail_import

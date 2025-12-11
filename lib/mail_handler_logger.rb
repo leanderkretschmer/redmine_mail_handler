@@ -209,6 +209,9 @@ class MailHandlerLogger
       end
       # Immer in Rails-Log schreiben (keine DB-Speicherung)
       Rails.logger.send(level, "[MailHandler] #{message}")
+      
+      # Additionally write to custom log
+      write_to_custom_log(level, message)
     end
   end
 
