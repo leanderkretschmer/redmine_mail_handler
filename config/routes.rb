@@ -28,6 +28,7 @@ RedmineApp::Application.routes.draw do
         post :reload_deferred_mails
         post :rescan_deferred_mails
         post :archive_deferred_mails
+        post :execute_reminders_now
       end
     end
     resources :mail_handler_logs, :only => [:index, :show, :destroy] do

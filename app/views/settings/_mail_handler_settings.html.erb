@@ -5,6 +5,7 @@
     <li><a href="#tab-processing">Verarbeitung</a></li>
     <li><a href="#tab-parser">Parser</a></li>
     <li><a href="#tab-automation">Automatisierung</a></li>
+    <li><a href="#tab-dev">Dev</a></li>
     <li><a href="#tab-help">Hilfe</a></li>
   </ul>
 </div>
@@ -54,6 +55,13 @@
   </div>
   <div class="box tabular settings">
     <h3>E-Mail-Filter</h3>
+    <p><label for="settings_ignore_email_addresses">Zu ignorierende E-Mail-Adressen</label><%= text_area_tag 'settings[ignore_email_addresses]', @settings['ignore_email_addresses'], rows: 5, placeholder: 'email@example.com' + "\n" + '*@spam.com' + "\n" + 'user@*' %><em class="info">Eine E-Mail-Adresse pro Zeile. Unterstützt Wildcards (*) für Muster wie *@spam.com oder user@*</em></p>
+  </div>
+  <div class="box tabular settings">
+    <h3>Dummy Mails</h3>
+    <p><label for="settings_dummy_mail_enabled">Dummy-Mail verwenden</label><%= check_box_tag 'settings[dummy_mail_enabled]', '1', @settings['dummy_mail_enabled'] == '1' %><em class="info">Wenn aktiviert, wird beim Anlegen eines Users statt der Original-Mail eine Dummy-Mail verwendet</em></p>
+    <p><label for="settings_dummy_mail_suffix">Dummy-Mail Suffix</label><%= text_field_tag 'settings[dummy_mail_suffix]', @settings['dummy_mail_suffix'], size: 30, placeholder: 'apple.com' %><em class="info">Suffix nach dem @ für Dummy-Mails (z.B. aus test@google.com wird test@apple.com)</em></p>
+    <p><label for="settings_dummy_mail_save_original">Original-Mail als sekundäre Adresse speichern</label><%= check_box_tag 'settings[dummy_mail_save_original]', '1', @settings['dummy_mail_save_original'] == '1' %><em class="info">Wenn aktiviert, wird die Original-Mail-Adresse als sekundäre E-Mail-Adresse im Benutzerkonto gespeichert</em></p>
   </div>
 </div>
 
@@ -61,6 +69,7 @@
 <div id="tab-parser" class="tab-content" style="display: none;">
   <div class="box tabular settings">
     <h3>Parser-Einstellungen</h3>
+    <p><label>&nbsp;</label><%= button_tag 'Standardwerte zurücksetzen', type: 'button', id: 'reset_parser_defaults', class: 'button' %><em class="info">Setzt alle Parser-Einstellungen auf ihre Standardwerte zurück</em></p>
     <p><label for="settings_parser_mode">Parser-Modus</label><%= select_tag 'settings[parser_mode]', options_for_select([["HTML zu Text (Standard)", 'html_to_text'], ['Text-Repräsentation', 'text_representation']], @settings['parser_mode'] || 'html_to_text') %><em class="info">HTML zu Text: Konvertiert HTML-Inhalt zu sauberem Text. Text-Repräsentation: Nutzt die Textversion der E-Mail.</em></p>
     <p><label for="settings_html_attachment_enabled">HTML als Anhang speichern</label><%= check_box_tag 'settings[html_attachment_enabled]', '1', @settings['html_attachment_enabled'] == '1' %><em class="info">Wenn aktiviert, wird der HTML-Inhalt der E-Mail als .html Datei an das Ticket angehängt.</em></p>
     <p><label for="settings_mail_decoder_enabled">Mail-Decoder verwenden</label><%= check_box_tag 'settings[mail_decoder_enabled]', '1', @settings['mail_decoder_enabled'] == '1' %><em class="info">Aktiviert robusteres Charset-Handling mit mail-decoder und html2text.</em></p>
@@ -93,6 +102,7 @@
     <h3>Reminder</h3>
     <p><label for="settings_reminder_enabled">Tägliche Reminder</label><%= check_box_tag 'settings[reminder_enabled]', '1', @settings['reminder_enabled'] == '1' %></p>
     <p><label for="settings_reminder_time">Reminder-Zeit</label><%= text_field_tag 'settings[reminder_time]', @settings['reminder_time'], size: 10, placeholder: '09:00' %><em class="info">Format: HH:MM</em></p>
+    <p><label for="settings_reminder_days">Anzahl Tage</label><%= number_field_tag 'settings[reminder_days]', @settings['reminder_days'] || '7', min: 1, max: 365, step: 1 %><em class="info">Anzahl der Tage, für die Reminder gesendet werden (z.B. Issues die innerhalb von X Tagen fällig sind)</em></p>
   </div>
   <div class="box tabular settings">
     <h3>Logging</h3>
@@ -101,6 +111,20 @@
     <p><label for="settings_log_cleanup_method">Bereinigungsmethode</label><%= select_tag 'settings[log_cleanup_method]', options_for_select([["Nach Anzahl", 'count'], ["Nach Alter", 'days']], @settings['log_cleanup_method'] || 'count') %></p>
     <p><label for="settings_log_max_entries">Max. Anzahl Logs</label><%= number_field_tag 'settings[log_max_entries]', @settings['log_max_entries'] || '1000', min: 100, max: 50000, step: 100 %></p>
     <p><label for="settings_log_retention_days">Aufbewahrung (Tage)</label><%= number_field_tag 'settings[log_retention_days]', @settings['log_retention_days'] || '30', min: 1, max: 365, step: 1 %></p>
+  </div>
+</div>
+
+<!-- Tab Content: Dev -->
+<div id="tab-dev" class="tab-content" style="display: none;">
+  <div class="box tabular settings">
+    <h3>Entwickler-Modus</h3>
+    <p><label for="settings_dev_mode">Dev-Mode aktivieren</label><%= check_box_tag 'settings[dev_mode]', '1', @settings['dev_mode'] == '1' %><em class="info">Aktiviert Entwickler-Funktionen wie sofortige Reminder-Ausführung</em></p>
+    <% if @settings['dev_mode'] == '1' %>
+      <div class="box" style="margin-top: 15px;">
+        <h3>Entwickler-Aktionen</h3>
+        <p><label>&nbsp;</label><%= button_to 'Reminder jetzt ausführen', { controller: 'mail_handler_admin', action: 'execute_reminders_now' }, method: :post, class: 'button', data: { confirm: 'Möchten Sie die Reminder jetzt ausführen?' } %><em class="info">Führt den Reminder-Task sofort aus (nur im Dev-Mode verfügbar)</em></p>
+      </div>
+    <% end %>
   </div>
 </div>
 
@@ -385,6 +409,47 @@ document.addEventListener('DOMContentLoaded', function() {
 
   var btnDeferred = document.getElementById('load_deferred_folders');
   if (btnDeferred) btnDeferred.addEventListener('click', function(){ loadImapFolders('settings_deferred_folder','deferred_loading'); });
+
+  // Reset Parser Defaults Button
+  var resetParserBtn = document.getElementById('reset_parser_defaults');
+  if (resetParserBtn) {
+    resetParserBtn.addEventListener('click', function() {
+      if (confirm('Möchten Sie wirklich alle Parser-Einstellungen auf ihre Standardwerte zurücksetzen?')) {
+        // Setze Standardwerte
+        var parserMode = document.querySelector('select[name="settings[parser_mode]"]');
+        if (parserMode) parserMode.value = 'html_to_text';
+        
+        var htmlAttachment = document.querySelector('input[name="settings[html_attachment_enabled]"]');
+        if (htmlAttachment) htmlAttachment.checked = false;
+        
+        var mailDecoder = document.querySelector('input[name="settings[mail_decoder_enabled]"]');
+        if (mailDecoder) mailDecoder.checked = false;
+        
+        var htmlStructure = document.querySelector('input[name="settings[html_structure_filter_enabled]"]');
+        if (htmlStructure) htmlStructure.checked = false;
+        
+        var regexFilter = document.querySelector('input[name="settings[regex_filter_enabled]"]');
+        if (regexFilter) regexFilter.checked = false;
+        
+        var regexSeparators = document.querySelector('textarea[name="settings[regex_separators]"]');
+        if (regexSeparators) regexSeparators.value = "Am .* schrieb .*:\nVon:\nGesendet:\nAn:\nBetreff:\n-----Original Message-----\n-------- Ursprüngliche Nachricht --------";
+        
+        var normalizeParagraphs = document.querySelector('input[name="settings[normalize_paragraphs_enabled]"]');
+        if (normalizeParagraphs) normalizeParagraphs.checked = false;
+        
+        var maxParagraphs = document.querySelector('input[name="settings[max_consecutive_paragraphs]"]');
+        if (maxParagraphs) maxParagraphs.value = '1';
+        
+        var markdownLink = document.querySelector('input[name="settings[markdown_link_filter_enabled]"]');
+        if (markdownLink) markdownLink.checked = false;
+        
+        var deduplication = document.querySelector('input[name="settings[deduplication_enabled]"]');
+        if (deduplication) deduplication.checked = false;
+        
+        alert('Parser-Einstellungen wurden auf Standardwerte zurückgesetzt. Bitte speichern Sie die Einstellungen.');
+      }
+    });
+  }
 
 });
 </script>

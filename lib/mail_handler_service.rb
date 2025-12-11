@@ -379,57 +379,87 @@ class MailHandlerService
 
 
 
-  # Erstelle neuen Benutzer (nur wenn Ticket-ID vorhanden)
+  # Create new user (only when ticket ID is present)
   def create_new_user(email)
-    # Validiere E-Mail-Adresse
+    # Validate email address
     if email.blank?
       @logger.error("Email address is blank or nil")
       return nil
     end
     
-    # Normalisiere E-Mail-Adresse
-    normalized_email = email.to_s.strip.downcase
+    # Normalize email address
+    original_email = email.to_s.strip.downcase
     
-    # Validiere E-Mail-Format
-    unless normalized_email.match?(/\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i)
+    # Validate email format
+    unless original_email.match?(/\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i)
       @logger.error("Invalid email format: #{email}")
       return nil
     end
     
-    # Bestimme Vor- und Nachname basierend auf Konfiguration
-    firstname = get_user_firstname(normalized_email)
+    # Determine if dummy mail should be used
+    use_dummy_mail = @settings['dummy_mail_enabled'] == '1' && @settings['dummy_mail_suffix'].present?
+    dummy_mail_suffix = @settings['dummy_mail_suffix'].to_s.strip
+    save_original = @settings['dummy_mail_save_original'] == '1'
+    
+    # Determine email to use for user account
+    if use_dummy_mail
+      email_prefix = original_email.split('@').first
+      user_email = "#{email_prefix}@#{dummy_mail_suffix}"
+      @logger.info("Using dummy mail for user creation: #{original_email} -> #{user_email}")
+    else
+      user_email = original_email
+    end
+    
+    # Determine first and last name based on configuration
+    firstname = get_user_firstname(user_email)
     lastname = get_user_lastname()
     
-    # Erstelle neuen Benutzer (deaktiviert)
+    # Create new user (locked)
     begin
       user = User.new(
         firstname: firstname,
         lastname: lastname,
-        login: normalized_email,
+        login: user_email,
         status: User::STATUS_LOCKED,
         mail_notification: 'none'
       )
       
-      # Setze E-Mail-Adresse direkt über mail Attribut für Kompatibilität
-      user.mail = normalized_email
+      # Set email address directly via mail attribute for compatibility
+      user.mail = user_email
       
       if user.save
-        @logger.info("Created new user for #{normalized_email} (locked) - ticket ID present")
+        @logger.info("Created new user for #{user_email} (locked) - ticket ID present")
         
-        # Erstelle EmailAddress-Objekt nach dem Speichern des Users
+        # Create EmailAddress objects
         begin
-          # Prüfe ob bereits eine EmailAddress für diese E-Mail existiert
-          existing_email_address = EmailAddress.find_by(address: normalized_email)
+          # Primary email address (dummy or original)
+          existing_primary = EmailAddress.find_by(address: user_email)
           
-          if existing_email_address
-            @logger.debug("EmailAddress for #{normalized_email} already exists, skipping creation")
+          if existing_primary
+            @logger.debug("EmailAddress for #{user_email} already exists, skipping creation")
           else
-            email_address = EmailAddress.create!(
+            EmailAddress.create!(
               user: user,
-              address: normalized_email,
+              address: user_email,
               is_default: true
             )
-            @logger.debug("Created EmailAddress for user #{user.id}")
+            @logger.debug("Created primary EmailAddress for user #{user.id}")
+          end
+          
+          # If dummy mail is used and original should be saved, add original as secondary email
+          if use_dummy_mail && save_original && original_email != user_email
+            existing_secondary = EmailAddress.find_by(address: original_email)
+            
+            if existing_secondary
+              @logger.debug("EmailAddress for #{original_email} already exists, skipping creation")
+            else
+              EmailAddress.create!(
+                user: user,
+                address: original_email,
+                is_default: false
+              )
+              @logger.debug("Created secondary EmailAddress (#{original_email}) for user #{user.id}")
+            end
           end
         rescue => email_error
           @logger.warn("Failed to create EmailAddress for user #{user.id}: #{email_error.message}")
@@ -437,11 +467,11 @@ class MailHandlerService
         
         user
       else
-        @logger.error("Failed to create user for #{normalized_email}: #{user.errors.full_messages.join(', ')}")
+        @logger.error("Failed to create user for #{user_email}: #{user.errors.full_messages.join(', ')}")
         nil
       end
     rescue => e
-      @logger.error("Error creating user for #{normalized_email}: #{e.message}")
+      @logger.error("Error creating user for #{user_email}: #{e.message}")
       nil
     end
   end

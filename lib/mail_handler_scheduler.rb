@@ -191,7 +191,7 @@ class MailHandlerScheduler
         
         # Verwende die konfigurierte Reminder-Funktionalität
         ActiveRecord::Base.connection_pool.with_connection do
-          send_bulk_reminder
+          send_redmine_reminders
         end
       rescue => e
         @@logger.error("Daily reminder process failed: #{e.message}")
@@ -254,9 +254,13 @@ class MailHandlerScheduler
 
   def self.send_redmine_reminders
     # Verwende Redmines eingebaute Reminder-Funktionalität
-    # Standardmäßig werden Reminder für Issues gesendet, die überfällig sind oder in den nächsten 7 Tagen fällig werden
-    days = 7
-    
+    # Standardmäßig werden Reminder für Issues gesendet, die überfällig sind oder in den nächsten X Tagen fällig werden
+    settings = Setting.plugin_redmine_mail_handler
+    days = (settings['reminder_days'] || '7').to_i
+    send_redmine_reminders_with_days(days)
+  end
+
+  def self.send_redmine_reminders_with_days(days = 7)
     begin
       @@logger.info("Executing Redmine's built-in reminder task for #{days} days")
       

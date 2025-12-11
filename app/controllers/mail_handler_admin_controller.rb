@@ -1235,5 +1235,26 @@ class MailHandlerAdminController < ApplicationController
     end
   end
 
+  # Execute reminders now (dev mode only)
+  def execute_reminders_now
+    settings = Setting.plugin_redmine_mail_handler
+    
+    unless settings['dev_mode'] == '1'
+      flash[:error] = "Diese Funktion ist nur im Dev-Mode verfügbar."
+      redirect_to action: :index
+      return
+    end
+    
+    begin
+      days = (settings['reminder_days'] || '7').to_i
+      MailHandlerScheduler.send_redmine_reminders_with_days(days)
+      flash[:notice] = "Reminder wurden erfolgreich ausgeführt (für #{days} Tage)."
+    rescue => e
+      flash[:error] = "Fehler beim Ausführen der Reminder: #{e.message}"
+    end
+    
+    redirect_to({ controller: 'settings', action: 'plugin', id: 'redmine_mail_handler' })
+  end
+
   # Logging-Helfer entfernt
 end
