@@ -1,6 +1,11 @@
 <%
   # Sicherstellen, dass settings verfügbar ist (Redmine übergibt es als lokale Variable)
-  settings ||= Setting.plugin_redmine_mail_handler || {}
+  # Wenn settings nicht als lokale Variable übergeben wurde, hole es aus den Settings
+  unless defined?(settings) && settings.is_a?(Hash)
+    settings = Setting.plugin_redmine_mail_handler || {}
+  end
+  # Stelle sicher, dass settings immer ein Hash ist
+  settings = {} unless settings.is_a?(Hash)
 %>
 <!-- Tab Navigation -->
 <div class="tabs">
@@ -470,6 +475,31 @@ document.addEventListener('DOMContentLoaded', function() {
         alert('Parser-Einstellungen wurden auf Standardwerte zurückgesetzt. Bitte speichern Sie die Einstellungen.');
       }
     });
+  }
+
+  // Debug: Prüfe ob Formular existiert und füge Submit-Handler hinzu
+  var settingsForm = document.querySelector('form[action*="plugin"]');
+  if (settingsForm) {
+    console.log('Settings form found:', settingsForm.action);
+    
+    // Füge Submit-Handler hinzu für Debugging
+    settingsForm.addEventListener('submit', function(event) {
+      console.log('Form submit triggered');
+      console.log('Form action:', this.action);
+      console.log('Form method:', this.method);
+      
+      // Prüfe ob alle Felder vorhanden sind
+      var formData = new FormData(this);
+      var settingsData = {};
+      for (var pair of formData.entries()) {
+        if (pair[0].startsWith('settings[')) {
+          settingsData[pair[0]] = pair[1];
+        }
+      }
+      console.log('Settings data:', settingsData);
+    });
+  } else {
+    console.warn('Settings form not found!');
   }
 
 });
