@@ -422,46 +422,46 @@ document.addEventListener('DOMContentLoaded', function() {
       if (confirm('Möchten Sie wirklich alle Parser-Einstellungen auf ihre Standardwerte zurücksetzen?')) {
         // Setze Standardwerte
         var parserMode = document.querySelector('select[name="settings[parser_mode]"]');
-        if (parserMode) parserMode.value = 'html_to_text';
+        if (parserMode) parserMode.value = 'text_representation';
         
         var htmlAttachment = document.querySelector('input[name="settings[html_attachment_enabled]"]');
         if (htmlAttachment) htmlAttachment.checked = false;
         
         var mailDecoder = document.querySelector('input[name="settings[mail_decoder_enabled]"]');
-        if (mailDecoder) mailDecoder.checked = false;
+        if (mailDecoder) mailDecoder.checked = true;
         
         var htmlStructure = document.querySelector('input[name="settings[html_structure_filter_enabled]"]');
-        if (htmlStructure) htmlStructure.checked = false;
+        if (htmlStructure) htmlStructure.checked = true;
         
         var regexFilter = document.querySelector('input[name="settings[regex_filter_enabled]"]');
-        if (regexFilter) regexFilter.checked = false;
+        if (regexFilter) regexFilter.checked = true;
         
         var regexSeparators = document.querySelector('textarea[name="settings[regex_separators]"]');
         if (regexSeparators) regexSeparators.value = "Am .* schrieb .*:\nVon:\nGesendet:\nAn:\nBetreff:\n-----Original Message-----\n-------- Ursprüngliche Nachricht --------";
         
         var normalizeParagraphs = document.querySelector('input[name="settings[normalize_paragraphs_enabled]"]');
-        if (normalizeParagraphs) normalizeParagraphs.checked = false;
+        if (normalizeParagraphs) normalizeParagraphs.checked = true;
         
         var maxParagraphs = document.querySelector('input[name="settings[max_consecutive_paragraphs]"]');
-        if (maxParagraphs) maxParagraphs.value = '1';
+        if (maxParagraphs) maxParagraphs.value = '2';
         
         var markdownLink = document.querySelector('input[name="settings[markdown_link_filter_enabled]"]');
-        if (markdownLink) markdownLink.checked = false;
+        if (markdownLink) markdownLink.checked = true;
         
         var backdateComments = document.querySelector('input[name="settings[backdate_comments]"]');
-        if (backdateComments) backdateComments.checked = false;
+        if (backdateComments) backdateComments.checked = true;
         
         var whitespaceFilter = document.querySelector('input[name="settings[whitespace_filter_enabled]"]');
-        if (whitespaceFilter) whitespaceFilter.checked = false;
+        if (whitespaceFilter) whitespaceFilter.checked = true;
         
         var excludeAttachments = document.querySelector('input[name="settings[exclude_attachments_enabled]"]');
-        if (excludeAttachments) excludeAttachments.checked = false;
+        if (excludeAttachments) excludeAttachments.checked = true;
         
         var excludedPatterns = document.querySelector('textarea[name="settings[excluded_attachment_patterns]"]');
         if (excludedPatterns) excludedPatterns.value = '';
         
         var deduplication = document.querySelector('input[name="settings[deduplication_enabled]"]');
-        if (deduplication) deduplication.checked = false;
+        if (deduplication) deduplication.checked = true;
         
         alert('Parser-Einstellungen wurden auf Standardwerte zurückgesetzt. Bitte speichern Sie die Einstellungen.');
       }

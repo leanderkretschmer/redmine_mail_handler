@@ -43,20 +43,20 @@ Redmine::Plugin.register :redmine_mail_handler do
     'user_firstname_type' => 'mail_account',
       'user_lastname_custom' => 'Auto-generated',
       'ignore_email_addresses' => '',
-      'parser_mode' => 'html_to_text',
+      'parser_mode' => 'text_representation',
       'html_attachment_enabled' => '0',
-      'backdate_comments' => '0',
-      'mail_decoder_enabled' => '0',
-      'html_structure_filter_enabled' => '0',
-      'regex_filter_enabled' => '0',
+      'backdate_comments' => '1',
+      'mail_decoder_enabled' => '1',
+      'html_structure_filter_enabled' => '1',
+      'regex_filter_enabled' => '1',
       'regex_separators' => "Am .* schrieb .*:\nVon:\nGesendet:\nAn:\nBetreff:\n-----Original Message-----\n-------- Ursprüngliche Nachricht --------",
-      'whitespace_filter_enabled' => '0',
-      'normalize_paragraphs_enabled' => '0',
-      'max_consecutive_paragraphs' => '1',
-      'markdown_link_filter_enabled' => '0',
-      'exclude_attachments_enabled' => '0',
+      'whitespace_filter_enabled' => '1',
+      'normalize_paragraphs_enabled' => '1',
+      'max_consecutive_paragraphs' => '2',
+      'markdown_link_filter_enabled' => '1',
+      'exclude_attachments_enabled' => '1',
       'excluded_attachment_patterns' => '',
-      'deduplication_enabled' => '0'
+      'deduplication_enabled' => '1'
     }, :partial => 'settings/mail_handler_settings'
 
   # Menü-Einträge hinzufügen
