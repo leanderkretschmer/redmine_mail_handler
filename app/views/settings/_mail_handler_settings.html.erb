@@ -1,3 +1,7 @@
+<%
+  # Sicherstellen, dass settings verfügbar ist (Redmine übergibt es als lokale Variable)
+  settings ||= Setting.plugin_redmine_mail_handler || {}
+%>
 <!-- Tab Navigation -->
 <div class="tabs">
   <ul>
@@ -14,23 +18,23 @@
 <div id="tab-connections" class="tab-content">
   <div class="box tabular settings">
     <h3>IMAP-Einstellungen</h3>
-    <p><label for="settings_imap_host">IMAP-Server</label><%= text_field_tag 'settings[imap_host]', @settings['imap_host'], size: 30, placeholder: 'imap.example.com' %></p>
-    <p><label for="settings_imap_port">Port</label><%= text_field_tag 'settings[imap_port]', @settings['imap_port'], size: 10, placeholder: '993' %></p>
-    <p><label for="settings_imap_ssl">SSL verwenden</label><%= check_box_tag 'settings[imap_ssl]', '1', @settings['imap_ssl'] == '1' %></p>
-    <p><label for="settings_imap_username">Benutzername</label><%= text_field_tag 'settings[imap_username]', @settings['imap_username'], size: 30 %></p>
-    <p><label for="settings_imap_password">Passwort</label><%= password_field_tag 'settings[imap_password]', @settings['imap_password'], size: 30 %></p>
+    <p><label for="settings_imap_host">IMAP-Server</label><%= text_field_tag 'settings[imap_host]', settings['imap_host'], size: 30, placeholder: 'imap.example.com' %></p>
+    <p><label for="settings_imap_port">Port</label><%= text_field_tag 'settings[imap_port]', settings['imap_port'], size: 10, placeholder: '993' %></p>
+    <p><label for="settings_imap_ssl">SSL verwenden</label><%= check_box_tag 'settings[imap_ssl]', '1', settings['imap_ssl'] == '1' %></p>
+    <p><label for="settings_imap_username">Benutzername</label><%= text_field_tag 'settings[imap_username]', settings['imap_username'], size: 30 %></p>
+    <p><label for="settings_imap_password">Passwort</label><%= password_field_tag 'settings[imap_password]', settings['imap_password'], size: 30 %></p>
     <p><label>&nbsp;</label><button type="button" id="test_imap_connection" class="test-connection-btn">IMAP-Verbindung testen</button><span id="imap_test_status" class="connection-status"></span></p>
   </div>
 
   <div class="box tabular settings">
     <h3>SMTP-Einstellungen</h3>
-    <p><label for="settings_smtp_same_as_imap">SMTP = IMAP verwenden</label><%= check_box_tag 'settings[smtp_same_as_imap]', '1', @settings['smtp_same_as_imap'] == '1', onchange: 'toggleSmtpFields(this.checked)' %><em class="info">Wenn aktiviert, werden die IMAP-Einstellungen auch für SMTP verwendet</em></p>
-    <div id="smtp_fields" style="<%= @settings['smtp_same_as_imap'] == '1' ? 'display: none;' : '' %>">
-      <p><label for="settings_smtp_host">SMTP-Server</label><%= text_field_tag 'settings[smtp_host]', @settings['smtp_host'], size: 30, placeholder: 'smtp.example.com' %></p>
-      <p><label for="settings_smtp_port">Port</label><%= text_field_tag 'settings[smtp_port]', @settings['smtp_port'], size: 10, placeholder: '587' %></p>
-      <p><label for="settings_smtp_ssl">SSL/TLS verwenden</label><%= check_box_tag 'settings[smtp_ssl]', '1', @settings['smtp_ssl'] == '1' %></p>
-      <p><label for="settings_smtp_username">Benutzername</label><%= text_field_tag 'settings[smtp_username]', @settings['smtp_username'], size: 30 %></p>
-      <p><label for="settings_smtp_password">Passwort</label><%= password_field_tag 'settings[smtp_password]', @settings['smtp_password'], size: 30 %></p>
+    <p><label for="settings_smtp_same_as_imap">SMTP = IMAP verwenden</label><%= check_box_tag 'settings[smtp_same_as_imap]', '1', settings['smtp_same_as_imap'] == '1', onchange: 'toggleSmtpFields(this.checked)' %><em class="info">Wenn aktiviert, werden die IMAP-Einstellungen auch für SMTP verwendet</em></p>
+    <div id="smtp_fields" style="<%= settings['smtp_same_as_imap'] == '1' ? 'display: none;' : '' %>">
+      <p><label for="settings_smtp_host">SMTP-Server</label><%= text_field_tag 'settings[smtp_host]', settings['smtp_host'], size: 30, placeholder: 'smtp.example.com' %></p>
+      <p><label for="settings_smtp_port">Port</label><%= text_field_tag 'settings[smtp_port]', settings['smtp_port'], size: 10, placeholder: '587' %></p>
+      <p><label for="settings_smtp_ssl">SSL/TLS verwenden</label><%= check_box_tag 'settings[smtp_ssl]', '1', settings['smtp_ssl'] == '1' %></p>
+      <p><label for="settings_smtp_username">Benutzername</label><%= text_field_tag 'settings[smtp_username]', settings['smtp_username'], size: 30 %></p>
+      <p><label for="settings_smtp_password">Passwort</label><%= password_field_tag 'settings[smtp_password]', settings['smtp_password'], size: 30 %></p>
       <p><label>&nbsp;</label><button type="button" id="test_smtp_connection" class="test-connection-btn">SMTP-Verbindung testen</button><span id="smtp_test_status" class="connection-status"></span></p>
     </div>
   </div>
@@ -39,30 +43,30 @@
 <div id="tab-processing" class="tab-content" style="display: none;">
   <div class="box tabular settings">
     <h3>IMAP-Ordner</h3>
-    <p><label for="settings_inbox_folder">Posteingang-Ordner</label><select name="settings[inbox_folder]" id="settings_inbox_folder"><option value="<%= @settings['inbox_folder'] %>"><%= @settings['inbox_folder'].present? ? @settings['inbox_folder'] : 'INBOX' %></option></select><button type="button" id="load_inbox_folders" class="small-button">Ordner laden</button><span id="inbox_loading" style="display: none;">Lade...</span><em class="info">Ordner für eingehende E-Mails</em></p>
-    <p><label for="settings_archive_folder">Archiv-Ordner</label><select name="settings[archive_folder]" id="settings_archive_folder"><option value="<%= @settings['archive_folder'] %>"><%= @settings['archive_folder'].present? ? @settings['archive_folder'] : 'Archive' %></option></select><button type="button" id="load_archive_folders" class="small-button">Ordner laden</button><span id="archive_loading" style="display: none;">Lade...</span><em class="info">Ordner für verarbeitete E-Mails</em></p>
-    <p><label for="settings_deferred_folder">Zurückgestellt-Ordner</label><select name="settings[deferred_folder]" id="settings_deferred_folder"><option value="<%= @settings['deferred_folder'] %>"><%= @settings['deferred_folder'].present? ? @settings['deferred_folder'] : 'Deferred' %></option></select><button type="button" id="load_deferred_folders" class="small-button">Ordner laden</button><span id="deferred_loading" style="display: none;">Lade...</span><em class="info">Ordner für zurückgestellte E-Mails (unbekannte Absender)</em></p>
-    <p><label for="settings_ignored_folder">Ignoriert-Ordner</label><select name="settings[ignored_folder]" id="settings_ignored_folder"><option value="<%= @settings['ignored_folder'] %>"><%= @settings['ignored_folder'].present? ? @settings['ignored_folder'] : 'Ignored' %></option></select><button type="button" id="load_ignored_folders" class="small-button">Ordner laden</button><span id="ignored_loading" style="display: none;">Lade...</span><em class="info">Ordner für ignorierte E-Mails (Blacklist)</em></p>
+    <p><label for="settings_inbox_folder">Posteingang-Ordner</label><select name="settings[inbox_folder]" id="settings_inbox_folder"><option value="<%= settings['inbox_folder'] %>"><%= settings['inbox_folder'].present? ? settings['inbox_folder'] : 'INBOX' %></option></select><button type="button" id="load_inbox_folders" class="small-button">Ordner laden</button><span id="inbox_loading" style="display: none;">Lade...</span><em class="info">Ordner für eingehende E-Mails</em></p>
+    <p><label for="settings_archive_folder">Archiv-Ordner</label><select name="settings[archive_folder]" id="settings_archive_folder"><option value="<%= settings['archive_folder'] %>"><%= settings['archive_folder'].present? ? settings['archive_folder'] : 'Archive' %></option></select><button type="button" id="load_archive_folders" class="small-button">Ordner laden</button><span id="archive_loading" style="display: none;">Lade...</span><em class="info">Ordner für verarbeitete E-Mails</em></p>
+    <p><label for="settings_deferred_folder">Zurückgestellt-Ordner</label><select name="settings[deferred_folder]" id="settings_deferred_folder"><option value="<%= settings['deferred_folder'] %>"><%= settings['deferred_folder'].present? ? settings['deferred_folder'] : 'Deferred' %></option></select><button type="button" id="load_deferred_folders" class="small-button">Ordner laden</button><span id="deferred_loading" style="display: none;">Lade...</span><em class="info">Ordner für zurückgestellte E-Mails (unbekannte Absender)</em></p>
+    <p><label for="settings_ignored_folder">Ignoriert-Ordner</label><select name="settings[ignored_folder]" id="settings_ignored_folder"><option value="<%= settings['ignored_folder'] %>"><%= settings['ignored_folder'].present? ? settings['ignored_folder'] : 'Ignored' %></option></select><button type="button" id="load_ignored_folders" class="small-button">Ordner laden</button><span id="ignored_loading" style="display: none;">Lade...</span><em class="info">Ordner für ignorierte E-Mails (Blacklist)</em></p>
   </div>
   <div class="box tabular settings">
     <h3>Ticket-Verarbeitung</h3>
-    <p><label for="settings_inbox_ticket_id">Posteingang-Ticket-ID</label><%= text_field_tag 'settings[inbox_ticket_id]', @settings['inbox_ticket_id'], size: 10, placeholder: '1' %><em class="info">ID des Tickets für E-Mails von bekannten Absendern ohne Ticket-ID</em></p>
+    <p><label for="settings_inbox_ticket_id">Posteingang-Ticket-ID</label><%= text_field_tag 'settings[inbox_ticket_id]', settings['inbox_ticket_id'], size: 10, placeholder: '1' %><em class="info">ID des Tickets für E-Mails von bekannten Absendern ohne Ticket-ID</em></p>
   </div>
   <div class="box tabular settings">
     <h3>Benutzer-Erstellung</h3>
-    <p><label for="settings_user_firstname_type">Vorname für neue Benutzer</label><%= select_tag 'settings[user_firstname_type]', options_for_select([["Mail-Account (Teil vor @)", 'mail_account'], ['Vollständige E-Mail-Adresse', 'mail_address']], @settings['user_firstname_type'] || 'mail_account') %><em class="info">Bestimmt, wie der Vorname für automatisch erstellte Benutzer generiert wird</em></p>
-    <p><label for="settings_user_lastname_custom">Nachname für neue Benutzer</label><%= text_field_tag 'settings[user_lastname_custom]', @settings['user_lastname_custom'] || 'Auto-generated', size: 30, placeholder: 'Auto-generated' %><em class="info">Benutzerdefinierter Nachname für alle automatisch erstellten Benutzer</em></p>
+    <p><label for="settings_user_firstname_type">Vorname für neue Benutzer</label><%= select_tag 'settings[user_firstname_type]', options_for_select([["Mail-Account (Teil vor @)", 'mail_account'], ['Vollständige E-Mail-Adresse', 'mail_address']], settings['user_firstname_type'] || 'mail_account') %><em class="info">Bestimmt, wie der Vorname für automatisch erstellte Benutzer generiert wird</em></p>
+    <p><label for="settings_user_lastname_custom">Nachname für neue Benutzer</label><%= text_field_tag 'settings[user_lastname_custom]', settings['user_lastname_custom'] || 'Auto-generated', size: 30, placeholder: 'Auto-generated' %><em class="info">Benutzerdefinierter Nachname für alle automatisch erstellten Benutzer</em></p>
   </div>
   <div class="box tabular settings">
     <h3>E-Mail-Filter</h3>
-    <p><label for="settings_ignore_email_addresses">Zu ignorierende E-Mail-Adressen</label><%= text_area_tag 'settings[ignore_email_addresses]', @settings['ignore_email_addresses'], rows: 5, placeholder: 'email@example.com' + "\n" + '*@spam.com' + "\n" + 'user@*' %><em class="info">Eine E-Mail-Adresse pro Zeile. Unterstützt Wildcards (*) für Muster wie *@spam.com oder user@*</em></p>
-    <p><label for="settings_block_user_buttons_enabled">Block-User-Buttons bei Kommentaren</label><%= check_box_tag 'settings[block_user_buttons_enabled]', '1', @settings['block_user_buttons_enabled'] == '1' %><em class="info">Wenn aktiviert, werden bei Kommentaren im Posteingang-Ticket Block-Buttons angezeigt, um Benutzer zu blockieren.</em></p>
+    <p><label for="settings_ignore_email_addresses">Zu ignorierende E-Mail-Adressen</label><%= text_area_tag 'settings[ignore_email_addresses]', settings['ignore_email_addresses'], rows: 5, placeholder: 'email@example.com' + "\n" + '*@spam.com' + "\n" + 'user@*' %><em class="info">Eine E-Mail-Adresse pro Zeile. Unterstützt Wildcards (*) für Muster wie *@spam.com oder user@*</em></p>
+    <p><label for="settings_block_user_buttons_enabled">Block-User-Buttons bei Kommentaren</label><%= check_box_tag 'settings[block_user_buttons_enabled]', '1', settings['block_user_buttons_enabled'] == '1' %><em class="info">Wenn aktiviert, werden bei Kommentaren im Posteingang-Ticket Block-Buttons angezeigt, um Benutzer zu blockieren.</em></p>
   </div>
   <div class="box tabular settings">
     <h3>Dummy Mails</h3>
-    <p><label for="settings_dummy_mail_enabled">Dummy-Mail verwenden</label><%= check_box_tag 'settings[dummy_mail_enabled]', '1', @settings['dummy_mail_enabled'] == '1' %><em class="info">Wenn aktiviert, wird beim Anlegen eines Users statt der Original-Mail eine Dummy-Mail verwendet</em></p>
-    <p><label for="settings_dummy_mail_suffix">Dummy-Mail Suffix</label><%= text_field_tag 'settings[dummy_mail_suffix]', @settings['dummy_mail_suffix'], size: 30, placeholder: 'apple.com' %><em class="info">Suffix nach dem @ für Dummy-Mails (z.B. aus test@google.com wird test@apple.com)</em></p>
-    <p><label for="settings_dummy_mail_save_original">Original-Mail als sekundäre Adresse speichern</label><%= check_box_tag 'settings[dummy_mail_save_original]', '1', @settings['dummy_mail_save_original'] == '1' %><em class="info">Wenn aktiviert, wird die Original-Mail-Adresse als sekundäre E-Mail-Adresse im Benutzerkonto gespeichert</em></p>
+    <p><label for="settings_dummy_mail_enabled">Dummy-Mail verwenden</label><%= check_box_tag 'settings[dummy_mail_enabled]', '1', settings['dummy_mail_enabled'] == '1' %><em class="info">Wenn aktiviert, wird beim Anlegen eines Users statt der Original-Mail eine Dummy-Mail verwendet</em></p>
+    <p><label for="settings_dummy_mail_suffix">Dummy-Mail Suffix</label><%= text_field_tag 'settings[dummy_mail_suffix]', settings['dummy_mail_suffix'], size: 30, placeholder: 'apple.com' %><em class="info">Suffix nach dem @ für Dummy-Mails (z.B. aus test@google.com wird test@apple.com)</em></p>
+    <p><label for="settings_dummy_mail_save_original">Original-Mail als sekundäre Adresse speichern</label><%= check_box_tag 'settings[dummy_mail_save_original]', '1', settings['dummy_mail_save_original'] == '1' %><em class="info">Wenn aktiviert, wird die Original-Mail-Adresse als sekundäre E-Mail-Adresse im Benutzerkonto gespeichert</em></p>
   </div>
 </div>
 
@@ -71,20 +75,20 @@
   <div class="box tabular settings">
     <h3>Parser-Einstellungen</h3>
     <p><label>&nbsp;</label><%= button_tag 'Standardwerte zurücksetzen', type: 'button', id: 'reset_parser_defaults', class: 'button' %><em class="info">Setzt alle Parser-Einstellungen auf ihre Standardwerte zurück</em></p>
-    <p><label for="settings_parser_mode">Parser-Modus</label><%= select_tag 'settings[parser_mode]', options_for_select([["HTML zu Text (Standard)", 'html_to_text'], ['Text-Repräsentation', 'text_representation']], @settings['parser_mode'] || 'html_to_text') %><em class="info">HTML zu Text: Konvertiert HTML-Inhalt zu sauberem Text. Text-Repräsentation: Nutzt die Textversion der E-Mail.</em></p>
-    <p><label for="settings_html_attachment_enabled">HTML als Anhang speichern</label><%= check_box_tag 'settings[html_attachment_enabled]', '1', @settings['html_attachment_enabled'] == '1' %><em class="info">Wenn aktiviert, wird der HTML-Inhalt der E-Mail als .html Datei an das Ticket angehängt.</em></p>
-    <p><label for="settings_backdate_comments">Kommentare rückdatieren</label><%= check_box_tag 'settings[backdate_comments]', '1', @settings['backdate_comments'] == '1' %><em class="info">Wenn aktiviert, werden Kommentare auf das Empfangsdatum der E-Mail zurückdatiert.</em></p>
-    <p><label for="settings_mail_decoder_enabled">Mail-Decoder verwenden</label><%= check_box_tag 'settings[mail_decoder_enabled]', '1', @settings['mail_decoder_enabled'] == '1' %><em class="info">Aktiviert robusteres Charset-Handling und bessere HTML-zu-Text-Konvertierung mit mail-decoder und html2text.</em></p>
-    <p><label for="settings_html_structure_filter_enabled">HTML-Struktur-Filter aktivieren</label><%= check_box_tag 'settings[html_structure_filter_enabled]', '1', @settings['html_structure_filter_enabled'] == '1' %><em class="info">Entfernt störende HTML-Elemente wie Zitate, Signaturen und E-Mail-Client-spezifische Tags vor der Text-Konvertierung.</em></p>
-    <p><label for="settings_regex_filter_enabled">Regex-Filter aktivieren</label><%= check_box_tag 'settings[regex_filter_enabled]', '1', @settings['regex_filter_enabled'] == '1' %><em class="info">Entfernt Text ab typischen E-Mail-Trennern wie "Am ... schrieb" oder "-----Original Message-----".</em></p>
-    <p><label for="settings_regex_separators">Regex-Trenner (einer pro Zeile)</label><%= text_area_tag 'settings[regex_separators]', @settings['regex_separators'] || "Am .* schrieb .*:\nVon:\nGesendet:\nAn:\nBetreff:\n-----Original Message-----\n-------- Ursprüngliche Nachricht --------", rows: 4 %><em class="info">Regex-Muster für E-Mail-Trenner. Text ab dem ersten gefundenen Trenner wird entfernt. Ein Muster pro Zeile.</em></p>
-    <p><label for="settings_whitespace_filter_enabled">Führende Leerzeichen entfernen</label><%= check_box_tag 'settings[whitespace_filter_enabled]', '1', @settings['whitespace_filter_enabled'] == '1' %><em class="info">Entfernt alle führenden Leerzeichen und Tabs am Anfang jeder Zeile.</em></p>
-    <p><label for="settings_normalize_paragraphs_enabled">Absätze normalisieren</label><%= check_box_tag 'settings[normalize_paragraphs_enabled]', '1', @settings['normalize_paragraphs_enabled'] == '1' %><em class="info">Reduziert mehrere aufeinanderfolgende Absätze auf die angegebene Anzahl.</em></p>
-    <p><label for="settings_max_consecutive_paragraphs">Maximale aufeinanderfolgende Absätze</label><%= number_field_tag 'settings[max_consecutive_paragraphs]', @settings['max_consecutive_paragraphs'] || '1', min: 1, max: 5, step: 1 %><em class="info">Anzahl der maximal erlaubten aufeinanderfolgenden leeren Zeilen (Standard: 1).</em></p>
-    <p><label for="settings_markdown_link_filter_enabled">Link-Formate konvertieren</label><%= check_box_tag 'settings[markdown_link_filter_enabled]', '1', @settings['markdown_link_filter_enabled'] == '1' %><em class="info">Konvertiert verschiedene Link-Formate: [alt-text](link) → "alt-text":link und "text" ( `url` ) → "text":url</em></p>
-    <p><label for="settings_exclude_attachments_enabled">Datei-Ausschluss aktivieren</label><%= check_box_tag 'settings[exclude_attachments_enabled]', '1', @settings['exclude_attachments_enabled'] == '1' %><em class="info">Aktiviert den Ausschluss bestimmter Dateien von der Anhang-Verarbeitung.</em></p>
-    <p><label for="settings_excluded_attachment_patterns">Ausgeschlossene Datei-Muster (eines pro Zeile)</label><%= text_area_tag 'settings[excluded_attachment_patterns]', @settings['excluded_attachment_patterns'], rows: 4, placeholder: '*.exe' + "\n" + '*.bat' + "\n" + 'virus.*' %><em class="info">Dateinamen-Muster für ausgeschlossene Anhänge. Unterstützt Wildcards (*). Ein Muster pro Zeile.</em></p>
-    <p><label for="settings_deduplication_enabled">Mail-Deduplizierung</label><%= check_box_tag 'settings[deduplication_enabled]', '1', @settings['deduplication_enabled'] == '1' %><em class="info">Verhindert die Verarbeitung von doppelten E-Mails.</em></p>
+    <p><label for="settings_parser_mode">Parser-Modus</label><%= select_tag 'settings[parser_mode]', options_for_select([["HTML zu Text (Standard)", 'html_to_text'], ['Text-Repräsentation', 'text_representation']], settings['parser_mode'] || 'html_to_text') %><em class="info">HTML zu Text: Konvertiert HTML-Inhalt zu sauberem Text. Text-Repräsentation: Nutzt die Textversion der E-Mail.</em></p>
+    <p><label for="settings_html_attachment_enabled">HTML als Anhang speichern</label><%= check_box_tag 'settings[html_attachment_enabled]', '1', settings['html_attachment_enabled'] == '1' %><em class="info">Wenn aktiviert, wird der HTML-Inhalt der E-Mail als .html Datei an das Ticket angehängt.</em></p>
+    <p><label for="settings_backdate_comments">Kommentare rückdatieren</label><%= check_box_tag 'settings[backdate_comments]', '1', settings['backdate_comments'] == '1' %><em class="info">Wenn aktiviert, werden Kommentare auf das Empfangsdatum der E-Mail zurückdatiert.</em></p>
+    <p><label for="settings_mail_decoder_enabled">Mail-Decoder verwenden</label><%= check_box_tag 'settings[mail_decoder_enabled]', '1', settings['mail_decoder_enabled'] == '1' %><em class="info">Aktiviert robusteres Charset-Handling und bessere HTML-zu-Text-Konvertierung mit mail-decoder und html2text.</em></p>
+    <p><label for="settings_html_structure_filter_enabled">HTML-Struktur-Filter aktivieren</label><%= check_box_tag 'settings[html_structure_filter_enabled]', '1', settings['html_structure_filter_enabled'] == '1' %><em class="info">Entfernt störende HTML-Elemente wie Zitate, Signaturen und E-Mail-Client-spezifische Tags vor der Text-Konvertierung.</em></p>
+    <p><label for="settings_regex_filter_enabled">Regex-Filter aktivieren</label><%= check_box_tag 'settings[regex_filter_enabled]', '1', settings['regex_filter_enabled'] == '1' %><em class="info">Entfernt Text ab typischen E-Mail-Trennern wie "Am ... schrieb" oder "-----Original Message-----".</em></p>
+    <p><label for="settings_regex_separators">Regex-Trenner (einer pro Zeile)</label><%= text_area_tag 'settings[regex_separators]', settings['regex_separators'] || "Am .* schrieb .*:\nVon:\nGesendet:\nAn:\nBetreff:\n-----Original Message-----\n-------- Ursprüngliche Nachricht --------", rows: 4 %><em class="info">Regex-Muster für E-Mail-Trenner. Text ab dem ersten gefundenen Trenner wird entfernt. Ein Muster pro Zeile.</em></p>
+    <p><label for="settings_whitespace_filter_enabled">Führende Leerzeichen entfernen</label><%= check_box_tag 'settings[whitespace_filter_enabled]', '1', settings['whitespace_filter_enabled'] == '1' %><em class="info">Entfernt alle führenden Leerzeichen und Tabs am Anfang jeder Zeile.</em></p>
+    <p><label for="settings_normalize_paragraphs_enabled">Absätze normalisieren</label><%= check_box_tag 'settings[normalize_paragraphs_enabled]', '1', settings['normalize_paragraphs_enabled'] == '1' %><em class="info">Reduziert mehrere aufeinanderfolgende Absätze auf die angegebene Anzahl.</em></p>
+    <p><label for="settings_max_consecutive_paragraphs">Maximale aufeinanderfolgende Absätze</label><%= number_field_tag 'settings[max_consecutive_paragraphs]', settings['max_consecutive_paragraphs'] || '1', min: 1, max: 5, step: 1 %><em class="info">Anzahl der maximal erlaubten aufeinanderfolgenden leeren Zeilen (Standard: 1).</em></p>
+    <p><label for="settings_markdown_link_filter_enabled">Link-Formate konvertieren</label><%= check_box_tag 'settings[markdown_link_filter_enabled]', '1', settings['markdown_link_filter_enabled'] == '1' %><em class="info">Konvertiert verschiedene Link-Formate: [alt-text](link) → "alt-text":link und "text" ( `url` ) → "text":url</em></p>
+    <p><label for="settings_exclude_attachments_enabled">Datei-Ausschluss aktivieren</label><%= check_box_tag 'settings[exclude_attachments_enabled]', '1', settings['exclude_attachments_enabled'] == '1' %><em class="info">Aktiviert den Ausschluss bestimmter Dateien von der Anhang-Verarbeitung.</em></p>
+    <p><label for="settings_excluded_attachment_patterns">Ausgeschlossene Datei-Muster (eines pro Zeile)</label><%= text_area_tag 'settings[excluded_attachment_patterns]', settings['excluded_attachment_patterns'], rows: 4, placeholder: '*.exe' + "\n" + '*.bat' + "\n" + 'virus.*' %><em class="info">Dateinamen-Muster für ausgeschlossene Anhänge. Unterstützt Wildcards (*). Ein Muster pro Zeile.</em></p>
+    <p><label for="settings_deduplication_enabled">Mail-Deduplizierung</label><%= check_box_tag 'settings[deduplication_enabled]', '1', settings['deduplication_enabled'] == '1' %><em class="info">Verhindert die Verarbeitung von doppelten E-Mails.</em></p>
   </div>
 </div>
 
@@ -92,30 +96,30 @@
 <div id="tab-automation" class="tab-content" style="display: none;">
   <div class="box tabular settings">
     <h3>Import-Automatisierung</h3>
-    <p><label for="settings_auto_import_enabled">Automatischer Import</label><%= check_box_tag 'settings[auto_import_enabled]', '1', @settings['auto_import_enabled'] == '1' %></p>
-    <p><label for="settings_import_interval">Import-Intervall</label><%= text_field_tag 'settings[import_interval]', @settings['import_interval'], size: 10, placeholder: '5' %> <%= select_tag 'settings[import_interval_unit]', options_for_select([["Minuten", 'minutes'], ["Sekunden", 'seconds']], @settings['import_interval_unit'] || 'minutes') %></p>
-    <p><label for="settings_load_balanced_enabled">Load-Balanced Import</label><%= check_box_tag 'settings[load_balanced_enabled]', '1', @settings['load_balanced_enabled'] == '1' %><em class="info">Verteilt den Import gleichmäßig über die Stunde.</em></p>
-    <p><label for="settings_mails_per_hour">Mails pro Stunde</label><%= text_field_tag 'settings[mails_per_hour]', @settings['mails_per_hour'] || '60', size: 10, placeholder: '60' %><em class="info">Max. Anzahl Mails pro Stunde (0 = unbegrenzt).</em></p>
+    <p><label for="settings_auto_import_enabled">Automatischer Import</label><%= check_box_tag 'settings[auto_import_enabled]', '1', settings['auto_import_enabled'] == '1' %></p>
+    <p><label for="settings_import_interval">Import-Intervall</label><%= text_field_tag 'settings[import_interval]', settings['import_interval'], size: 10, placeholder: '5' %> <%= select_tag 'settings[import_interval_unit]', options_for_select([["Minuten", 'minutes'], ["Sekunden", 'seconds']], settings['import_interval_unit'] || 'minutes') %></p>
+    <p><label for="settings_load_balanced_enabled">Load-Balanced Import</label><%= check_box_tag 'settings[load_balanced_enabled]', '1', settings['load_balanced_enabled'] == '1' %><em class="info">Verteilt den Import gleichmäßig über die Stunde.</em></p>
+    <p><label for="settings_mails_per_hour">Mails pro Stunde</label><%= text_field_tag 'settings[mails_per_hour]', settings['mails_per_hour'] || '60', size: 10, placeholder: '60' %><em class="info">Max. Anzahl Mails pro Stunde (0 = unbegrenzt).</em></p>
   </div>
   <div class="box tabular settings">
     <h3>Zurückgestellte Mails</h3>
-    <p><label for="settings_deferred_enabled">Zurückstellung aktiviert</label><%= check_box_tag 'settings[deferred_enabled]', '1', @settings['deferred_enabled'] == '1' %><em class="info">Aktiviert die Zurückstellung für unbekannte Benutzer.</em></p>
-    <p><label for="settings_deferred_lifetime_days">Aufbewahrungszeit (Tage)</label><%= text_field_tag 'settings[deferred_lifetime_days]', @settings['deferred_lifetime_days'] || '30', size: 10, placeholder: '30' %></p>
-    <p><label for="settings_deferred_recheck_time">Prüfzeit</label><%= text_field_tag 'settings[deferred_recheck_time]', @settings['deferred_recheck_time'] || '02:00', size: 10, placeholder: '02:00' %><em class="info">Uhrzeit für tägliche Prüfung (HH:MM).</em></p>
+    <p><label for="settings_deferred_enabled">Zurückstellung aktiviert</label><%= check_box_tag 'settings[deferred_enabled]', '1', settings['deferred_enabled'] == '1' %><em class="info">Aktiviert die Zurückstellung für unbekannte Benutzer.</em></p>
+    <p><label for="settings_deferred_lifetime_days">Aufbewahrungszeit (Tage)</label><%= text_field_tag 'settings[deferred_lifetime_days]', settings['deferred_lifetime_days'] || '30', size: 10, placeholder: '30' %></p>
+    <p><label for="settings_deferred_recheck_time">Prüfzeit</label><%= text_field_tag 'settings[deferred_recheck_time]', settings['deferred_recheck_time'] || '02:00', size: 10, placeholder: '02:00' %><em class="info">Uhrzeit für tägliche Prüfung (HH:MM).</em></p>
   </div>
   <div class="box tabular settings">
     <h3>Reminder</h3>
-    <p><label for="settings_reminder_enabled">Tägliche Reminder</label><%= check_box_tag 'settings[reminder_enabled]', '1', @settings['reminder_enabled'] == '1' %></p>
-    <p><label for="settings_reminder_time">Reminder-Zeit</label><%= text_field_tag 'settings[reminder_time]', @settings['reminder_time'], size: 10, placeholder: '09:00' %><em class="info">Format: HH:MM</em></p>
-    <p><label for="settings_reminder_days">Anzahl Tage</label><%= number_field_tag 'settings[reminder_days]', @settings['reminder_days'] || '7', min: 1, max: 365, step: 1 %><em class="info">Anzahl der Tage, für die Reminder gesendet werden (z.B. Issues die innerhalb von X Tagen fällig sind)</em></p>
+    <p><label for="settings_reminder_enabled">Tägliche Reminder</label><%= check_box_tag 'settings[reminder_enabled]', '1', settings['reminder_enabled'] == '1' %></p>
+    <p><label for="settings_reminder_time">Reminder-Zeit</label><%= text_field_tag 'settings[reminder_time]', settings['reminder_time'], size: 10, placeholder: '09:00' %><em class="info">Format: HH:MM</em></p>
+    <p><label for="settings_reminder_days">Anzahl Tage</label><%= number_field_tag 'settings[reminder_days]', settings['reminder_days'] || '7', min: 1, max: 365, step: 1 %><em class="info">Anzahl der Tage, für die Reminder gesendet werden (z.B. Issues die innerhalb von X Tagen fällig sind)</em></p>
   </div>
   <div class="box tabular settings">
     <h3>Logging</h3>
-    <p><label for="settings_log_level">Log-Level</label><%= select_tag 'settings[log_level]', options_for_select([["Debug", 'debug'], ["Info", 'info'], ["Warning", 'warn'], ["Error", 'error']], @settings['log_level']) %></p>
-    <p><label for="settings_log_cleanup_enabled">Log-Bereinigung</label><%= check_box_tag 'settings[log_cleanup_enabled]', '1', @settings['log_cleanup_enabled'] == '1' %></p>
-    <p><label for="settings_log_cleanup_method">Bereinigungsmethode</label><%= select_tag 'settings[log_cleanup_method]', options_for_select([["Nach Anzahl", 'count'], ["Nach Alter", 'days']], @settings['log_cleanup_method'] || 'count') %></p>
-    <p><label for="settings_log_max_entries">Max. Anzahl Logs</label><%= number_field_tag 'settings[log_max_entries]', @settings['log_max_entries'] || '1000', min: 100, max: 50000, step: 100 %></p>
-    <p><label for="settings_log_retention_days">Aufbewahrung (Tage)</label><%= number_field_tag 'settings[log_retention_days]', @settings['log_retention_days'] || '30', min: 1, max: 365, step: 1 %></p>
+    <p><label for="settings_log_level">Log-Level</label><%= select_tag 'settings[log_level]', options_for_select([["Debug", 'debug'], ["Info", 'info'], ["Warning", 'warn'], ["Error", 'error']], settings['log_level']) %></p>
+    <p><label for="settings_log_cleanup_enabled">Log-Bereinigung</label><%= check_box_tag 'settings[log_cleanup_enabled]', '1', settings['log_cleanup_enabled'] == '1' %></p>
+    <p><label for="settings_log_cleanup_method">Bereinigungsmethode</label><%= select_tag 'settings[log_cleanup_method]', options_for_select([["Nach Anzahl", 'count'], ["Nach Alter", 'days']], settings['log_cleanup_method'] || 'count') %></p>
+    <p><label for="settings_log_max_entries">Max. Anzahl Logs</label><%= number_field_tag 'settings[log_max_entries]', settings['log_max_entries'] || '1000', min: 100, max: 50000, step: 100 %></p>
+    <p><label for="settings_log_retention_days">Aufbewahrung (Tage)</label><%= number_field_tag 'settings[log_retention_days]', settings['log_retention_days'] || '30', min: 1, max: 365, step: 1 %></p>
   </div>
 </div>
 
@@ -123,8 +127,8 @@
 <div id="tab-dev" class="tab-content" style="display: none;">
   <div class="box tabular settings">
     <h3>Entwickler-Modus</h3>
-    <p><label for="settings_dev_mode">Dev-Mode aktivieren</label><%= check_box_tag 'settings[dev_mode]', '1', @settings['dev_mode'] == '1' %><em class="info">Aktiviert Entwickler-Funktionen wie sofortige Reminder-Ausführung</em></p>
-    <% if @settings['dev_mode'] == '1' %>
+    <p><label for="settings_dev_mode">Dev-Mode aktivieren</label><%= check_box_tag 'settings[dev_mode]', '1', settings['dev_mode'] == '1' %><em class="info">Aktiviert Entwickler-Funktionen wie sofortige Reminder-Ausführung</em></p>
+    <% if settings['dev_mode'] == '1' %>
       <div class="box" style="margin-top: 15px;">
         <h3>Entwickler-Aktionen</h3>
         <p><label>&nbsp;</label><%= button_to 'Reminder jetzt ausführen', { controller: 'mail_handler_admin', action: 'execute_reminders_now' }, method: :post, class: 'button', data: { confirm: 'Möchten Sie die Reminder jetzt ausführen?' } %><em class="info">Führt den Reminder-Task sofort aus (nur im Dev-Mode verfügbar)</em></p>
