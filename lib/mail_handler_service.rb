@@ -561,6 +561,184 @@ class MailHandlerService
     end
   end
 
+  # Hole nur die Message-IDs und Anzahl aus dem deferred Ordner (schnell, ohne Inhalte zu laden)
+  def get_deferred_message_ids
+    begin
+      imap = connect_to_imap
+      return { success: false, message_ids: [], total: 0 } unless imap
+      
+      deferred_folder = @settings['deferred_folder'].presence || 'Deferred'
+      
+      # Prüfe ob Ordner existiert
+      begin
+        imap.select(deferred_folder)
+      rescue Net::IMAP::NoResponseError
+        @logger.info("Deferred folder '#{deferred_folder}' does not exist")
+        return { success: false, message_ids: [], total: 0 }
+      end
+      
+      # Hole nur die Message-IDs (sehr schnell)
+      msg_ids = imap.search(['ALL'])
+      
+      { success: true, message_ids: msg_ids, total: msg_ids.length }
+    rescue => e
+      @logger.error("Failed to get deferred message IDs: #{e.message}")
+      { success: false, message_ids: [], total: 0, error: e.message }
+    ensure
+      imap&.disconnect
+    end
+  end
+
+  # Hole Metadaten für Message-IDs ohne vollständigen Body (schneller als RFC822)
+  def get_deferred_mail_headers(msg_ids, offset = 0, limit = 20)
+    return [] if msg_ids.empty?
+    
+    begin
+      imap = connect_to_imap
+      return [] unless imap
+      
+      deferred_folder = @settings['deferred_folder'].presence || 'Deferred'
+      
+      begin
+        imap.select(deferred_folder)
+      rescue Net::IMAP::NoResponseError
+        return []
+      end
+      
+      # Berechne welche IDs geladen werden sollen
+      paginated_ids = msg_ids[offset, limit] || []
+      return [] if paginated_ids.empty?
+      
+      mails = []
+      
+      paginated_ids.each do |msg_id|
+        begin
+          # Hole nur Header-Informationen (schneller als RFC822)
+          fetch_result = imap.fetch(msg_id, ['ENVELOPE', 'INTERNALDATE', 'RFC822.HEADER'])
+          next unless fetch_result && fetch_result[0]
+          
+          fetch_data = fetch_result[0].attr
+          envelope = fetch_data['ENVELOPE']
+          internal_date = fetch_data['INTERNALDATE']
+          header_data = fetch_data['RFC822.HEADER']
+          
+          next unless envelope
+          
+          # Parse Header für X-Redmine-Deferred
+          header_mail = Mail.read_from_string(header_data) if header_data
+          deferred_info = get_mail_deferred_info(header_mail) if header_mail
+          
+          # Fallback für E-Mails ohne deferred Header
+          if deferred_info.nil?
+            parsed_date = internal_date ? Time.parse(internal_date) : Time.current
+            deferred_info = {
+              deferred_at: parsed_date,
+              expires_at: parsed_date + 30.days,
+              reason: 'manual_defer'
+            }
+          end
+          
+          # Extrahiere From-Adresse aus Envelope
+          from_address = nil
+          if envelope.from && envelope.from.first
+            from_mailbox = envelope.from.first
+            from_address = "#{from_mailbox.mailbox}@#{from_mailbox.host}" if from_mailbox.mailbox && from_mailbox.host
+          end
+          
+          mail_data = {
+            id: msg_id,
+            message_id: envelope.message_id,
+            from: from_address,
+            subject: envelope.subject,
+            date: envelope.date ? Time.parse(envelope.date.to_s) : nil,
+            deferred_at: deferred_info[:deferred_at],
+            expires_at: deferred_info[:expires_at],
+            reason: deferred_info[:reason],
+            expired: deferred_info[:expires_at] ? deferred_info[:expires_at] < Time.current : false
+          }
+          
+          mails << mail_data
+        rescue => e
+          @logger.warn("Failed to fetch headers for message #{msg_id}: #{e.message}")
+          next
+        end
+      end
+      
+      # Sortiere nach deferred_at (neueste zuerst)
+      mails.sort_by { |m| m[:deferred_at] || Time.current }.reverse
+    rescue => e
+      @logger.error("Failed to get deferred mail headers: #{e.message}")
+      []
+    ensure
+      imap&.disconnect
+    end
+  end
+
+  # Hole vollständige E-Mail-Daten für bestimmte Message-IDs (für detaillierte Ansicht)
+  def get_deferred_mails_by_ids(msg_ids)
+    return [] if msg_ids.empty?
+    
+    begin
+      imap = connect_to_imap
+      return [] unless imap
+      
+      deferred_folder = @settings['deferred_folder'].presence || 'Deferred'
+      
+      begin
+        imap.select(deferred_folder)
+      rescue Net::IMAP::NoResponseError
+        return []
+      end
+      
+      mails = []
+      
+      msg_ids.each do |msg_id|
+        begin
+          msg_data = imap.fetch(msg_id, 'RFC822')[0].attr['RFC822']
+          next if msg_data.blank?
+          
+          mail = Mail.read_from_string(msg_data)
+          next if mail.nil?
+          
+          deferred_info = get_mail_deferred_info(mail)
+          
+          # Fallback für E-Mails ohne deferred Header
+          if deferred_info.nil?
+            deferred_info = {
+              deferred_at: mail.date || Time.current,
+              expires_at: (mail.date || Time.current) + 30.days,
+              reason: 'manual_defer'
+            }
+          end
+          
+          mail_data = {
+            id: msg_id,
+            message_id: mail.message_id,
+            from: mail.from&.first,
+            subject: mail.subject,
+            date: mail.date,
+            deferred_at: deferred_info[:deferred_at],
+            expires_at: deferred_info[:expires_at],
+            reason: deferred_info[:reason],
+            expired: mail_deferred_expired?(mail)
+          }
+          
+          mails << mail_data
+        rescue => e
+          @logger.warn("Failed to process deferred message #{msg_id}: #{e.message}")
+          next
+        end
+      end
+      
+      mails
+    rescue => e
+      @logger.error("Failed to get deferred mails by IDs: #{e.message}")
+      []
+    ensure
+      imap&.disconnect
+    end
+  end
+
   def get_imap_connection
     connect_to_imap
   end

@@ -10,6 +10,18 @@
 
 <h2>Zurückgestellte E-Mails verwalten</h2>
 
+<!-- Lazy Loading Info -->
+<% if @imap_connection_available && @total_count > 0 %>
+  <div class="lazy-loading-info">
+    <span class="icon icon-info"></span>
+    <strong>Lazy Loading aktiv:</strong> 
+    Es werden nur die E-Mails für die aktuelle Seite geladen (<%= @deferred_mails.length %> von <%= @total_count %>).
+    <% if @search_from.present? || @search_subject.present? %>
+      <em class="filter-warning">(Bei Suchfilter werden alle E-Mails zur Filterung geladen)</em>
+    <% end %>
+  </div>
+<% end %>
+
 <!-- Suchformular -->
 <div class="search-form">
   <%= form_tag({ :action => 'deferred_mails' }, { :method => :get, :id => 'search_form' }) do %>
@@ -169,6 +181,18 @@
               <% unless option == @per_page_options.last %>|<% end %>
             <% end %>
           </div>
+          
+          <!-- Schnelle Seitennavigation -->
+          <% if @total_pages > 5 %>
+            <div class="quick-nav">
+              <label>Gehe zu Seite:</label>
+              <select onchange="goToPage(this.value)">
+                <% (1..@total_pages).each do |p| %>
+                  <option value="<%= p %>" <%= 'selected' if p == @page %>><%= p %></option>
+                <% end %>
+              </select>
+            </div>
+          <% end %>
         </div>
       <% end %>
 
@@ -203,6 +227,27 @@ document.addEventListener('DOMContentLoaded', function() {
     form.setAttribute('data-search-subject', '<%= @search_subject %>');
   }
 });
+
+// Quick page navigation
+function goToPage(page) {
+  var baseUrl = window.location.pathname;
+  var params = new URLSearchParams(window.location.search);
+  params.set('page', page);
+  window.location.href = baseUrl + '?' + params.toString();
+}
+
+// Toggle debug info
+function toggleDebugInfo() {
+  var content = document.getElementById('debug-content');
+  var toggle = document.getElementById('debug-toggle');
+  if (content.style.display === 'none') {
+    content.style.display = 'block';
+    toggle.textContent = '▲';
+  } else {
+    content.style.display = 'none';
+    toggle.textContent = '▼';
+  }
+}
 </script>
 
 <style type="text/css">
@@ -482,5 +527,72 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .debug-info-item.success {
   color: #080;
+}
+
+/* Lazy Loading Info Styles */
+.lazy-loading-info {
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+  border: 1px solid #a5d6a7;
+  border-left: 4px solid #4caf50;
+  padding: 12px 15px;
+  margin: 15px 0;
+  border-radius: 4px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lazy-loading-info .icon-info {
+  color: #4caf50;
+}
+
+.lazy-loading-info .filter-warning {
+  color: #f57c00;
+  margin-left: 10px;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+  display: none;
+  text-align: center;
+  padding: 20px;
+}
+
+.loading-spinner.active {
+  display: block;
+}
+
+.loading-spinner .spinner {
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #007acc;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 10px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Quick page navigation */
+.quick-nav {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.quick-nav label {
+  font-weight: bold;
+}
+
+.quick-nav select {
+  padding: 5px 10px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
 }
 </style>

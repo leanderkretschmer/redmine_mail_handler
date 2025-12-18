@@ -190,31 +190,28 @@ class MailHandlerAdminController < ApplicationController
       # Initialisiere Logging-Variablen
       @imap_debug_info = []
       
+      # Pagination Parameter - Standard auf 20 E-Mails pro Seite
+      @page = (params[:page] || 1).to_i
+      @per_page = (params[:per_page] || 20).to_i
+      @per_page_options = [10, 20, 50, 100]
+      
       # Teste IMAP-Verbindung zuerst
       @imap_connection_available = test_imap_connection_available
       
       if @imap_connection_available
         @imap_debug_info << "✓ IMAP-Verbindung erfolgreich hergestellt"
         
-        # Hole alle Mails aus dem deferred Ordner
-        @deferred_mails = get_deferred_mails_from_imap
+        # LAZY LOADING: Hole nur die Message-IDs (sehr schnell)
+        ids_result = @service.get_deferred_message_ids
         
-        @imap_debug_info << "✓ #{@deferred_mails.length} E-Mails aus IMAP-Ordner geladen"
-        
-        # Automatisch abgelaufene E-Mails archivieren
-        archived_count = archive_expired_mails(@deferred_mails)
-        if archived_count > 0
-          @imap_debug_info << "✓ #{archived_count} abgelaufene E-Mails archiviert"
-        end
-        
-        # Nach der Archivierung erneut laden
-        @deferred_mails = get_deferred_mails_from_imap
-        @imap_debug_info << "✓ Nach Archivierung: #{@deferred_mails.length} E-Mails verfügbar"
-      else
-        @imap_debug_info << "✗ IMAP-Verbindung fehlgeschlagen - verwende Beispieldaten"
-        # Falls IMAP-Verbindung nicht verfügbar, erstelle Test-Daten
-        @deferred_mails = create_sample_deferred_mails
-      end
+        if ids_result[:success]
+          all_message_ids = ids_result[:message_ids]
+          @imap_debug_info << "✓ #{all_message_ids.length} Message-IDs gefunden (schnelle Abfrage)"
+          
+          # Bei Suche müssen wir leider alle laden, um zu filtern
+          if @search_from.present? || @search_subject.present?
+            @imap_debug_info << "ℹ Suchfilter aktiv - lade alle E-Mails für Filterung"
+            @deferred_mails = get_deferred_mails_from_imap_paginated(all_message_ids)
       
       # Filtere nach Suchkriterien
       original_count = @deferred_mails.length
@@ -228,22 +225,49 @@ class MailHandlerAdminController < ApplicationController
         @imap_debug_info << "✓ Nach Betreff-Filter (#{@search_subject}): #{@deferred_mails.length} E-Mails"
       end
       
-      if (@search_from.present? || @search_subject.present?) && @deferred_mails.length < original_count
+            if @deferred_mails.length < original_count
         filtered_out = original_count - @deferred_mails.length
         @imap_debug_info << "ℹ #{filtered_out} E-Mails durch Suchfilter ausgeblendet"
       end
       
       @total_count = @deferred_mails.length
-      
-      # Pagination - Standard auf 20 E-Mails pro Seite
-      @page = (params[:page] || 1).to_i
-      @per_page = (params[:per_page] || 20).to_i
-      @per_page_options = [10, 20, 50, 100]
-      
-      # Berechne Pagination
+            @total_pages = (@total_count.to_f / @per_page).ceil
+            
+            # Pagination auf gefilterte Ergebnisse anwenden
+            offset = (@page - 1) * @per_page
+            @deferred_mails = @deferred_mails[offset, @per_page] || []
+          else
+            # LAZY LOADING: Ohne Suche - nur die benötigten E-Mails für die aktuelle Seite laden
+            @total_count = all_message_ids.length
+            @total_pages = (@total_count.to_f / @per_page).ceil
+            
+            # Berechne Offset und lade nur die benötigten E-Mails
+            offset = (@page - 1) * @per_page
+            
+            # Sortiere IDs (neueste zuerst - höhere IDs sind in der Regel neuer)
+            sorted_ids = all_message_ids.sort.reverse
+            
+            @imap_debug_info << "ℹ Lade nur E-Mails #{offset + 1} bis #{[offset + @per_page, @total_count].min} von #{@total_count}"
+            
+            # Lade nur die E-Mails für die aktuelle Seite
+            @deferred_mails = @service.get_deferred_mail_headers(sorted_ids, offset, @per_page)
+            @imap_debug_info << "✓ #{@deferred_mails.length} E-Mails für aktuelle Seite geladen"
+          end
+        else
+          @imap_debug_info << "✗ Fehler beim Abrufen der Message-IDs: #{ids_result[:error]}"
+          @deferred_mails = []
+          @total_count = 0
+          @total_pages = 0
+        end
+      else
+        @imap_debug_info << "✗ IMAP-Verbindung fehlgeschlagen - verwende Beispieldaten"
+        # Falls IMAP-Verbindung nicht verfügbar, erstelle Test-Daten
+        @deferred_mails = create_sample_deferred_mails
+        @total_count = @deferred_mails.length
       @total_pages = (@total_count.to_f / @per_page).ceil
       offset = (@page - 1) * @per_page
       @deferred_mails = @deferred_mails[offset, @per_page] || []
+      end
       
     rescue => e
       @deferred_mails = []
@@ -255,6 +279,40 @@ class MailHandlerAdminController < ApplicationController
       @search_from = nil
       @search_subject = nil
       flash[:error] = "Fehler beim Laden der zurückgestellten E-Mails: #{e.message}"
+    end
+  end
+
+  # AJAX-Endpoint für Lazy Loading weiterer E-Mails
+  def load_deferred_mails_page
+    begin
+      page = (params[:page] || 1).to_i
+      per_page = (params[:per_page] || 20).to_i
+      
+      ids_result = @service.get_deferred_message_ids
+      
+      if ids_result[:success]
+        all_message_ids = ids_result[:message_ids]
+        total_count = all_message_ids.length
+        total_pages = (total_count.to_f / per_page).ceil
+        
+        offset = (page - 1) * per_page
+        sorted_ids = all_message_ids.sort.reverse
+        
+        deferred_mails = @service.get_deferred_mail_headers(sorted_ids, offset, per_page)
+        
+        render json: {
+          success: true,
+          mails: deferred_mails,
+          page: page,
+          per_page: per_page,
+          total_count: total_count,
+          total_pages: total_pages
+        }
+      else
+        render json: { success: false, error: ids_result[:error] || 'IMAP-Fehler' }
+      end
+    rescue => e
+      render json: { success: false, error: e.message }
     end
   end
 
@@ -836,227 +894,27 @@ class MailHandlerAdminController < ApplicationController
     end
   end
 
-  def get_deferred_mails_from_imap
-    Rails.logger.info("=== Starting get_deferred_mails_from_imap ===")
+  # Paginiertes Laden aller E-Mails (für Suchfilter, wo alle geladen werden müssen)
+  def get_deferred_mails_from_imap_paginated(message_ids)
+    return [] if message_ids.empty?
     
-    imap = @service.connect_to_imap
-    if imap.nil?
-      Rails.logger.error("IMAP connection failed - @service.connect_to_imap returned nil")
-      @imap_debug_info << "✗ IMAP-Verbindung fehlgeschlagen"
-      return []
-    end
-    Rails.logger.info("IMAP connection successful")
+    Rails.logger.info("=== Starting paginated deferred mail loading for #{message_ids.length} messages ===")
+    
+    # Verwende den Service für das Laden
+    mails = @service.get_deferred_mails_by_ids(message_ids)
+    
+    Rails.logger.info("=== Loaded #{mails.length} mails for filtering ===")
+    mails.sort_by { |m| m[:deferred_at] || Time.current }.reverse
+  end
 
-    begin
-      deferred_folder = Setting.plugin_redmine_mail_handler['deferred_folder'] || 'Deferred'
-      Rails.logger.info("Attempting to connect to deferred folder: '#{deferred_folder}'")
-      @imap_debug_info << "ℹ Verbinde mit Ordner: '#{deferred_folder}'"
-      
-      # Prüfe ob Ordner existiert
-      begin
-        imap.select(deferred_folder)
-        Rails.logger.info("Successfully selected deferred folder: #{deferred_folder}")
-        @imap_debug_info << "✓ Ordner erfolgreich ausgewählt"
-      rescue Net::IMAP::NoResponseError => e
-        Rails.logger.error("Deferred folder not found: #{deferred_folder} - #{e.message}")
-        @imap_debug_info << "✗ Ordner nicht gefunden: #{deferred_folder}"
-        Rails.logger.info("Available folders:")
-        @imap_debug_info << "ℹ Verfügbare Ordner:"
-        begin
-          folders = imap.list('', '*')
-          folders.each do |folder| 
-            Rails.logger.info("  - #{folder.name}")
-            @imap_debug_info << "  - #{folder.name}"
-          end
-        rescue => list_error
-          Rails.logger.error("Could not list folders: #{list_error.message}")
-          @imap_debug_info << "✗ Fehler beim Listen der Ordner: #{list_error.message}"
-        end
-        return []
-      end
-
-      # Hole detaillierte Ordner-Informationen
-      begin
-        status = imap.status(deferred_folder, ['MESSAGES', 'RECENT', 'UNSEEN'])
-        Rails.logger.info("Folder status: #{status}")
-        @imap_debug_info << "ℹ Ordner-Status: #{status['MESSAGES']} Nachrichten, #{status['UNSEEN']} ungelesen, #{status['RECENT']} neu"
-        
-        if status['MESSAGES'] == 0
-          @imap_debug_info << "ℹ Ordner ist leer (0 Nachrichten)"
-          return []
-        end
-      rescue => status_error
-        Rails.logger.error("Could not get folder status: #{status_error.message}")
-        @imap_debug_info << "✗ Konnte Ordner-Status nicht abrufen: #{status_error.message}"
-      end
-
-      msg_ids = []
-      
-      # Versuche verschiedene Suchkriterien um ALLE E-Mails zu finden
-      search_criteria_list = [
-        ['NOT', 'DELETED'],         # Nicht gelöschte E-Mails zuerst bevorzugen
-        ['UNSEEN'],                 # Ungelesene E-Mails
-        ['SEEN'],                   # Gelesene E-Mails
-        ['ALL'],                    # Alle E-Mails (inkl. \Deleted)
-        []                          # Leere Suche (sollte alle zurückgeben)
-      ]
-      
-      @imap_debug_info << "ℹ Versuche verschiedene Suchkriterien..."
-      
-      search_criteria_list.each do |criteria|
-        begin
-          if criteria.empty?
-            # Versuche alle Message-IDs direkt zu bekommen
-            status = imap.status(deferred_folder, ['MESSAGES'])
-            total_messages = status['MESSAGES']
-            Rails.logger.info("Folder status shows #{total_messages} total messages")
-            @imap_debug_info << "ℹ Direkte Methode: #{total_messages} Nachrichten gefunden"
-            
-            if total_messages > 0
-              # Hole alle Message-IDs von 1 bis total_messages
-              msg_ids = (1..total_messages).to_a
-              Rails.logger.info("Using sequential message IDs: #{msg_ids}")
-              @imap_debug_info << "✓ Verwende sequenzielle IDs: #{msg_ids.join(', ')}"
-              break
-            end
-          else
-            search_result = imap.search(criteria)
-            Rails.logger.info("Search with #{criteria.inspect} found #{search_result.length} messages: #{search_result}")
-            @imap_debug_info << "ℹ Suche #{criteria.inspect}: #{search_result.length} Ergebnisse #{search_result.any? ? search_result.join(', ') : ''}"
-            
-            if search_result.any?
-              msg_ids = search_result
-              @imap_debug_info << "✓ Erfolgreich mit #{criteria.inspect}"
-              break
-            end
-          end
-        rescue => search_error
-          Rails.logger.warn("Search with #{criteria.inspect} failed: #{search_error.message}")
-          @imap_debug_info << "✗ Suche #{criteria.inspect} fehlgeschlagen: #{search_error.message}"
-          next
-        end
-      end
-      
-      Rails.logger.info("Final message IDs to process: #{msg_ids}")
-      @imap_debug_info << "ℹ Finale Message-IDs zum Verarbeiten: #{msg_ids.join(', ')}"
-      
-      if msg_ids.empty?
-        Rails.logger.error("No messages found with any search criteria!")
-        @imap_debug_info << "✗ Keine Nachrichten mit allen Suchkriterien gefunden!"
-        # Versuche noch eine alternative Methode
-        begin
-          # Hole Folder-Informationen
-          status = imap.status(deferred_folder, ['MESSAGES', 'RECENT', 'UNSEEN'])
-          Rails.logger.info("Folder status: #{status}")
-          @imap_debug_info << "ℹ Letzte Chance - Ordner-Status: #{status}"
-          
-          # Versuche FETCH auf alle möglichen Message-IDs
-          if status['MESSAGES'] > 0
-            Rails.logger.info("Trying to fetch messages 1 to #{status['MESSAGES']}")
-            @imap_debug_info << "ℹ Versuche Nachrichten 1 bis #{status['MESSAGES']} zu holen"
-            msg_ids = (1..status['MESSAGES']).to_a
-          end
-        rescue => status_error
-          Rails.logger.error("Could not get folder status: #{status_error.message}")
-          @imap_debug_info << "✗ Konnte Ordner-Status nicht abrufen: #{status_error.message}"
-        end
-      end
-      
-      if msg_ids.empty?
-        Rails.logger.error("Still no messages found after all attempts!")
-        @imap_debug_info << "✗ Immer noch keine Nachrichten nach allen Versuchen gefunden!"
-        return []
-      end
-      
-      @imap_debug_info << "ℹ Beginne Verarbeitung von #{msg_ids.length} Nachrichten..."
-      mails = []
-
-      msg_ids.each do |msg_id|
-        begin
-          Rails.logger.debug("Processing message ID: #{msg_id}")
-          
-          # Versuche verschiedene FETCH-Methoden
-          msg_data = nil
-          fetch_methods = [
-            'RFC822',           # Vollständige E-Mail
-            'BODY[]',          # E-Mail-Body
-            'BODY.PEEK[]'      # E-Mail-Body ohne als gelesen zu markieren
-          ]
-          
-          fetch_methods.each do |method|
-            begin
-              fetch_result = imap.fetch(msg_id, method)
-              if fetch_result && fetch_result[0]
-                msg_data = fetch_result[0].attr[method] || fetch_result[0].attr['BODY[]']
-                Rails.logger.debug("Successfully fetched message #{msg_id} using #{method}")
-                break
-              end
-            rescue => fetch_error
-              Rails.logger.warn("Fetch method #{method} failed for message #{msg_id}: #{fetch_error.message}")
-              @imap_debug_info << "✗ FETCH #{method} für Nachricht #{msg_id} fehlgeschlagen: #{fetch_error.message}"
-              next
-            end
-          end
-          
-          if msg_data.blank?
-            Rails.logger.warn("Message #{msg_id} has no data after trying all fetch methods")
-            next
-          end
-
-          mail = Mail.read_from_string(msg_data)
-          if mail.nil?
-            Rails.logger.warn("Could not parse mail for message #{msg_id}")
-            next
-          end
-
-          Rails.logger.info("Successfully processed mail from: #{mail.from&.first}, subject: #{mail.subject}")
-
-          # Hole Deferred-Informationen
-          deferred_info = @service.get_mail_deferred_info(mail)
-          
-          # Fallback für E-Mails ohne deferred Header (manuell verschoben)
-          if deferred_info.nil?
-            Rails.logger.info("No deferred header found for message #{msg_id}, using fallback values")
-            deferred_info = {
-              deferred_at: mail.date || Time.current,
-              expires_at: (mail.date || Time.current) + 30.days,
-              reason: 'manual_defer'
-            }
-          end
-          
-          mail_data = {
-            id: msg_id,
-            message_id: mail.message_id,
-            from: mail.from&.first,
-            subject: mail.subject,
-            date: mail.date,
-            deferred_at: deferred_info[:deferred_at],
-            expires_at: deferred_info[:expires_at],
-            reason: deferred_info[:reason],
-            expired: deferred_info ? @service.mail_deferred_expired?(mail) : false
-          }
-          
-          mails << mail_data
-          Rails.logger.info("Added mail to list: #{mail_data[:from]} - #{mail_data[:subject]}")
-        rescue => e
-          Rails.logger.error("Failed to process deferred message #{msg_id}: #{e.message}")
-          Rails.logger.error("Backtrace: #{e.backtrace.join("\n")}")
-          @imap_debug_info << "✗ Fehler beim Verarbeiten von Nachricht #{msg_id}: #{e.message}"
-          next
-        end
-      end
-
-      Rails.logger.info("=== Returning #{mails.length} processed mails ===")
-      @imap_debug_info << "✓ Erfolgreich #{mails.length} E-Mails verarbeitet und zurückgegeben"
-      mails.sort_by { |m| m[:deferred_at] || Time.current }.reverse
-    rescue => e
-      Rails.logger.error("=== Error in get_deferred_mails_from_imap: #{e.message} ===")
-      Rails.logger.error("Backtrace: #{e.backtrace.join("\n")}")
-      @imap_debug_info << "✗ Schwerwiegender Fehler in get_deferred_mails_from_imap: #{e.message}"
-      []
-    ensure
-      imap&.disconnect
-    end
+  # Legacy-Methode für Rückwärtskompatibilität (wird für archive_expired_mails verwendet)
+  def get_deferred_mails_from_imap
+    Rails.logger.info("=== Starting get_deferred_mails_from_imap (legacy) ===")
+    
+    ids_result = @service.get_deferred_message_ids
+    return [] unless ids_result[:success]
+    
+    get_deferred_mails_from_imap_paginated(ids_result[:message_ids])
   end
 
   def rescan_selected_mails(selected_ids)
