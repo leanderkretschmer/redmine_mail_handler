@@ -207,23 +207,41 @@ class MailHandlerScheduler
     
     return unless settings['reminder_enabled'] == '1'
     
-    @@scheduler.cron "0 #{reminder_time.split(':')[1]} #{reminder_time.split(':')[0]} * * *" do
+    # Parse Zeit-Format (HH:MM)
+    hour, minute = reminder_time.split(':').map(&:to_i)
+    
+    # Validiere Zeit-Format
+    unless hour && minute && hour.between?(0, 23) && minute.between?(0, 59)
+      @@logger.error("Invalid reminder_time format: #{reminder_time}. Using default 09:00")
+      hour, minute = 9, 0
+    end
+    
+    # Cron-Format für rufus-scheduler: "minute hour day month weekday"
+    cron_expression = "#{minute} #{hour} * * *"
+    
+    @@logger.info("Scheduling daily reminders with cron expression: #{cron_expression} (time: #{reminder_time})")
+    
+    @@scheduler.cron cron_expression do
       begin
-        @@logger.info("Starting daily reminder process using #{reminder_type} functionality")
+        @@logger.info("=== REMINDER TRIGGERED === Starting daily reminder process at #{Time.current}")
+        @@logger.info("Reminder settings: time=#{reminder_time}, type=#{reminder_type}")
         
         # Verwende die konfigurierte Reminder-Funktionalität
         ActiveRecord::Base.connection_pool.with_connection do
           send_redmine_reminders
         end
+        
+        @@logger.info("=== REMINDER COMPLETED === Daily reminder process finished successfully")
       rescue => e
-        @@logger.error("Daily reminder process failed: #{e.message}")
+        @@logger.error("=== REMINDER FAILED === Daily reminder process failed: #{e.message}")
+        @@logger.error("Backtrace: #{e.backtrace.join("\n")}")
       ensure
         # Stelle sicher, dass Verbindungen freigegeben werden
         ActiveRecord::Base.connection_handler.clear_active_connections!
       end
     end
     
-    @@logger.info("Scheduled daily reminders at #{reminder_time} using #{reminder_type} system")
+    @@logger.info("Successfully scheduled daily reminders at #{reminder_time} (#{hour}:#{minute.to_s.rjust(2, '0')}) using #{reminder_type} system")
   end
 
   def self.schedule_deferred_processing
@@ -290,29 +308,80 @@ class MailHandlerScheduler
       # Dies entspricht: bundle exec rake redmine:send_reminders days=7 RAILS_ENV="production"
       require 'rake'
       
-      # Lade Redmine's Reminder-Task
-      Rake.application.load_rakefile unless Rake.application.tasks.any?
+      # Lade Redmine's Rakefile falls noch nicht geladen
+      unless Rake.application.tasks.any?
+        Rake.application.init
+        Rake.application.load_rakefile
+      end
       
       # Setze Umgebungsvariable für days Parameter
       ENV['days'] = days.to_s
       
       # Führe den Reminder-Task aus
       if Rake::Task.task_defined?('redmine:send_reminders')
-        Rake::Task['redmine:send_reminders'].invoke
+        task = Rake::Task['redmine:send_reminders']
+        # WICHTIG: Re-enable den Task, damit er mehrfach ausgeführt werden kann
+        task.reenable
+        task.invoke
         @@logger.info("Successfully executed Redmine's reminder task")
       else
-        @@logger.error("Redmine's send_reminders task not found")
+        @@logger.error("Redmine's send_reminders task not found - trying alternative method")
+        # Fallback: Versuche Reminder direkt zu versenden
+        send_reminders_directly(days)
       end
       
     rescue => e
       @@logger.error("Failed to execute Redmine's reminder task: #{e.message}")
       @@logger.error("Backtrace: #{e.backtrace.join("\n")}")
+      # Versuche Fallback-Methode
+      begin
+        send_reminders_directly(days)
+      rescue => e2
+        @@logger.error("Fallback reminder method also failed: #{e2.message}")
+      end
     ensure
       # Bereinige Umgebungsvariable
       ENV.delete('days')
     end
     
     @@logger.info("Redmine reminder process completed")
+  end
+  
+  def self.send_reminders_directly(days)
+    # Direkte Implementierung der Reminder-Logik basierend auf Redmine's Standard-Verhalten
+    # Finde alle offenen Issues, die innerhalb der nächsten X Tage fällig werden
+    begin
+      target_date = days.days.from_now.to_date
+      issues = Issue.open.where("due_date IS NOT NULL AND due_date <= ? AND due_date >= ?", target_date, Date.today)
+      
+      issues_count = 0
+      errors_count = 0
+      
+      issues.find_each do |issue|
+        begin
+          # Versende Reminder nur wenn Issue einem aktiven Benutzer zugewiesen ist
+          if issue.assigned_to && issue.assigned_to.is_a?(User) && issue.assigned_to.active?
+            # Verwende Redmine's Mailer um Reminder zu versenden
+            if defined?(Mailer) && Mailer.respond_to?(:issue_reminder)
+              Mailer.issue_reminder(issue).deliver_now
+              issues_count += 1
+            else
+              # Fallback: Erstelle eine einfache Reminder-E-Mail
+              @@logger.warn("Mailer.issue_reminder not available for issue ##{issue.id}")
+            end
+          end
+        rescue => e
+          errors_count += 1
+          @@logger.error("Failed to send reminder for issue ##{issue.id}: #{e.message}")
+        end
+      end
+      
+      @@logger.info("Sent #{issues_count} reminder emails for issues due within #{days} days (#{errors_count} errors)")
+      
+    rescue => e
+      @@logger.error("Error in direct reminder sending: #{e.message}")
+      raise
+    end
   end
 
 
