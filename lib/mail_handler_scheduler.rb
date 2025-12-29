@@ -9,10 +9,24 @@ class MailHandlerScheduler
     
     @@logger = MailHandlerLogger.new
     
-    # Validiere IMAP-Konfiguration vor dem Start
-    unless valid_imap_configuration?
-      @@logger.error("Scheduler start aborted: Invalid or missing IMAP configuration")
+    settings = Setting.plugin_redmine_mail_handler
+    
+    # Prüfe ob mindestens eine Funktion aktiviert ist, die den Scheduler benötigt
+    auto_import_enabled = settings['auto_import_enabled'] == '1'
+    reminder_enabled = settings['reminder_enabled'] == '1'
+    deferred_enabled = settings['deferred_enabled'] == '1'
+    
+    unless auto_import_enabled || reminder_enabled || deferred_enabled
+      @@logger.info("Scheduler start skipped: No scheduled features enabled")
       return false
+    end
+    
+    # Validiere IMAP-Konfiguration nur wenn Mail-Import oder Deferred-Verarbeitung aktiviert ist
+    if auto_import_enabled || deferred_enabled
+      unless valid_imap_configuration?
+        @@logger.error("Scheduler start aborted: Invalid or missing IMAP configuration (required for mail import/deferred processing)")
+        return false
+      end
     end
     
     @@scheduler = Rufus::Scheduler.new
@@ -20,9 +34,14 @@ class MailHandlerScheduler
     schedule_mail_import
     schedule_daily_reminders
     schedule_deferred_processing
-      schedule_deferred_cleanup
+    schedule_deferred_cleanup
     
-    @@logger.info("Mail Handler Scheduler started with valid IMAP configuration")
+    features = []
+    features << "mail import" if auto_import_enabled
+    features << "reminders" if reminder_enabled
+    features << "deferred processing" if deferred_enabled
+    
+    @@logger.info("Mail Handler Scheduler started with features: #{features.join(', ')}")
     true
   end
 

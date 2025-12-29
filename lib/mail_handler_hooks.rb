@@ -125,5 +125,59 @@ class MailHandlerModelHooks < Redmine::Hook::Listener
     end
   end
 
+  # Hook nach Speichern der Plugin-Einstellungen
+  def controller_settings_plugin_save_after_save(context = {})
+    plugin_id = context[:plugin_id]
+    
+    # Nur für unser Plugin
+    return unless plugin_id == :redmine_mail_handler
+    
+    # Prüfe ob Scheduler-bezogene Einstellungen geändert wurden
+    settings = Setting.plugin_redmine_mail_handler
+    
+    # Relevante Einstellungen für Scheduler
+    scheduler_settings = [
+      'auto_import_enabled',
+      'import_interval',
+      'import_interval_unit',
+      'reminder_enabled',
+      'reminder_time',
+      'reminder_days',
+      'deferred_enabled',
+      'deferred_recheck_time',
+      'imap_host',
+      'imap_port',
+      'imap_username',
+      'imap_password'
+    ]
+    
+    # Starte Scheduler neu wenn relevante Einstellungen vorhanden sind
+    if defined?(MailHandlerScheduler)
+      begin
+        # Prüfe ob mindestens eine geplante Funktion aktiviert ist
+        if settings['auto_import_enabled'] == '1' || 
+           settings['reminder_enabled'] == '1' || 
+           settings['deferred_enabled'] == '1'
+          
+          # Restart Scheduler um neue Einstellungen zu übernehmen
+          if MailHandlerScheduler.running?
+            MailHandlerScheduler.restart
+            Rails.logger.info "[MailHandler] Scheduler restarted after settings change"
+          else
+            MailHandlerScheduler.start
+            Rails.logger.info "[MailHandler] Scheduler started after settings change"
+          end
+        else
+          # Stoppe Scheduler wenn keine geplante Funktion aktiviert ist
+          if MailHandlerScheduler.running?
+            MailHandlerScheduler.stop
+            Rails.logger.info "[MailHandler] Scheduler stopped - no scheduled features enabled"
+          end
+        end
+      rescue => e
+        Rails.logger.error "[MailHandler] Failed to restart scheduler after settings change: #{e.message}"
+      end
+    end
+  end
 
 end

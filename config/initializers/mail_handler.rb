@@ -47,10 +47,13 @@ Rails.application.config.after_initialize do
     end
   end
   
-  # Starte Scheduler wenn Auto-Import aktiviert ist
+  # Starte Scheduler wenn mindestens eine geplante Funktion aktiviert ist
   if defined?(MailHandlerScheduler) && Setting.plugin_redmine_mail_handler.present?
     settings = Setting.plugin_redmine_mail_handler
-    if settings['auto_import_enabled'] == '1'
+    # Starte Scheduler wenn Auto-Import, Reminder oder Deferred-Verarbeitung aktiviert ist
+    if settings['auto_import_enabled'] == '1' || 
+       settings['reminder_enabled'] == '1' || 
+       settings['deferred_enabled'] == '1'
       begin
         MailHandlerScheduler.start unless MailHandlerScheduler.running?
         Rails.logger.info "[MailHandler] Scheduler started automatically"

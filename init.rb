@@ -83,7 +83,11 @@ require File.expand_path('../lib/mail_handler_hooks', __FILE__)
 
 # Initialisiere Scheduler nach Plugin-Load
 Rails.application.config.after_initialize do
-  if Setting.plugin_redmine_mail_handler['auto_import_enabled'] == '1'
+  settings = Setting.plugin_redmine_mail_handler
+  # Starte Scheduler wenn mindestens eine geplante Funktion aktiviert ist
+  if settings && (settings['auto_import_enabled'] == '1' || 
+                  settings['reminder_enabled'] == '1' || 
+                  settings['deferred_enabled'] == '1')
     MailHandlerScheduler.start
   end
 end
