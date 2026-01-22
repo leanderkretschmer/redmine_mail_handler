@@ -51,6 +51,7 @@
   <div class="box tabular settings">
     <h3>Ticket-Verarbeitung</h3>
     <p><label for="settings_inbox_ticket_id">Posteingang-Ticket-ID</label><%= text_field_tag 'settings[inbox_ticket_id]', @settings['inbox_ticket_id'], size: 10, placeholder: '1' %><em class="info">ID des Tickets für E-Mails von bekannten Absendern ohne Ticket-ID</em></p>
+    <p><label>&nbsp;</label><%= button_to 'Kommentare und Dateien im Posteingang löschen', { controller: 'mail_handler_admin', action: 'delete_all_comments' }, method: :delete, class: 'button', data: { confirm: 'Sind Sie sicher, dass Sie alle Kommentare und Dateien im Posteingang-Ticket löschen möchten?' } %><em class="info">Löscht alle Kommentare (außer dem ersten Journal) und alle Anhänge des konfigurierten Posteingang-Tickets</em></p>
   </div>
   <div class="box tabular settings">
     <h3>Benutzer-Erstellung</h3>

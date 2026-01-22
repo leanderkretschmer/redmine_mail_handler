@@ -549,7 +549,7 @@ class MailHandlerAdminController < ApplicationController
       flash[:error] = "Fehler beim Löschen der anonymen Kommentare: #{e.message}"
     end
     
-    redirect_to :action => 'index'
+    redirect_to({ controller: 'settings', action: 'plugin', id: 'redmine_mail_handler' })
   end
 
   def delete_orphaned_attachments
@@ -593,7 +593,7 @@ class MailHandlerAdminController < ApplicationController
       flash[:error] = "Fehler beim Löschen der unzugeordneten Dateien: #{e.message}"
     end
     
-    redirect_to :action => 'index'
+    redirect_to({ controller: 'settings', action: 'plugin', id: 'redmine_mail_handler' })
   end
 
   def delete_all_comments
@@ -616,12 +616,18 @@ class MailHandlerAdminController < ApplicationController
       end
       
       # Lösche alle Journals (Kommentare) des Tickets, außer dem ersten (Ticket-Erstellung)
-       journals_to_delete = inbox_ticket.journals.where('id > ?', inbox_ticket.journals.first.id)
-       deleted_comments_count = journals_to_delete.count
-       
-       # Lösche alle angehängten Dateien des Tickets
-       attachments_to_delete = inbox_ticket.attachments
-       deleted_attachments_count = attachments_to_delete.count
+      first_journal = inbox_ticket.journals.order(:id).first
+      journals_to_delete = first_journal ? inbox_ticket.journals.where('id > ?', first_journal.id) : inbox_ticket.journals.none
+      deleted_comments_count = journals_to_delete.count
+      
+      # Sammle alle Anhänge des Tickets und seiner Journals
+      issue_attachment_ids = inbox_ticket.attachments.pluck(:id)
+      journal_attachment_ids = Attachment
+        .joins("JOIN journals ON attachments.container_id = journals.id AND attachments.container_type = 'Journal'")
+        .where("journals.issue_id = ?", inbox_ticket.id)
+        .pluck(:id)
+      attachments_to_delete = Attachment.where(id: (issue_attachment_ids + journal_attachment_ids).uniq)
+      deleted_attachments_count = attachments_to_delete.count
        
        total_deleted = 0
        
@@ -675,7 +681,7 @@ class MailHandlerAdminController < ApplicationController
       flash[:error] = "Fehler beim Löschen der Kommentare: #{e.message}"
     end
     
-    redirect_to :action => 'index'
+    redirect_to({ controller: 'settings', action: 'plugin', id: 'redmine_mail_handler' })
   end
 
 
