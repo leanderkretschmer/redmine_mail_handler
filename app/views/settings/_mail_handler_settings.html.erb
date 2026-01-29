@@ -382,6 +382,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <p>
     <label for="settings_inbox_ticket_id">Posteingang-Ticket-ID:</label>
     <%= text_field_tag 'settings[inbox_ticket_id]', @settings['inbox_ticket_id'], :size => 10, :placeholder => '1' %>
+    <button type="button" onclick="document.getElementById('settings_inbox_ticket_id').value='';" class="small-button">Leeren</button>
     <em class="info">ID des Tickets, an das E-Mails von bekannten Absendern ohne Ticket-ID angehängt werden</em>
   </p>
 </div>

@@ -32,4 +32,7 @@ RedmineApp::Application.routes.draw do
       end
     end
   end
+
+  # Fix für DELETE Request auf Plugin-Settings
+  delete '/settings/plugin/redmine_mail_handler', :to => 'mail_handler_admin#reset_settings'
 end

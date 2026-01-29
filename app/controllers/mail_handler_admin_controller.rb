@@ -324,6 +324,11 @@ class MailHandlerAdminController < ApplicationController
     redirect_to action: :deferred_status
   end
 
+  def reset_settings
+    flash[:error] = "Das Löschen der Einstellungen über diese Aktion ist nicht unterstützt. Bitte leeren Sie die Felder manuell und speichern Sie."
+    redirect_to '/settings/plugin/redmine_mail_handler'
+  end
+
   private
 
   def init_service
