@@ -62,6 +62,21 @@ Mails from unknown users without ticket IDs are parked in the 'Deferred' folder.
 - If the user has been created since the mail arrived, the mail is processed.
 - If the deferral period expires, the mail is moved to 'Archive'.
 
+## Restart & "Sudden" User Creation from Deferred
+
+If many mails from the "Deferred" folder are processed after a restart, it usually means **users were created externally** (e.g., LDAP Sync, Manual Creation) while the mails were deferred.
+
+**Explanation:**
+1.  **Logic:** The deferred processing job ([MailHandlerService#process_deferred_message](file:///Users/leanderkretschmer/redmine_mail_handler-2/lib/mail_handler_service.rb#L204)) strictly checks if a user **already exists** (`find_existing_user`).
+2.  **No Creation:** It does **NOT** create new users.
+3.  **Trigger:** When the scheduler starts (on restart) or the cron job runs (e.g. 02:00), it iterates through all deferred mails.
+4.  **Match:** If it finds that users (who were previously unknown) now exist in Redmine, it processes the mails and archives them.
+
+**Possible External Factors:**
+- **LDAP Synchronization:** Users logged in or were synced via cron.
+- **Manual Administration:** An admin created the users.
+- **Other Plugins:** Another tool created the user records.
+
 ## Code References
 
 - **Main Loop:** [MailHandlerService#import_mails](file:///Users/leanderkretschmer/redmine_mail_handler-2/lib/mail_handler_service.rb#L27)
