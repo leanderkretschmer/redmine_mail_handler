@@ -23,7 +23,6 @@ Redmine::Plugin.register :redmine_mail_handler do
     'ignored_folder' => 'Ignored',
     'deferred_folder' => 'Deferred',
     'inbox_ticket_id' => '',
-    'dev_mode' => '0',
     'dummy_mail_enabled' => '0',
     'dummy_mail_suffix' => '',
     'dummy_mail_save_original' => '0',

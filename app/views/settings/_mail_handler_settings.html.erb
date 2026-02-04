@@ -9,7 +9,6 @@
     <li><a href="#tab-processing">Verarbeitung</a></li>
     <li><a href="#tab-parser">Parser</a></li>
     <li><a href="#tab-automation">Automatisierung</a></li>
-    <li><a href="#tab-dev">Dev</a></li>
     <li><a href="#tab-help">Hilfe</a></li>
   </ul>
 </div>
@@ -117,20 +116,6 @@
   </div>
 </div>
 
-<!-- Tab Content: Dev -->
-<div id="tab-dev" class="tab-content" style="display: none;">
-  <div class="box tabular settings">
-    <h3>Entwickler-Modus</h3>
-    <p><label for="settings_dev_mode">Dev-Mode aktivieren</label><%= check_box_tag 'settings[dev_mode]', '1', @settings['dev_mode'] == '1' %><em class="info">Aktiviert Entwickler-Funktionen wie sofortige Reminder-Ausführung</em></p>
-    <% if @settings['dev_mode'] == '1' %>
-      <div class="box" style="margin-top: 15px;">
-        <h3>Entwickler-Aktionen</h3>
-        
-        <p><label>&nbsp;</label><%= button_tag 'Plugin-Defaults laden', type: 'button', id: 'reset_plugin_defaults', class: 'button' %><em class="info">Setzt alle Felder auf Standardwerte, danach speichern.</em></p>
-      </div>
-    <% end %>
-  </div>
-</div>
 
 <!-- Tab Content: Help -->
 <div id="tab-help" class="tab-content" style="display: none;">
@@ -472,54 +457,7 @@ function initMailHandlerSettings() {
   var resetDefaultsBtn = document.getElementById('reset_plugin_defaults');
   if (resetDefaultsBtn) {
     resetDefaultsBtn.addEventListener('click', function() {
-      var defaults = {
-        imap_host: '',
-        imap_port: '993',
-        imap_ssl: '1',
-        imap_username: '',
-        imap_password: '',
-        inbox_folder: 'INBOX',
-        archive_folder: 'Archive',
-        deferred_folder: 'Deferred',
-        ignored_folder: 'Ignored',
-        inbox_ticket_id: '',
-        auto_import_enabled: '1',
-        import_interval: '5',
-        import_interval_unit: 'minutes',
-        deferred_enabled: '1',
-        deferred_lifetime_days: '30',
-        deferred_recheck_time: '02:00',
-        
-        log_level: 'info',
-        log_cleanup_enabled: '0',
-        log_cleanup_method: 'count',
-        log_max_entries: '1000',
-        log_retention_days: '30',
-        smtp_same_as_imap: '1',
-        smtp_host: '',
-        smtp_port: '465',
-        smtp_ssl: '1',
-        smtp_username: '',
-        smtp_password: '',
-        user_firstname_type: 'mail_account',
-        user_lastname_custom: 'Auto-generated',
-        ignore_email_addresses: ''
-      };
-      Object.keys(defaults).forEach(function(key){
-        var sel = '[name="settings[' + key + ']"]';
-        var el = document.querySelector(sel);
-        if (!el) return;
-        if (el.type === 'checkbox') {
-          el.checked = defaults[key] === '1';
-        } else if (el.tagName === 'SELECT') {
-          el.value = defaults[key];
-        } else {
-          el.value = defaults[key];
-        }
-      });
-      var smtpSame = document.querySelector('input[name="settings[smtp_same_as_imap]"]');
-      if (smtpSame) toggleSmtpFields(smtpSame.checked);
-      alert('Plugin-Defaults wurden gesetzt. Bitte speichern.');
+      // Dev-Defaults-Funktion entfernt
     });
   }
 
