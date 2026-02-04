@@ -549,7 +549,7 @@ class MailHandlerAdminController < ApplicationController
       flash[:error] = "Fehler beim Löschen der anonymen Kommentare: #{e.message}"
     end
     
-    redirect_to({ controller: 'settings', action: 'plugin', id: 'redmine_mail_handler' })
+    redirect_to(action: :index)
   end
 
   def delete_orphaned_attachments

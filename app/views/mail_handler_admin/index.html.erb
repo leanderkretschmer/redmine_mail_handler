@@ -54,6 +54,14 @@
 </div>
 
 <div class="box">
+  <h3>Posteingang-Ticket Aktionen</h3>
+  <p>
+    <label>&nbsp;</label>
+    <%= link_to 'Kommentare und Anhänge im Posteingang löschen', { :action => 'delete_all_comments' }, :method => :delete, :class => 'button', :data => { :confirm => 'Alle Kommentare (mit Notizen) und alle Anhänge im konfigurierten Posteingang-Ticket löschen?' } %>
+  </p>
+</div>
+
+<div class="box">
   <h3>Test-E-Mail</h3>
   <%= form_tag({ :action => 'test_mail' }, :method => :post) do %>
     <p>
@@ -63,4 +71,3 @@
     </p>
   <% end %>
 </div>
-
