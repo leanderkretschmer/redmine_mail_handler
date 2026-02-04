@@ -23,10 +23,6 @@ Redmine::Plugin.register :redmine_mail_handler do
     'ignored_folder' => 'Ignored',
     'deferred_folder' => 'Deferred',
     'inbox_ticket_id' => '',
-    'reminder_time' => '09:00',
-    'reminder_enabled' => '1',
-    'reminder_type' => 'redmine',
-    'reminder_days' => '7',
     'dev_mode' => '0',
     'dummy_mail_enabled' => '0',
     'dummy_mail_suffix' => '',
@@ -84,10 +80,7 @@ require File.expand_path('../lib/mail_handler_hooks', __FILE__)
 # Initialisiere Scheduler nach Plugin-Load
 Rails.application.config.after_initialize do
   settings = Setting.plugin_redmine_mail_handler
-  # Starte Scheduler wenn mindestens eine geplante Funktion aktiviert ist
-  if settings && (settings['auto_import_enabled'] == '1' || 
-                  settings['reminder_enabled'] == '1' || 
-                  settings['deferred_enabled'] == '1')
+  if settings && (settings['auto_import_enabled'] == '1' || settings['deferred_enabled'] == '1')
     MailHandlerScheduler.start
   end
 end

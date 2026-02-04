@@ -32,13 +32,11 @@ class MailHandlerScheduler
     @@scheduler = Rufus::Scheduler.new
     
     schedule_mail_import
-    schedule_daily_reminders
     schedule_deferred_processing
     schedule_deferred_cleanup
     
     features = []
     features << "mail import" if auto_import_enabled
-    features << "reminders" if reminder_enabled
     features << "deferred processing" if deferred_enabled
     
     @@logger.info("Mail Handler Scheduler started with features: #{features.join(', ')}")
@@ -78,11 +76,7 @@ class MailHandlerScheduler
     
     return unless settings['auto_import_enabled'] == '1'
     
-    if settings['load_balanced_enabled'] == '1'
-      schedule_load_balanced_import(settings)
-    else
-      schedule_regular_import(settings)
-    end
+    schedule_regular_import(settings)
   end
   
   def self.schedule_regular_import(settings)

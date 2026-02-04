@@ -98,8 +98,7 @@
     <h3>Import-Automatisierung</h3>
     <p><label for="settings_auto_import_enabled">Automatischer Import</label><%= check_box_tag 'settings[auto_import_enabled]', '1', @settings['auto_import_enabled'] == '1' %></p>
     <p><label for="settings_import_interval">Import-Intervall</label><%= text_field_tag 'settings[import_interval]', @settings['import_interval'], size: 10, placeholder: '5' %> <%= select_tag 'settings[import_interval_unit]', options_for_select([["Minuten", 'minutes'], ["Sekunden", 'seconds']], @settings['import_interval_unit'] || 'minutes') %></p>
-    <p><label for="settings_load_balanced_enabled">Load-Balanced Import</label><%= check_box_tag 'settings[load_balanced_enabled]', '1', @settings['load_balanced_enabled'] == '1' %><em class="info">Verteilt den Import gleichmäßig über die Stunde.</em></p>
-    <p><label for="settings_mails_per_hour">Mails pro Stunde</label><%= text_field_tag 'settings[mails_per_hour]', @settings['mails_per_hour'] || '60', size: 10, placeholder: '60' %><em class="info">Max. Anzahl Mails pro Stunde (0 = unbegrenzt).</em></p>
+    
   </div>
   <div class="box tabular settings">
     <h3>Zurückgestellte Mails</h3>
@@ -107,12 +106,7 @@
     <p><label for="settings_deferred_lifetime_days">Aufbewahrungszeit (Tage)</label><%= text_field_tag 'settings[deferred_lifetime_days]', @settings['deferred_lifetime_days'] || '30', size: 10, placeholder: '30' %></p>
     <p><label for="settings_deferred_recheck_time">Prüfzeit</label><%= text_field_tag 'settings[deferred_recheck_time]', @settings['deferred_recheck_time'] || '02:00', size: 10, placeholder: '02:00' %><em class="info">Uhrzeit für tägliche Prüfung (HH:MM).</em></p>
   </div>
-  <div class="box tabular settings">
-    <h3>Reminder</h3>
-    <p><label for="settings_reminder_enabled">Tägliche Reminder</label><%= check_box_tag 'settings[reminder_enabled]', '1', @settings['reminder_enabled'] == '1' %></p>
-    <p><label for="settings_reminder_time">Reminder-Zeit</label><%= text_field_tag 'settings[reminder_time]', @settings['reminder_time'], size: 10, placeholder: '09:00' %><em class="info">Format: HH:MM</em></p>
-    <p><label for="settings_reminder_days">Anzahl Tage</label><%= number_field_tag 'settings[reminder_days]', @settings['reminder_days'] || '7', min: 1, max: 365, step: 1 %><em class="info">Anzahl der Tage, für die Reminder gesendet werden (z.B. Issues die innerhalb von X Tagen fällig sind)</em></p>
-  </div>
+  
   <div class="box tabular settings">
     <h3>Logging</h3>
     <p><label for="settings_log_level">Log-Level</label><%= select_tag 'settings[log_level]', options_for_select([["Debug", 'debug'], ["Info", 'info'], ["Warning", 'warn'], ["Error", 'error']], @settings['log_level']) %></p>
@@ -131,7 +125,7 @@
     <% if @settings['dev_mode'] == '1' %>
       <div class="box" style="margin-top: 15px;">
         <h3>Entwickler-Aktionen</h3>
-        <p><label>&nbsp;</label><%= link_to 'Reminder jetzt ausführen', { controller: 'mail_handler_admin', action: 'execute_reminders_now' }, method: :post, class: 'button', data: { confirm: 'Möchten Sie die Reminder jetzt ausführen?' } %><em class="info">Führt den Reminder-Task sofort aus (nur im Dev-Mode verfügbar)</em></p>
+        
         <p><label>&nbsp;</label><%= button_tag 'Plugin-Defaults laden', type: 'button', id: 'reset_plugin_defaults', class: 'button' %><em class="info">Setzt alle Felder auf Standardwerte, danach speichern.</em></p>
       </div>
     <% end %>
@@ -146,7 +140,7 @@
     <p><strong>Ticket-Verarbeitung:</strong> Legen Sie ein Posteingang-Ticket für nicht zuordenbare E-Mails fest.</p>
     <p><strong>Benutzer-Erstellung:</strong> Definieren Sie, wie neue Benutzer aus E-Mail-Adressen erstellt werden.</p>
     <p><strong>Parser:</strong> Passen Sie an, wie E-Mail-Inhalte gelesen und bereinigt werden.</p>
-    <p><strong>Automatisierung:</strong> Richten Sie den automatischen Import, Reminder und die Log-Verwaltung ein.</p>
+    <p><strong>Automatisierung:</strong> Richten Sie den automatischen Import und die Log-Verwaltung ein.</p>
   </div>
 </div>
 
@@ -492,14 +486,10 @@ function initMailHandlerSettings() {
         auto_import_enabled: '1',
         import_interval: '5',
         import_interval_unit: 'minutes',
-        mails_per_hour: '60',
-        load_balanced_enabled: '0',
         deferred_enabled: '1',
         deferred_lifetime_days: '30',
         deferred_recheck_time: '02:00',
-        reminder_enabled: '1',
-        reminder_time: '09:00',
-        reminder_days: '7',
+        
         log_level: 'info',
         log_cleanup_enabled: '0',
         log_cleanup_method: 'count',

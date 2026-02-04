@@ -624,7 +624,7 @@ class MailHandlerAdminController < ApplicationController
       issue_attachment_ids = inbox_ticket.attachments.pluck(:id)
       journal_attachment_ids = Attachment
         .joins("JOIN journals ON attachments.container_id = journals.id AND attachments.container_type = 'Journal'")
-        .where("journals.issue_id = ?", inbox_ticket.id)
+        .where("journals.journalized_type = 'Issue' AND journals.journalized_id = ?", inbox_ticket.id)
         .pluck(:id)
       attachments_to_delete = Attachment.where(id: (issue_attachment_ids + journal_attachment_ids).uniq)
       deleted_attachments_count = attachments_to_delete.count
@@ -681,7 +681,7 @@ class MailHandlerAdminController < ApplicationController
       flash[:error] = "Fehler beim Löschen der Kommentare: #{e.message}"
     end
     
-    redirect_to({ controller: 'settings', action: 'plugin', id: 'redmine_mail_handler' })
+    redirect_to(action: :index)
   end
 
 
@@ -1091,7 +1091,7 @@ class MailHandlerAdminController < ApplicationController
       flash[:error] = "Fehler beim Ausführen der Reminder: #{e.message}"
     end
     
-    redirect_to({ controller: 'settings', action: 'plugin', id: 'redmine_mail_handler' })
+    redirect_to(action: :index)
   end
 
   # Logging-Helfer entfernt
