@@ -173,7 +173,7 @@
 </style>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+function initMailHandlerSettings() {
   var tabs = document.querySelectorAll('.tabs a');
   tabs.forEach(function(tab) {
     tab.addEventListener('click', function(event) {
@@ -475,6 +475,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+}
 
-});
+document.addEventListener('DOMContentLoaded', initMailHandlerSettings);
+document.addEventListener('turbo:load', initMailHandlerSettings);
 </script>
