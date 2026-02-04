@@ -125,6 +125,8 @@
     </p>
   </div>
 
+</div>
+
 <style>
 .test-connection-btn {
   padding: 5px 10px;
@@ -357,23 +359,49 @@ function testSmtpConnection() {
   });
 }
 
-// Event Listener für die Buttons
-document.addEventListener('DOMContentLoaded', function() {
-  document.getElementById('load_inbox_folders').addEventListener('click', function() {
-    loadImapFolders('settings_inbox_folder', 'inbox_loading');
-  });
-  
-  document.getElementById('load_archive_folders').addEventListener('click', function() {
-    loadImapFolders('settings_archive_folder', 'archive_loading');
-  });
-  
-  document.getElementById('load_deferred_folders').addEventListener('click', function() {
-    loadImapFolders('settings_deferred_folder', 'deferred_loading');
-  });
-  
-  document.getElementById('test_imap_connection').addEventListener('click', testImapConnection);
-  document.getElementById('test_smtp_connection').addEventListener('click', testSmtpConnection);
-});
+// Event Listener für die Buttons (robust mit Null-Prüfung und Turbo-Unterstützung)
+function bindSettingsHandlers() {
+  var el;
+
+  el = document.getElementById('load_inbox_folders');
+  if (el && !el.dataset.bound) {
+    el.addEventListener('click', function() {
+      loadImapFolders('settings_inbox_folder', 'inbox_loading');
+    });
+    el.dataset.bound = '1';
+  }
+
+  el = document.getElementById('load_archive_folders');
+  if (el && !el.dataset.bound) {
+    el.addEventListener('click', function() {
+      loadImapFolders('settings_archive_folder', 'archive_loading');
+    });
+    el.dataset.bound = '1';
+  }
+
+  el = document.getElementById('load_deferred_folders');
+  if (el && !el.dataset.bound) {
+    el.addEventListener('click', function() {
+      loadImapFolders('settings_deferred_folder', 'deferred_loading');
+    });
+    el.dataset.bound = '1';
+  }
+
+  el = document.getElementById('test_imap_connection');
+  if (el && !el.dataset.bound) {
+    el.addEventListener('click', testImapConnection);
+    el.dataset.bound = '1';
+  }
+
+  el = document.getElementById('test_smtp_connection');
+  if (el && !el.dataset.bound) {
+    el.addEventListener('click', testSmtpConnection);
+    el.dataset.bound = '1';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', bindSettingsHandlers);
+document.addEventListener('turbo:load', bindSettingsHandlers);
 </script>
 
 <div class="box tabular settings">
