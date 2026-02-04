@@ -615,9 +615,7 @@ class MailHandlerAdminController < ApplicationController
         return
       end
       
-      # Lösche alle Journals (Kommentare) des Tickets, außer dem ersten (Ticket-Erstellung)
-      first_journal = inbox_ticket.journals.order(:id).first
-      journals_to_delete = first_journal ? inbox_ticket.journals.where('id > ?', first_journal.id) : inbox_ticket.journals.none
+      journals_to_delete = inbox_ticket.journals
       deleted_comments_count = journals_to_delete.count
       
       # Sammle alle Anhänge des Tickets und seiner Journals
