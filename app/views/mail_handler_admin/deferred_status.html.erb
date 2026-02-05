@@ -40,7 +40,7 @@
           </td>
           <td class="buttons">
             <%= link_to '', 
-                { :controller => 'mail_handler_admin', :action => 'create_user_from_mail', :id => entry.id }, 
+                { :controller => 'mail_handler_admin', :action => 'create_user_from_mail', :message_id => entry.message_id, :from_address => entry.from_address }, 
                 { :method => :post, 
                   :class => 'icon icon-user-add', 
                   :title => l(:label_create_user_from_mail),

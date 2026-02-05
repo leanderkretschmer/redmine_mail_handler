@@ -462,51 +462,41 @@ class MailHandlerAdminController < ApplicationController
 
   def create_user_from_mail
     message_id = params[:message_id]
-    
-    if message_id.blank?
-      flash[:error] = "Keine Message-ID angegeben."
-      redirect_to action: :deferred_mails
-      return
-    end
-    
+    from_address = params[:from] || params[:from_address]
+
     begin
-      # Hole die Mail aus dem deferred Ordner
-      mail = get_mail_by_message_id(message_id)
-      
-      if mail.nil?
-        flash[:error] = "E-Mail mit Message-ID #{message_id} nicht gefunden."
-        redirect_to action: :deferred_mails
-        return
-      end
-      
-      from_address = mail.from&.first
       if from_address.blank?
-        flash[:error] = "Keine Absender-Adresse in der E-Mail gefunden."
+        if message_id.present?
+          mail = get_mail_by_message_id(message_id)
+          from_address = mail&.from&.first
+        end
+      end
+
+      if from_address.blank?
+        flash[:error] = "Keine Absender-Adresse angegeben."
         redirect_to action: :deferred_mails
         return
       end
-      
-      # Prüfe ob Benutzer bereits existiert
+
       existing_user = @service.find_existing_user(from_address)
       if existing_user
         flash[:notice] = "Benutzer für #{from_address} existiert bereits."
         redirect_to action: :deferred_mails
         return
       end
-      
-      # Erstelle neuen Benutzer
+
       new_user = @service.create_new_user(from_address)
-      
+
       if new_user
         flash[:notice] = "Benutzer für #{from_address} wurde erfolgreich erstellt und ist gesperrt. Aktivieren Sie den Benutzer in der Benutzerverwaltung."
       else
         flash[:error] = "Fehler beim Erstellen des Benutzers für #{from_address}."
       end
-      
+
     rescue => e
       flash[:error] = "Fehler beim Erstellen des Benutzers: #{e.message}"
     end
-    
+
     redirect_to action: :deferred_mails
   end
 

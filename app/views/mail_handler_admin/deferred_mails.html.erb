@@ -121,7 +121,7 @@
               <td><%= mail[:expires_at] ? format_time(mail[:expires_at]) : '-' %></td>
               <td class="buttons">
                 <%= link_to "Benutzer erstellen", 
-                    { :action => 'create_user_from_mail', :message_id => mail[:message_id] }, 
+                    { :action => 'create_user_from_mail', :message_id => mail[:message_id], :from => mail[:from] }, 
                     :method => :post, 
                     :class => 'icon icon-user',
                     :title => 'Benutzer aus dieser E-Mail erstellen' %>
