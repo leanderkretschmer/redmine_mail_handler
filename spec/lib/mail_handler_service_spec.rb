@@ -53,11 +53,11 @@ RSpec.describe MailHandlerService do
 
     it 'hängt Bildreferenzen an, wenn keine Platzhalter gefunden werden' do
       allow(Setting).to receive(:text_formatting).and_return('textile')
-      img = AttachmentStub.new('diagramm.svg', 'image/svg+xml', nil, nil)
+      img = AttachmentStub.new('diagramm final.svg', 'image/svg+xml', nil, nil)
       mail = MailStub.new([img])
       content = "Beschreibung ohne Bilder"
       result = service.send(:apply_image_reference_filter, content, mail, [])
-      expect(result).to match(/Beschreibung ohne Bilder\s+!diagramm.svg!/m)
+      expect(result).to match(/Beschreibung ohne Bilder\s+!diagramm%20final.svg!/m)
     end
 
     it 'ignoriert blockierte Bild-Anhänge' do

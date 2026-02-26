@@ -1154,8 +1154,9 @@ class MailHandlerService
         safe = bn_url.gsub(')', '\)').gsub('(', '\(').gsub(']', '\]')
         "![](attachment:#{safe})"
       else
-        # Textile: !filename!
-        "!#{bn}!"
+        # Textile: !filename! – Leerzeichen ebenfalls %20-kodieren
+        bn_url = bn.gsub(' ', '%20')
+        "!#{bn_url}!"
       end
     end
 
@@ -1212,6 +1213,14 @@ class MailHandlerService
     if is_markdown
       content = content.gsub(/!([^!\n]+\.(?:png|jpe?g|gif|bmp|webp|svg))!/i) do
         build_ref.call($1)
+      end
+    end
+
+    # 2c) In Textile-Fällen vorhandene !filename! Bild-Marker auf %20-Leerzeichen kodieren
+    unless is_markdown
+      content = content.gsub(/!([^!\n]+\.(?:png|jpe?g|gif|bmp|webp|svg))!/i) do
+        inner = Regexp.last_match(1)
+        "!#{inner.gsub(' ', '%20')}!"
       end
     end
 
