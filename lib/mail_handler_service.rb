@@ -1148,7 +1148,9 @@ class MailHandlerService
       if formatting == 'markdown'
         # Markdown: Bild aus Anhang
         # Syntax: ![alt](attachment:filename) – Alt-Text leer halten
-        safe = bn.gsub(')', '\)').gsub('(', '\(').gsub(']', '\]')
+        # Encodiere Leerzeichen als %20, escapiere Klammern/Bracket
+        bn_url = bn.gsub(' ', '%20')
+        safe = bn_url.gsub(')', '\)').gsub('(', '\(').gsub(']', '\]')
         "![ ](attachment:#{safe})"
       else
         # Textile: !filename!
