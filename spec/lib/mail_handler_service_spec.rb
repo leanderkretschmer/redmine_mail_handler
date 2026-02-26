@@ -33,6 +33,7 @@ RSpec.describe MailHandlerService do
 
   describe '#apply_image_reference_filter' do
     it 'ersetzt U+FFFC Platzhalter sequenziell durch !filename!' do
+      allow(Setting).to receive(:text_formatting).and_return('textile')
       img1 = AttachmentStub.new('bild1.png', 'image/png', nil, nil)
       img2 = AttachmentStub.new('foto2.jpg', 'image/jpeg', nil, nil)
       mail = MailStub.new([img1, img2])
@@ -42,6 +43,7 @@ RSpec.describe MailHandlerService do
     end
 
     it 'ersetzt cid:CONTENTID durch !filename!' do
+      allow(Setting).to receive(:text_formatting).and_return('textile')
       img = AttachmentStub.new('logo.gif', 'image/gif', '<abc123>', { 'content-id' => '<abc123>' })
       mail = MailStub.new([img])
       content = "Bitte siehe cid:abc123 hier."
@@ -50,6 +52,7 @@ RSpec.describe MailHandlerService do
     end
 
     it 'hängt Bildreferenzen an, wenn keine Platzhalter gefunden werden' do
+      allow(Setting).to receive(:text_formatting).and_return('textile')
       img = AttachmentStub.new('diagramm.svg', 'image/svg+xml', nil, nil)
       mail = MailStub.new([img])
       content = "Beschreibung ohne Bilder"
@@ -58,6 +61,7 @@ RSpec.describe MailHandlerService do
     end
 
     it 'ignoriert blockierte Bild-Anhänge' do
+      allow(Setting).to receive(:text_formatting).and_return('textile')
       ok = AttachmentStub.new('ok.png', 'image/png', nil, nil)
       blocked = AttachmentStub.new('blocked.jpg', 'image/jpeg', nil, nil)
       mail = MailStub.new([ok, blocked])
@@ -66,6 +70,24 @@ RSpec.describe MailHandlerService do
       expect(result).to match(/C\s+!ok.png!/m)
       expect(result).not_to include('blocked.jpg')
     end
+
+    it 'nutzt Markdown-Syntax bei markdown-Formatierung' do
+      allow(Setting).to receive(:text_formatting).and_return('markdown')
+      img = AttachmentStub.new('Screenshot 1 (final).jpeg', 'image/jpeg', nil, nil)
+      mail = MailStub.new([img])
+      content = "Bild: \uFFFC"
+      result = service.send(:apply_image_reference_filter, content, mail, [])
+      expect(result).to include('![ ](attachment:Screenshot 1 \(final\).jpeg)')
+    end
+
+    it 'wandelt vorhandene !filename! in Markdown um' do
+      allow(Setting).to receive(:text_formatting).and_return('markdown')
+      img = AttachmentStub.new('foto.png', 'image/png', nil, nil)
+      mail = MailStub.new([img])
+      content = "Hier !foto.png! inline."
+      result = service.send(:apply_image_reference_filter, content, mail, [])
+      expect(result).to include('![ ](attachment:foto.png)')
+      expect(result).not_to include('!foto.png!')
+    end
   end
 end
-

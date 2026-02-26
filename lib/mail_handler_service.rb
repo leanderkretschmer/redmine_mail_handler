@@ -1142,6 +1142,20 @@ class MailHandlerService
     return content if content.blank?
     return content unless mail.respond_to?(:attachments) && mail.attachments.any?
 
+    formatting = (Setting.respond_to?(:text_formatting) ? Setting.text_formatting.to_s.downcase : 'textile')
+    build_ref = lambda do |fname|
+      bn = File.basename(fname.to_s)
+      if formatting == 'markdown'
+        # Markdown: Bild aus Anhang
+        # Syntax: ![alt](attachment:filename) – Alt-Text leer halten
+        safe = bn.gsub(')', '\)').gsub('(', '\(').gsub(']', '\]')
+        "![ ](attachment:#{safe})"
+      else
+        # Textile: !filename!
+        "!#{bn}!"
+      end
+    end
+
     # Sammle Bildanhänge, schließe blockierte aus
     image_attachments = mail.attachments.select do |att|
       next false if blocked_attachments&.include?(att.filename)
@@ -1161,7 +1175,7 @@ class MailHandlerService
       content = content.gsub(object_char) do
         if imgs.any?
           updated = true
-          " !#{File.basename(imgs.shift.filename)}! "
+          " #{build_ref.call(imgs.shift.filename)} "
         else
           object_char # kein passendes Bild mehr
         end
@@ -1181,8 +1195,9 @@ class MailHandlerService
         end
         if cid.present?
           # typische Formen: cid:ID oder <cid:ID>
-          replaced1 = content.gsub!(/cid:#{Regexp.escape(cid)}/i, "!#{File.basename(att.filename)}!")
-          replaced2 = content.gsub!(/<\s*cid:#{Regexp.escape(cid)}\s*>/i, "!#{File.basename(att.filename)}!")
+          ref = build_ref.call(att.filename)
+          replaced1 = content.gsub!(/cid:#{Regexp.escape(cid)}/i, ref)
+          replaced2 = content.gsub!(/<\s*cid:#{Regexp.escape(cid)}\s*>/i, ref)
           updated ||= (!!replaced1 || !!replaced2)
         end
       rescue => e
@@ -1190,9 +1205,16 @@ class MailHandlerService
       end
     end
 
+    # 2b) Falls Markdown genutzt wird: Textile-ähnliche Platzhalter in Markdown umwandeln
+    if formatting == 'markdown'
+      content = content.gsub(/!([^!\n]+\.(?:png|jpe?g|gif|bmp|webp|svg))!/i) do
+        build_ref.call($1)
+      end
+    end
+
     # 3) Falls nichts ersetzt wurde: Bildreferenzen am Ende anfügen
     unless updated
-      refs = image_attachments.map { |att| "!#{File.basename(att.filename)}!" }
+      refs = image_attachments.map { |att| build_ref.call(att.filename) }
       unless refs.empty?
         # füge mit Abstand an, aber vor evtl. späterer Blockierungs-Meldung
         content = content.rstrip + "\n\n" + refs.join("\n")
