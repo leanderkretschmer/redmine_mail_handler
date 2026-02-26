@@ -1012,6 +1012,9 @@ class MailHandlerService
     # Verarbeite Anhänge und sammle blockierte Anhänge (vor Journal-Erstellung, damit wir den Content aktualisieren können)
     blocked_attachments = process_mail_attachments(mail, ticket, user)
     
+    # Ersetze Platzhalter/CID-Referenzen für Bilder durch Redmine-Wiki-Syntax !filename!
+    content = apply_image_reference_filter(content, mail, blocked_attachments)
+    
     # Füge Meldung über blockierte Anhänge hinzu, falls vorhanden
     if blocked_attachments.any?
       blocked_list = blocked_attachments.map { |name| "`#{name}`" }.join(", ")
@@ -1127,6 +1130,75 @@ class MailHandlerService
     end
     
     
+    content
+  end
+
+  # Ersetze Bild-Platzhalter im Text durch Redmine-Bildreferenzen "!datei.ext!"
+  # Berücksichtigt:
+  # - U+FFFC (OBJECT REPLACEMENT CHARACTER), der oft aus HTML-Konvertierungen für Bilder entsteht
+  # - cid:CONTENT_ID Referenzen aus Inline-Bildern
+  # Falls keine Platzhalter gefunden werden, hängt Bildreferenzen am Ende an
+  def apply_image_reference_filter(content, mail, blocked_attachments = [])
+    return content if content.blank?
+    return content unless mail.respond_to?(:attachments) && mail.attachments.any?
+
+    # Sammle Bildanhänge, schließe blockierte aus
+    image_attachments = mail.attachments.select do |att|
+      next false if blocked_attachments&.include?(att.filename)
+      ct = att.content_type.to_s.downcase
+      is_image_ct = ct.start_with?('image/')
+      is_image_ext = att.filename.to_s.downcase.match?(/\.(png|jpe?g|gif|bmp|webp|svg)$/)
+      is_image_ct || is_image_ext
+    end
+    return content if image_attachments.empty?
+
+    updated = false
+
+    # 1) Ersetze U+FFFC Platzhalter sequenziell
+    object_char = "\uFFFC"
+    if content.include?(object_char)
+      imgs = image_attachments.dup
+      content = content.gsub(object_char) do
+        if imgs.any?
+          updated = true
+          " !#{File.basename(imgs.shift.filename)}! "
+        else
+          object_char # kein passendes Bild mehr
+        end
+      end
+    end
+
+    # 2) Ersetze cid:CONTENTID Referenzen
+    image_attachments.each do |att|
+      begin
+        cid = nil
+        if att.respond_to?(:content_id) && att.content_id
+          cid = att.content_id.to_s.gsub(/[<>]/, '')
+        else
+          # Manche Mail-Objekte halten die Header anders
+          raw = att.respond_to?(:header) ? att.header['content-id'] : nil
+          cid = raw.to_s.gsub(/[<>]/, '') if raw
+        end
+        if cid.present?
+          # typische Formen: cid:ID oder <cid:ID>
+          replaced1 = content.gsub!(/cid:#{Regexp.escape(cid)}/i, "!#{File.basename(att.filename)}!")
+          replaced2 = content.gsub!(/<\s*cid:#{Regexp.escape(cid)}\s*>/i, "!#{File.basename(att.filename)}!")
+          updated ||= (!!replaced1 || !!replaced2)
+        end
+      rescue => e
+        @logger.debug("Fehler beim Ersetzen von CID für #{att.filename}: #{e.message}")
+      end
+    end
+
+    # 3) Falls nichts ersetzt wurde: Bildreferenzen am Ende anfügen
+    unless updated
+      refs = image_attachments.map { |att| "!#{File.basename(att.filename)}!" }
+      unless refs.empty?
+        # füge mit Abstand an, aber vor evtl. späterer Blockierungs-Meldung
+        content = content.rstrip + "\n\n" + refs.join("\n")
+      end
+    end
+
     content
   end
 
