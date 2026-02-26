@@ -77,7 +77,7 @@ RSpec.describe MailHandlerService do
       mail = MailStub.new([img])
       content = "Bild: \uFFFC"
       result = service.send(:apply_image_reference_filter, content, mail, [])
-      expect(result).to include('![ ](attachment:Screenshot%201%20\(final\).jpeg)')
+      expect(result).to include('![](attachment:Screenshot%201%20\(final\).jpeg)')
     end
 
     it 'wandelt vorhandene !filename! in Markdown um' do
@@ -86,7 +86,7 @@ RSpec.describe MailHandlerService do
       mail = MailStub.new([img])
       content = "Hier !foto.png! inline."
       result = service.send(:apply_image_reference_filter, content, mail, [])
-      expect(result).to include('![ ](attachment:foto.png)')
+      expect(result).to include('![](attachment:foto.png)')
       expect(result).not_to include('!foto.png!')
     end
   end

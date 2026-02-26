@@ -1142,16 +1142,17 @@ class MailHandlerService
     return content if content.blank?
     return content unless mail.respond_to?(:attachments) && mail.attachments.any?
 
-    formatting = (Setting.respond_to?(:text_formatting) ? Setting.text_formatting.to_s.downcase : 'textile')
+    fmt = (Setting.respond_to?(:text_formatting) ? Setting.text_formatting.to_s.downcase : 'textile')
+    is_markdown = (fmt != 'textile') && !fmt.empty?
     build_ref = lambda do |fname|
       bn = File.basename(fname.to_s)
-      if formatting == 'markdown'
+      if is_markdown
         # Markdown: Bild aus Anhang
-        # Syntax: ![alt](attachment:filename) – Alt-Text leer halten
+        # Syntax: ![](attachment:filename)
         # Encodiere Leerzeichen als %20, escapiere Klammern/Bracket
         bn_url = bn.gsub(' ', '%20')
         safe = bn_url.gsub(')', '\)').gsub('(', '\(').gsub(']', '\]')
-        "![ ](attachment:#{safe})"
+        "![](attachment:#{safe})"
       else
         # Textile: !filename!
         "!#{bn}!"
@@ -1208,7 +1209,7 @@ class MailHandlerService
     end
 
     # 2b) Falls Markdown genutzt wird: Textile-ähnliche Platzhalter in Markdown umwandeln
-    if formatting == 'markdown'
+    if is_markdown
       content = content.gsub(/!([^!\n]+\.(?:png|jpe?g|gif|bmp|webp|svg))!/i) do
         build_ref.call($1)
       end
