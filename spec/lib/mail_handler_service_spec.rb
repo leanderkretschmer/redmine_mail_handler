@@ -19,6 +19,20 @@ class MailHandlerLogger
   def error_mail(*) end
 end
 
+class Issue
+  def self.find_by(*); end
+end
+
+class User
+  def self.find_by_login(*); end
+  def self.new(*); end
+end
+
+class EmailAddress
+  def self.find_by(*); end
+  def self.create!(*); end
+end
+
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'mail_handler_service'
 
@@ -88,6 +102,42 @@ RSpec.describe MailHandlerService do
       result = service.send(:apply_image_reference_filter, content, mail, [])
       expect(result).to include('![](attachment:foto.png)')
       expect(result).not_to include('!foto.png!')
+    end
+  end
+
+  describe '#add_mail_to_ticket' do
+    it 'fügt "Datei ... wurde hinzugefügt" Referenzen an den Kommentar an' do
+      # Mocks
+      ticket = double('Issue', id: 1)
+      allow(Issue).to receive(:find_by).with(id: 1).and_return(ticket)
+      
+      user = double('User', id: 1)
+      mail = double('Mail', subject: 'Test', from: ['test@example.com'])
+      
+      # Mock process_mail_attachments
+      allow(service).to receive(:process_mail_attachments).and_return({
+        blocked: [],
+        added: ['test.pdf', 'image.png']
+      })
+      
+      # Mock decode_mail_content und apply_image_reference_filter
+      allow(service).to receive(:decode_mail_content).and_return("Original Text")
+      allow(service).to receive(:apply_image_reference_filter).and_return("Original Text")
+      
+      # Mock Journal
+      journal = double('Journal')
+      allow(ticket).to receive(:init_journal).and_return(journal)
+      allow(journal).to receive(:created_on=)
+      allow(journal).to receive(:save).and_return(true)
+      
+      # Execute
+      service.add_mail_to_ticket(mail, 1, user)
+      
+      # Verify
+      expect(ticket).to have_received(:init_journal).with(
+        user,
+        include("Original Text\n\nDatei test.pdf wurde hinzugefügt\nDatei image.png wurde hinzugefügt")
+      )
     end
   end
 end

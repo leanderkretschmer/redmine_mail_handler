@@ -1012,10 +1012,18 @@ class MailHandlerService
     content = decode_mail_content(mail)
     
     # Verarbeite Anhänge und sammle blockierte Anhänge (vor Journal-Erstellung, damit wir den Content aktualisieren können)
-    blocked_attachments = process_mail_attachments(mail, ticket, user)
+    attachments_result = process_mail_attachments(mail, ticket, user)
+    blocked_attachments = attachments_result[:blocked]
+    added_attachments = attachments_result[:added]
     
     # Ersetze Platzhalter/CID-Referenzen für Bilder durch Redmine-Wiki-Syntax !filename!
     content = apply_image_reference_filter(content, mail, blocked_attachments)
+    
+    # Füge Referenz für hinzugefügte Dateien an
+    if added_attachments.any?
+      added_list = added_attachments.map { |name| "Datei #{name} wurde hinzugefügt" }.join("\n")
+      content += "\n\n#{added_list}"
+    end
     
     # Füge Meldung über blockierte Anhänge hinzu, falls vorhanden
     if blocked_attachments.any?
@@ -1663,9 +1671,10 @@ class MailHandlerService
 
 
   # Verarbeite E-Mail-Anhänge als Redmine-Attachments
-  # Gibt eine Liste der blockierten Anhänge zurück
+  # Gibt Hash mit blockierten und hinzugefügten Anhängen zurück: { blocked: [], added: [] }
   def process_mail_attachments(mail, ticket, user)
     blocked_attachments = []
+    added_attachments = []
     
     # Verarbeite reguläre Anhänge
     if mail.attachments.any?
@@ -1697,6 +1706,7 @@ class MailHandlerService
           if redmine_attachment.save
             # Verknüpfe Attachment mit Ticket
             ticket.attachments << redmine_attachment
+            added_attachments << attachment.filename
             @logger.info("Successfully attached file: #{attachment.filename} to ticket ##{ticket.id}")
           else
             # Anhang konnte nicht gespeichert werden - wahrscheinlich von Redmine blockiert
@@ -1719,10 +1729,11 @@ class MailHandlerService
     
     # HTML-Anhang erstellen, wenn aktiviert
     if @settings['html_attachment_enabled'] == '1'
-      create_html_attachment(mail, ticket, user)
+      html_file = create_html_attachment(mail, ticket, user)
+      added_attachments << html_file if html_file
     end
     
-    blocked_attachments
+    { blocked: blocked_attachments, added: added_attachments }
   end
   
   # Erstelle HTML-Anhang aus E-Mail-Inhalt
@@ -1755,8 +1766,10 @@ class MailHandlerService
         # Verknüpfe Attachment mit Ticket
         ticket.attachments << redmine_attachment
         @logger.info("Successfully attached HTML content as #{filename} to ticket ##{ticket.id}")
+        return filename
       else
         @logger.error("Failed to save HTML attachment #{filename}: #{redmine_attachment.errors.full_messages.join(', ')}")
+        return nil
       end
       
     rescue => e
