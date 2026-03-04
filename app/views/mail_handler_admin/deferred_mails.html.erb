@@ -22,20 +22,6 @@
   </div>
 <% end %>
 
-<!-- Einstellungen für ausgeblendete Absender -->
-<div class="box" style="margin-bottom: 15px; background-color: #f9f9f9; border: 1px solid #e4e4e4; padding: 10px;">
-  <h3 style="margin-top: 0; font-size: 1.1em;">Einstellungen: Auszublendende Absender</h3>
-  <p style="margin-bottom: 5px; color: #666;">E-Mails von diesen Absendern werden in der unteren Liste ausgeblendet (verbleiben aber im Ordner).</p>
-  <%= form_tag({ :action => 'save_deferred_settings' }, { :method => :post }) do %>
-    <p>
-      <%= text_area_tag 'exclude_senders', @exclude_senders, :rows => 2, :style => 'width: 100%; box-sizing: border-box;', :placeholder => 'E-Mail-Adressen oder Domains (z.B. @spam.com), getrennt durch Komma' %>
-    </p>
-    <p style="margin-bottom: 0;">
-      <%= submit_tag 'Einstellungen speichern', :name => nil %>
-    </p>
-  <% end %>
-</div>
-
 <!-- Suchformular -->
 <div class="search-form">
   <%= form_tag({ :action => 'deferred_mails' }, { :method => :get, :id => 'search_form' }) do %>
@@ -230,6 +216,25 @@
     </div>
   </div>
 <% end %>
+
+<!-- Einstellungen für ausgeblendete Absender -->
+<div class="search-form" style="margin-top: 15px;">
+  <%= form_tag({ :action => 'save_deferred_settings' }, { :method => :post }) do %>
+    <fieldset class="collapsible collapsed">
+      <legend onclick="toggleFieldset(this);">Einstellungen: Auszublendende Absender</legend>
+      <div style="display: none;">
+        <p style="color: #666; margin-bottom: 5px;">E-Mails von diesen Absendern werden in der unteren Liste ausgeblendet (verbleiben aber im Ordner).</p>
+        <p>
+          <label for="exclude_senders">Auszublendende Absender:</label>
+          <%= text_area_tag 'exclude_senders', @exclude_senders, :rows => 3, :style => 'width: 100%; box-sizing: border-box;', :placeholder => 'E-Mail-Adressen oder Domains (z.B. @spam.com), getrennt durch Komma' %>
+        </p>
+        <p>
+          <%= submit_tag 'Einstellungen speichern' %>
+        </p>
+      </div>
+    </fieldset>
+  <% end %>
+</div>
 
 <script type="text/javascript">
 // Set the archive URL for the external JavaScript
