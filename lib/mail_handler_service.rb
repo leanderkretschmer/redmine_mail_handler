@@ -441,7 +441,8 @@ class MailHandlerService
             EmailAddress.create!(
               user: user,
               address: user_email,
-              is_default: true
+              is_default: true,
+              notify: true
             )
             @logger.debug("Created primary EmailAddress for user #{user.id}")
           end
@@ -456,7 +457,8 @@ class MailHandlerService
               EmailAddress.create!(
                 user: user,
                 address: original_email,
-                is_default: false
+                is_default: false,
+                notify: false
               )
               @logger.debug("Created secondary EmailAddress (#{original_email}) for user #{user.id}")
             end
