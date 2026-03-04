@@ -186,6 +186,7 @@ class MailHandlerAdminController < ApplicationController
       # Suchparameter
       @search_from = params[:search_from]
       @search_subject = params[:search_subject]
+      @exclude_senders = params[:exclude_senders]
       
       # Initialisiere Logging-Variablen
       @imap_debug_info = []
@@ -208,27 +209,38 @@ class MailHandlerAdminController < ApplicationController
           all_message_ids = ids_result[:message_ids]
           @imap_debug_info << "✓ #{all_message_ids.length} Message-IDs gefunden (schnelle Abfrage)"
           
-          # Bei Suche müssen wir leider alle laden, um zu filtern
-          if @search_from.present? || @search_subject.present?
-            @imap_debug_info << "ℹ Suchfilter aktiv - lade alle E-Mails für Filterung"
+          # Bei Suche oder Ausschluss-Filter müssen wir leider alle laden, um zu filtern
+          if @search_from.present? || @search_subject.present? || @exclude_senders.present?
+            @imap_debug_info << "ℹ Filter aktiv - lade alle E-Mails für Filterung"
             @deferred_mails = get_deferred_mails_from_imap_paginated(all_message_ids)
       
-      # Filtere nach Suchkriterien
-      original_count = @deferred_mails.length
-      if @search_from.present?
-        @deferred_mails = @deferred_mails.select { |mail| mail[:from]&.downcase&.include?(@search_from.downcase) }
-        @imap_debug_info << "✓ Nach Absender-Filter (#{@search_from}): #{@deferred_mails.length} E-Mails"
-      end
-      
-      if @search_subject.present?
-        @deferred_mails = @deferred_mails.select { |mail| mail[:subject]&.downcase&.include?(@search_subject.downcase) }
-        @imap_debug_info << "✓ Nach Betreff-Filter (#{@search_subject}): #{@deferred_mails.length} E-Mails"
-      end
-      
+            # Filtere nach Suchkriterien
+            original_count = @deferred_mails.length
+            if @search_from.present?
+              @deferred_mails = @deferred_mails.select { |mail| mail[:from]&.downcase&.include?(@search_from.downcase) }
+              @imap_debug_info << "✓ Nach Absender-Filter (#{@search_from}): #{@deferred_mails.length} E-Mails"
+            end
+            
+            if @search_subject.present?
+              @deferred_mails = @deferred_mails.select { |mail| mail[:subject]&.downcase&.include?(@search_subject.downcase) }
+              @imap_debug_info << "✓ Nach Betreff-Filter (#{@search_subject}): #{@deferred_mails.length} E-Mails"
+            end
+
+            # Filtere nach Ausschlusskriterien
+            if @exclude_senders.present?
+              exclude_patterns = @exclude_senders.split(',').map(&:strip).map(&:downcase).reject(&:blank?)
+              @deferred_mails = @deferred_mails.reject do |mail|
+                sender = mail[:from]&.downcase
+                next false if sender.blank?
+                exclude_patterns.any? { |pattern| sender.include?(pattern) }
+              end
+              @imap_debug_info << "✓ Nach Ausschluss-Filter (#{@exclude_senders}): #{@deferred_mails.length} E-Mails"
+            end
+            
             if @deferred_mails.length < original_count
-        filtered_out = original_count - @deferred_mails.length
-        @imap_debug_info << "ℹ #{filtered_out} E-Mails durch Suchfilter ausgeblendet"
-      end
+              filtered_out = original_count - @deferred_mails.length
+              @imap_debug_info << "ℹ #{filtered_out} E-Mails durch Filter ausgeblendet"
+            end
       
       @total_count = @deferred_mails.length
             @total_pages = (@total_count.to_f / @per_page).ceil

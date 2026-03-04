@@ -37,6 +37,10 @@
           <%= text_field_tag 'search_subject', @search_subject, :placeholder => 'Betreff der E-Mail', :size => 30 %>
         </p>
         <p>
+          <label for="exclude_senders" title="E-Mails von diesen Absendern ausblenden (kommagetrennt)">Auszublendende Absender:</label>
+          <%= text_field_tag 'exclude_senders', @exclude_senders, :placeholder => 'E-Mail oder @domain.com (kommagetrennt)', :size => 30 %>
+        </p>
+        <p>
           <%= submit_tag 'Suchen', :class => 'small' %>
           <%= link_to 'Zurücksetzen', { :action => 'deferred_mails' }, :class => 'small' %>
         </p>
