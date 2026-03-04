@@ -22,6 +22,20 @@
   </div>
 <% end %>
 
+<!-- Einstellungen für ausgeblendete Absender -->
+<div class="box" style="margin-bottom: 15px; background-color: #f9f9f9; border: 1px solid #e4e4e4; padding: 10px;">
+  <h3 style="margin-top: 0; font-size: 1.1em;">Einstellungen: Auszublendende Absender</h3>
+  <p style="margin-bottom: 5px; color: #666;">E-Mails von diesen Absendern werden in der unteren Liste ausgeblendet (verbleiben aber im Ordner).</p>
+  <%= form_tag({ :action => 'save_deferred_settings' }, { :method => :post }) do %>
+    <p>
+      <%= text_area_tag 'exclude_senders', @exclude_senders, :rows => 2, :style => 'width: 100%; box-sizing: border-box;', :placeholder => 'E-Mail-Adressen oder Domains (z.B. @spam.com), getrennt durch Komma' %>
+    </p>
+    <p style="margin-bottom: 0;">
+      <%= submit_tag 'Einstellungen speichern', :name => nil %>
+    </p>
+  <% end %>
+</div>
+
 <!-- Suchformular -->
 <div class="search-form">
   <%= form_tag({ :action => 'deferred_mails' }, { :method => :get, :id => 'search_form' }) do %>
@@ -35,10 +49,6 @@
         <p>
           <label for="search_subject">Betreff:</label>
           <%= text_field_tag 'search_subject', @search_subject, :placeholder => 'Betreff der E-Mail', :size => 30 %>
-        </p>
-        <p>
-          <label for="exclude_senders" title="E-Mails von diesen Absendern ausblenden (kommagetrennt)">Auszublendende Absender:</label>
-          <%= text_field_tag 'exclude_senders', @exclude_senders, :placeholder => 'E-Mail oder @domain.com (kommagetrennt)', :size => 30 %>
         </p>
         <p>
           <%= submit_tag 'Suchen', :class => 'small' %>

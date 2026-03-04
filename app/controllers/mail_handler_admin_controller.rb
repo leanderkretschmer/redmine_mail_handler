@@ -186,7 +186,9 @@ class MailHandlerAdminController < ApplicationController
       # Suchparameter
       @search_from = params[:search_from]
       @search_subject = params[:search_subject]
-      @exclude_senders = params[:exclude_senders]
+      
+      # Lade Ausschlussliste aus Settings
+      @exclude_senders = Setting.plugin_redmine_mail_handler['deferred_view_exclude_list']
       
       # Initialisiere Logging-Variablen
       @imap_debug_info = []
@@ -294,23 +296,53 @@ class MailHandlerAdminController < ApplicationController
     end
   end
 
+  def save_deferred_settings
+    begin
+      settings = Setting.plugin_redmine_mail_handler
+      new_settings = settings.merge('deferred_view_exclude_list' => params[:exclude_senders])
+      Setting.plugin_redmine_mail_handler = new_settings
+      flash[:notice] = "Einstellungen für ausgeblendete Absender gespeichert."
+    rescue => e
+      flash[:error] = "Fehler beim Speichern der Einstellungen: #{e.message}"
+    end
+    redirect_to action: :deferred_mails
+  end
+
   # AJAX-Endpoint für Lazy Loading weiterer E-Mails
   def load_deferred_mails_page
     begin
       page = (params[:page] || 1).to_i
       per_page = (params[:per_page] || 20).to_i
+      exclude_senders = Setting.plugin_redmine_mail_handler['deferred_view_exclude_list']
       
       ids_result = @service.get_deferred_message_ids
       
       if ids_result[:success]
         all_message_ids = ids_result[:message_ids]
-        total_count = all_message_ids.length
-        total_pages = (total_count.to_f / per_page).ceil
-        
-        offset = (page - 1) * per_page
         sorted_ids = all_message_ids.sort.reverse
         
-        deferred_mails = @service.get_deferred_mail_headers(sorted_ids, offset, per_page)
+        # Wenn Filter aktiv ist, müssen wir alle laden und filtern
+        if exclude_senders.present?
+           all_mails = get_deferred_mails_from_imap_paginated(all_message_ids)
+           
+           exclude_patterns = exclude_senders.split(',').map(&:strip).map(&:downcase).reject(&:blank?)
+           filtered_mails = all_mails.reject do |mail|
+             sender = mail[:from]&.downcase
+             next false if sender.blank?
+             exclude_patterns.any? { |pattern| sender.include?(pattern) }
+           end
+           
+           total_count = filtered_mails.length
+           total_pages = (total_count.to_f / per_page).ceil
+           offset = (page - 1) * per_page
+           deferred_mails = filtered_mails[offset, per_page] || []
+        else
+           # Standard Lazy Loading
+           total_count = all_message_ids.length
+           total_pages = (total_count.to_f / per_page).ceil
+           offset = (page - 1) * per_page
+           deferred_mails = @service.get_deferred_mail_headers(sorted_ids, offset, per_page)
+        end
         
         render json: {
           success: true,

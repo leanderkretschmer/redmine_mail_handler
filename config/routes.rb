@@ -27,6 +27,7 @@ RedmineApp::Application.routes.draw do
         post :reload_deferred_mails
         post :rescan_deferred_mails
         post :archive_deferred_mails
+        post :save_deferred_settings
         
         post :block_user
       end
