@@ -106,7 +106,7 @@ RSpec.describe MailHandlerService do
   end
 
   describe '#add_mail_to_ticket' do
-    it 'fügt "Datei ... wurde hinzugefügt" Referenzen an den Kommentar an' do
+    it 'initialisiert Journal vor Attachments, damit Details verknüpft werden' do
       # Mocks
       ticket = double('Issue', id: 1)
       allow(Issue).to receive(:find_by).with(id: 1).and_return(ticket)
@@ -115,6 +115,7 @@ RSpec.describe MailHandlerService do
       mail = double('Mail', subject: 'Test', from: ['test@example.com'])
       
       # Mock process_mail_attachments
+      # Wir erwarten, dass dies NACH init_journal aufgerufen wird
       allow(service).to receive(:process_mail_attachments).and_return({
         blocked: [],
         added: ['test.pdf', 'image.png']
@@ -126,18 +127,19 @@ RSpec.describe MailHandlerService do
       
       # Mock Journal
       journal = double('Journal')
-      allow(ticket).to receive(:init_journal).and_return(journal)
+      # Erwarte init_journal Aufruf zuerst
+      expect(ticket).to receive(:init_journal).with(user, "Original Text").ordered.and_return(journal)
+      # Erwarte process_mail_attachments danach
+      expect(service).to receive(:process_mail_attachments).ordered
+      
       allow(journal).to receive(:created_on=)
       allow(journal).to receive(:save).and_return(true)
       
+      # Erwarte, dass Notes aktualisiert werden
+      expect(journal).to receive(:notes=).with("Original Text")
+      
       # Execute
       service.add_mail_to_ticket(mail, 1, user)
-      
-      # Verify
-      expect(ticket).to have_received(:init_journal).with(
-        user,
-        include("Original Text\n\nDatei test.pdf wurde hinzugefügt\nDatei image.png wurde hinzugefügt")
-      )
     end
   end
 end

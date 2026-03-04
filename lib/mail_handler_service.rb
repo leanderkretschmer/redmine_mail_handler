@@ -1011,19 +1011,15 @@ class MailHandlerService
     # Decode mail content
     content = decode_mail_content(mail)
     
-    # Verarbeite Anhänge und sammle blockierte Anhänge (vor Journal-Erstellung, damit wir den Content aktualisieren können)
+    # Create journal entry first to ensure attachments are linked as details
+    journal = ticket.init_journal(user, content)
+
+    # Verarbeite Anhänge und sammle blockierte Anhänge
     attachments_result = process_mail_attachments(mail, ticket, user)
     blocked_attachments = attachments_result[:blocked]
-    added_attachments = attachments_result[:added]
     
     # Ersetze Platzhalter/CID-Referenzen für Bilder durch Redmine-Wiki-Syntax !filename!
     content = apply_image_reference_filter(content, mail, blocked_attachments)
-    
-    # Füge Referenz für hinzugefügte Dateien an
-    if added_attachments.any?
-      added_list = added_attachments.map { |name| "Datei #{name} wurde hinzugefügt" }.join("\n")
-      content += "\n\n#{added_list}"
-    end
     
     # Füge Meldung über blockierte Anhänge hinzu, falls vorhanden
     if blocked_attachments.any?
@@ -1031,8 +1027,8 @@ class MailHandlerService
       content += "\n\n*⚠️ Die folgenden Anhänge konnten nicht angehängt werden (von Redmine blockiert): #{blocked_list}*"
     end
     
-    # Create journal entry
-    journal = ticket.init_journal(user, content)
+    # Update journal content
+    journal.notes = content
     
     # Rückdatierung anwenden, wenn aktiviert
     if @settings['backdate_comments'] == '1' && mail.date.present?
