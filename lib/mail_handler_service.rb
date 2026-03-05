@@ -647,11 +647,25 @@ class MailHandlerService
             from_address = "#{from_mailbox.mailbox}@#{from_mailbox.host}" if from_mailbox.mailbox && from_mailbox.host
           end
           
+          # Dekodiere Betreff
+          subject = envelope.subject
+          if subject.present?
+            # Versuche robustes Decoding
+            begin
+              subject = decode_header_with_mail_decoder(subject)
+              # Entferne nicht unterstützte Zeichen
+              subject = sanitize_utf8_for_mysql(subject)
+            rescue => e
+              @logger.warn("Failed to decode subject for #{msg_id}: #{e.message}")
+              subject = envelope.subject # Fallback
+            end
+          end
+          
           mail_data = {
             id: msg_id,
             message_id: envelope.message_id,
             from: from_address,
-            subject: envelope.subject,
+            subject: subject,
             date: envelope.date ? Time.parse(envelope.date.to_s) : nil,
             deferred_at: deferred_info[:deferred_at],
             expires_at: deferred_info[:expires_at],
@@ -1412,16 +1426,23 @@ class MailHandlerService
     return "" if header_value.blank?
     
     begin
-      # Prüfe ob mail-decoder verfügbar ist
+      # 1. Versuch: MailDecoder (optionales Plugin)
       if defined?(MailDecoder)
         decoded = MailDecoder.decode_header(header_value)
         return ensure_utf8_encoding(decoded)
-      else
-        @logger.warn("Mail-Decoder gem nicht verfügbar, verwende Standard-Decoding")
-        return ensure_utf8_encoding(header_value)
       end
+      
+      # 2. Versuch: Mail Gem (Standard in Redmine)
+      # Mail::Encodings.value_decode dekodiert MIME Encoded Words (=?UTF-8?Q?...?=)
+      if defined?(Mail::Encodings)
+        decoded = Mail::Encodings.value_decode(header_value)
+        return ensure_utf8_encoding(decoded)
+      end
+      
+      @logger.warn("Kein geeigneter Mail-Decoder verfügbar, verwende Standard-Decoding")
+      return ensure_utf8_encoding(header_value)
     rescue => e
-      @logger.warn("Mail-Decoder Header-Decoding fehlgeschlagen: #{e.message}")
+      @logger.warn("Header-Decoding fehlgeschlagen: #{e.message}")
       # Fallback auf Standard-Encoding-Behandlung
       return ensure_utf8_encoding(header_value)
     end

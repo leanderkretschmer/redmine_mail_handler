@@ -155,4 +155,18 @@ RSpec.describe MailHandlerService do
       expect(service.sanitize_utf8_for_mysql(input)).to eq(input)
     end
   end
+
+  describe '#decode_header_with_mail_decoder' do
+    it 'dekodiert MIME-Encoded-Words mit Mail::Encodings' do
+      input = "=?UTF-8?Q?Test=20Subject?="
+      expected = "Test Subject"
+      
+      # Mock Mail::Encodings
+      encodings_double = double('Mail::Encodings')
+      allow(encodings_double).to receive(:value_decode).with(input).and_return(expected)
+      stub_const('Mail::Encodings', encodings_double)
+      
+      expect(service.decode_header_with_mail_decoder(input)).to eq(expected)
+    end
+  end
 end
