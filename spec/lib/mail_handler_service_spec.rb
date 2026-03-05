@@ -142,4 +142,17 @@ RSpec.describe MailHandlerService do
       service.add_mail_to_ticket(mail, 1, user)
     end
   end
+
+  describe '#sanitize_utf8_for_mysql' do
+    it 'entfernt Emojis (4-Byte UTF-8 Zeichen)' do
+      input = "Hallo Welt 😊"
+      expected = "Hallo Welt □"
+      expect(service.sanitize_utf8_for_mysql(input)).to eq(expected)
+    end
+
+    it 'behält normale Zeichen bei' do
+      input = "Hallo Welt 123 äöü"
+      expect(service.sanitize_utf8_for_mysql(input)).to eq(input)
+    end
+  end
 end

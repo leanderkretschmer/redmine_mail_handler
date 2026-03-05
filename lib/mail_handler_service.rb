@@ -1131,12 +1131,22 @@ class MailHandlerService
         mail_body = apply_markdown_link_filter(mail_body)
       end
       
+      # Entferne Emojis/4-Byte-Chars für DB-Kompatibilität
+      mail_body = sanitize_utf8_for_mysql(mail_body)
+      
       # Füge den bereinigten Inhalt hinzu
       content += mail_body
     end
     
     
     content
+  end
+
+  # Entferne 4-Byte UTF-8 Zeichen für MySQL-Kompatibilität (utf8 vs utf8mb4)
+  # Ersetzt diese durch ein Platzhalter-Symbol (□)
+  def sanitize_utf8_for_mysql(text)
+    return text unless text.is_a?(String)
+    text.gsub(/[\u{10000}-\u{10FFFF}]/, '□')
   end
 
   # Ersetze Bild-Platzhalter im Text durch Redmine-Bildreferenzen "!datei.ext!"
