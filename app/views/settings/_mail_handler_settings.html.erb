@@ -10,6 +10,7 @@
     <li><a href="#tab-parser">Parser</a></li>
     <li><a href="#tab-automation">Automatisierung</a></li>
     <li><a href="#tab-matrix">Adress-Matrix</a></li>
+    <li><a href="#tab-performance">Performance</a></li>
     <li><a href="#tab-help">Hilfe</a></li>
   </ul>
 </div>
@@ -145,6 +146,27 @@
     
     <!-- Hidden field to store the serialized data for Redmine -->
     <%= hidden_field_tag 'settings[address_matrix]', @settings['address_matrix'], id: 'settings_address_matrix' %>
+  </div>
+</div>
+
+<!-- Tab Content: Performance -->
+<div id="tab-performance" class="tab-content" style="display: none;">
+  <div class="box tabular settings">
+    <h3>Performance-Einstellungen (Bilder ausblenden)</h3>
+    <p>
+      Um die Ladezeiten in Verteilertickets zu verbessern, können Bilder (z.B. aus PDFs oder Screenshots) vorübergehend ausgeblendet werden.
+      Sie werden durch einen Platzhalter ("Vorschau vorübergehend deaktiviert") ersetzt und erst wieder angezeigt, wenn der Kommentar in ein anderes Ticket verschoben wird.
+    </p>
+    <p>
+      <label for="settings_performance_disable_images">Bilder in Verteilertickets ausblenden</label>
+      <%= check_box_tag 'settings[performance_disable_images]', '1', @settings['performance_disable_images'] == '1' %>
+      <em class="info">Aktiviert die Funktion. Gilt standardmäßig für das Posteingang-Ticket.</em>
+    </p>
+    <p>
+      <label for="settings_performance_disabled_ticket_ids">Zusätzliche Ticket-IDs</label>
+      <%= text_field_tag 'settings[performance_disabled_ticket_ids]', @settings['performance_disabled_ticket_ids'], size: 30, placeholder: '123, 456' %>
+      <em class="info">Kommaseparierte Liste von weiteren Ticket-IDs, in denen Bilder ausgeblendet werden sollen.</em>
+    </p>
   </div>
 </div>
 

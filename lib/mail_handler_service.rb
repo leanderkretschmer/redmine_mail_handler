@@ -1119,6 +1119,17 @@ class MailHandlerService
     # Ersetze Platzhalter/CID-Referenzen für Bilder durch Redmine-Wiki-Syntax !filename!
     content = apply_image_reference_filter(content, mail, blocked_attachments)
     
+    # NEW: Apply performance image filter if enabled
+    if @settings['performance_disable_images'] == '1'
+      disabled_ids = @settings['performance_disabled_ticket_ids'].to_s.split(',').map(&:strip)
+      inbox_id = @settings['inbox_ticket_id'].to_s.strip
+      disabled_ids << inbox_id if inbox_id.present?
+
+      if disabled_ids.include?(ticket_id.to_s)
+        content = apply_performance_image_filter(content, ticket, user)
+      end
+    end
+    
     # Füge Meldung über blockierte Anhänge hinzu, falls vorhanden
     if blocked_attachments.any?
       blocked_list = blocked_attachments.map { |name| "`#{name}`" }.join(", ")
@@ -1149,6 +1160,74 @@ class MailHandlerService
     end
     
     add_mail_to_ticket(mail, inbox_ticket_id, user)
+  end
+
+  def apply_performance_image_filter(content, ticket, user)
+    placeholder_filename = 'vorschau_deaktiviert.png'
+    
+    # Check if we need to replace anything first to avoid uploading unused image
+    fmt = (Setting.respond_to?(:text_formatting) ? Setting.text_formatting.to_s.downcase : 'textile')
+    is_markdown = (fmt != 'textile') && !fmt.empty?
+    
+    needs_replacement = false
+    if is_markdown
+      needs_replacement = content.match?(/!\[\]\(attachment:(?!(?:#{placeholder_filename}))([^)]+)\)/)
+    else
+      needs_replacement = content.match?(/!(?!(?:#{placeholder_filename}))([^!\n]+\.(?:png|jpe?g|gif|bmp|webp|svg))!/i)
+    end
+    
+    return content unless needs_replacement
+
+    # Ensure placeholder image is attached to the ticket
+    unless ticket.attachments.any? { |a| a.filename == placeholder_filename }
+      attach_placeholder_image(ticket, user, placeholder_filename)
+    end
+
+    if is_markdown
+      content = content.gsub(/!\[\]\(attachment:(?!(?:#{placeholder_filename}))([^)]+)\)/) do |match|
+        filename = $1
+        "![](attachment:#{placeholder_filename})\n{{DISABLED_IMG:#{filename}}}"
+      end
+    else
+      content = content.gsub(/!(?!(?:#{placeholder_filename}))([^!\n]+\.(?:png|jpe?g|gif|bmp|webp|svg))!/i) do |match|
+        filename = $1
+        "!#{placeholder_filename}!\n{{DISABLED_IMG:#{filename}}}"
+      end
+    end
+
+    content
+  end
+
+  def attach_placeholder_image(ticket, user, filename)
+    # Check if the file exists in the plugin assets
+    plugin_dir = File.expand_path('../../', __FILE__)
+    filepath = File.join(plugin_dir, 'assets', 'images', filename)
+    
+    unless File.exist?(filepath)
+      @logger.warn("Placeholder image not found at #{filepath}")
+      return
+    end
+
+    begin
+      temp_file = File.open(filepath, 'rb')
+      attachment = Attachment.new(
+        :file => temp_file,
+        :filename => filename,
+        :author => user,
+        :content_type => 'image/png'
+      )
+      
+      if attachment.save
+        ticket.attachments << attachment
+        @logger.debug("Attached placeholder image #{filename} to ticket ##{ticket.id}")
+      else
+        @logger.error("Failed to attach placeholder image: #{attachment.errors.full_messages.join(', ')}")
+      end
+    rescue => e
+      @logger.error("Error attaching placeholder image: #{e.message}")
+    ensure
+      temp_file&.close if temp_file
+    end
   end
 
   # Dekodiere Mail-Inhalt

@@ -52,7 +52,9 @@ Redmine::Plugin.register :redmine_mail_handler do
       'exclude_attachments_enabled' => '1',
       'excluded_attachment_patterns' => '',
       'deduplication_enabled' => '1',
-      'address_matrix' => ''
+      'address_matrix' => '',
+      'performance_disable_images' => '0',
+      'performance_disabled_ticket_ids' => ''
     }, :partial => 'settings/mail_handler_settings'
 
   # Menü-Einträge hinzufügen
@@ -76,6 +78,7 @@ require File.expand_path('../lib/mail_handler_service', __FILE__)
 require File.expand_path('../lib/mail_handler_scheduler', __FILE__)
 require File.expand_path('../lib/mail_handler_logger', __FILE__)
 require File.expand_path('../lib/mail_handler_hooks', __FILE__)
+require File.expand_path('../lib/mail_handler_journal_patch', __FILE__)
 
 # Initialisiere Scheduler nach Plugin-Load
 Rails.application.config.after_initialize do
