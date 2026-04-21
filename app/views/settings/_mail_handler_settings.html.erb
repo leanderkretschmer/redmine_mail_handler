@@ -9,6 +9,7 @@
     <li><a href="#tab-processing">Verarbeitung</a></li>
     <li><a href="#tab-parser">Parser</a></li>
     <li><a href="#tab-automation">Automatisierung</a></li>
+    <li><a href="#tab-matrix">Adress-Matrix</a></li>
     <li><a href="#tab-help">Hilfe</a></li>
   </ul>
 </div>
@@ -116,6 +117,36 @@
   </div>
 </div>
 
+
+<!-- Tab Content: Matrix -->
+<div id="tab-matrix" class="tab-content" style="display: none;">
+  <div class="box tabular settings">
+    <h3>Adress-Matrix (Alias-Zuweisung)</h3>
+    <p>
+      Hier können Sie Alias-Adressen direkt zu Tickets zuweisen. Wenn eine E-Mail an eine dieser Adressen gesendet wird und noch keine Ticket-ID im Betreff hat, wird sie automatisch dem entsprechenden Ticket zugeordnet.
+    </p>
+    
+    <table class="list" id="address-matrix-table" style="width: 100%; max-width: 600px; margin-bottom: 10px;">
+      <thead>
+        <tr>
+          <th>E-Mail Adresse (Alias)</th>
+          <th>Ticket-ID</th>
+          <th>Aktion</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Dynamically filled via JS -->
+      </tbody>
+    </table>
+    
+    <p>
+      <button type="button" id="add-matrix-row" class="button">Eintrag hinzufügen</button>
+    </p>
+    
+    <!-- Hidden field to store the serialized data for Redmine -->
+    <%= hidden_field_tag 'settings[address_matrix]', @settings['address_matrix'], id: 'settings_address_matrix' %>
+  </div>
+</div>
 
 <!-- Tab Content: Help -->
 <div id="tab-help" class="tab-content" style="display: none;">
@@ -459,6 +490,100 @@ function initMailHandlerSettings() {
     resetDefaultsBtn.addEventListener('click', function() {
       // Dev-Defaults-Funktion entfernt
     });
+  }
+
+  // Address Matrix Logic
+  var matrixTableBody = document.querySelector('#address-matrix-table tbody');
+  var addMatrixRowBtn = document.getElementById('add-matrix-row');
+  var hiddenMatrixField = document.getElementById('settings_address_matrix');
+  
+  if (matrixTableBody && addMatrixRowBtn && hiddenMatrixField) {
+    function updateHiddenMatrixField() {
+      var rows = matrixTableBody.querySelectorAll('tr');
+      var data = [];
+      rows.forEach(function(row) {
+        var emailInput = row.querySelector('.matrix-email');
+        var ticketInput = row.querySelector('.matrix-ticket');
+        if (emailInput && ticketInput && emailInput.value.trim() !== '') {
+          data.push(emailInput.value.trim() + ':' + ticketInput.value.trim());
+        }
+      });
+      hiddenMatrixField.value = data.join('\n');
+    }
+
+    function createMatrixRow(email, ticket) {
+      var tr = document.createElement('tr');
+      
+      var tdEmail = document.createElement('td');
+      var inputEmail = document.createElement('input');
+      inputEmail.type = 'text';
+      inputEmail.className = 'matrix-email';
+      inputEmail.value = email || '';
+      inputEmail.placeholder = 'alias@example.com';
+      inputEmail.style.width = '95%';
+      inputEmail.addEventListener('change', updateHiddenMatrixField);
+      inputEmail.addEventListener('keyup', updateHiddenMatrixField);
+      tdEmail.appendChild(inputEmail);
+      
+      var tdTicket = document.createElement('td');
+      var inputTicket = document.createElement('input');
+      inputTicket.type = 'number';
+      inputTicket.className = 'matrix-ticket';
+      inputTicket.value = ticket || '';
+      inputTicket.placeholder = '12345';
+      inputTicket.style.width = '95%';
+      inputTicket.addEventListener('change', updateHiddenMatrixField);
+      inputTicket.addEventListener('keyup', updateHiddenMatrixField);
+      tdTicket.appendChild(inputTicket);
+      
+      var tdAction = document.createElement('td');
+      var delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'button';
+      delBtn.textContent = 'Löschen';
+      delBtn.addEventListener('click', function() {
+        tr.remove();
+        updateHiddenMatrixField();
+      });
+      tdAction.appendChild(delBtn);
+      
+      tr.appendChild(tdEmail);
+      tr.appendChild(tdTicket);
+      tr.appendChild(tdAction);
+      
+      return tr;
+    }
+
+    // Load existing data
+    var existingData = hiddenMatrixField.value.split('\n');
+    existingData.forEach(function(line) {
+      var parts = line.split(/[:,]/);
+      if (parts.length >= 2) {
+        var email = parts[0].trim();
+        var ticket = parts[1].trim();
+        if (email) {
+          matrixTableBody.appendChild(createMatrixRow(email, ticket));
+        }
+      }
+    });
+
+    // Add empty row if empty
+    if (matrixTableBody.children.length === 0) {
+      matrixTableBody.appendChild(createMatrixRow('', ''));
+    }
+
+    addMatrixRowBtn.addEventListener('click', function() {
+      matrixTableBody.appendChild(createMatrixRow('', ''));
+      updateHiddenMatrixField();
+    });
+    
+    // Catch form submit to ensure field is updated
+    var form = hiddenMatrixField.closest('form');
+    if (form) {
+      form.addEventListener('submit', function() {
+        updateHiddenMatrixField();
+      });
+    }
   }
 
 }

@@ -51,7 +51,8 @@ Redmine::Plugin.register :redmine_mail_handler do
       'markdown_link_filter_enabled' => '1',
       'exclude_attachments_enabled' => '1',
       'excluded_attachment_patterns' => '',
-      'deduplication_enabled' => '1'
+      'deduplication_enabled' => '1',
+      'address_matrix' => ''
     }, :partial => 'settings/mail_handler_settings'
 
   # Menü-Einträge hinzufügen

@@ -955,6 +955,19 @@ class MailHandlerService
     # Extract ticket ID from subject
     ticket_id = extract_ticket_id(mail.subject)
     
+    # Check alias matrix if no ticket ID was found in the subject
+    if ticket_id.nil?
+      mapped_ticket_id = get_ticket_id_from_alias_mapping(mail)
+      if mapped_ticket_id
+        ticket_id = mapped_ticket_id
+        @logger.info("Found matching alias in address matrix, assigning to ticket ##{ticket_id}")
+        
+        # ID im Betreff ergänzen (wie gewünscht)
+        original_subject = mail.subject || ""
+        mail.subject = "[##{ticket_id}] #{original_subject}"
+      end
+    end
+    
     # Check if user already exists
     existing_user = find_existing_user(from_address)
     
@@ -1010,6 +1023,77 @@ class MailHandlerService
     # [Text #123] - new format with text before ID
     match = subject.match(/\[(?:.*?\s)?#(\d+)\]/) || subject.match(/\[#(\d+)\]/)
     match ? match[1].to_i : nil
+  end
+
+  # Check if email to-address is mapped to a ticket ID via address matrix
+  def get_ticket_id_from_alias_mapping(mail)
+    matrix_setting = @settings['address_matrix']
+    return nil if matrix_setting.blank?
+    
+    # Parse matrix text
+    mapping = {}
+    matrix_setting.split("\n").each do |line|
+      next if line.strip.blank?
+      if line.match(/^([^:,]+)[:\,]\s*(\d+)$/)
+        email = $1.strip.downcase
+        ticket_id = $2.strip.to_i
+        mapping[email] = ticket_id
+      end
+    end
+    
+    return nil if mapping.empty?
+    
+    # Sammle mögliche Empfänger-Adressen
+    recipients = []
+    
+    # Standard-Header (geben Arrays oder nil zurück)
+    [mail.to, mail.cc, mail.bcc].each do |field|
+      if field.is_a?(Array)
+        recipients.concat(field)
+      elsif field.present?
+        recipients << field.to_s
+      end
+    end
+    
+    # Spezifische Envelope- und Delivery-Header
+    ['Delivered-To', 'X-Original-To', 'Envelope-To'].each do |header_name|
+      header_value = mail.header[header_name]
+      if header_value
+        if header_value.is_a?(Array)
+          recipients.concat(header_value.map(&:to_s))
+        else
+          recipients << header_value.to_s
+        end
+      end
+    end
+    
+    recipients.compact.map { |r| r.to_s.downcase.strip }.each do |recipient|
+      # Extrahiere reine E-Mail-Adresse (z.B. aus "Name <email@example.com>")
+      extracted_email = recipient[/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i]
+      next unless extracted_email
+      
+      extracted_email = extracted_email.downcase
+      
+      # 1. Exakter Treffer
+      if mapping.key?(extracted_email)
+        return mapping[extracted_email]
+      end
+      
+      # 2. Präfix Treffer oder lokaler Teil (z.B. "pfp12345@" oder "pfp12345")
+      mapping.each do |mapped_email, t_id|
+        # Falls in der Matrix "alias@" hinterlegt ist
+        if mapped_email.end_with?('@') && extracted_email.start_with?(mapped_email)
+          return t_id
+        end
+        
+        # Falls in der Matrix nur der lokale Teil "alias" hinterlegt ist
+        if !mapped_email.include?('@') && extracted_email.split('@').first == mapped_email
+          return t_id
+        end
+      end
+    end
+    
+    nil
   end
 
   # Add mail to specific ticket
