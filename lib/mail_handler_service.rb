@@ -441,7 +441,8 @@ class MailHandlerService
             EmailAddress.create!(
               user: user,
               address: user_email,
-              is_default: true
+              is_default: true,
+              notify: true
             )
             @logger.debug("Created primary EmailAddress for user #{user.id}")
           end
@@ -456,7 +457,8 @@ class MailHandlerService
               EmailAddress.create!(
                 user: user,
                 address: original_email,
-                is_default: false
+                is_default: false,
+                notify: false
               )
               @logger.debug("Created secondary EmailAddress (#{original_email}) for user #{user.id}")
             end
@@ -645,11 +647,25 @@ class MailHandlerService
             from_address = "#{from_mailbox.mailbox}@#{from_mailbox.host}" if from_mailbox.mailbox && from_mailbox.host
           end
           
+          # Dekodiere Betreff
+          subject = envelope.subject
+          if subject.present?
+            # Versuche robustes Decoding
+            begin
+              subject = decode_header_with_mail_decoder(subject)
+              # Entferne nicht unterstützte Zeichen
+              subject = sanitize_utf8_for_mysql(subject)
+            rescue => e
+              @logger.warn("Failed to decode subject for #{msg_id}: #{e.message}")
+              subject = envelope.subject # Fallback
+            end
+          end
+          
           mail_data = {
             id: msg_id,
             message_id: envelope.message_id,
             from: from_address,
-            subject: envelope.subject,
+            subject: subject,
             date: envelope.date ? Time.parse(envelope.date.to_s) : nil,
             deferred_at: deferred_info[:deferred_at],
             expires_at: deferred_info[:expires_at],
@@ -939,6 +955,19 @@ class MailHandlerService
     # Extract ticket ID from subject
     ticket_id = extract_ticket_id(mail.subject)
     
+    # Check alias matrix if no ticket ID was found in the subject
+    if ticket_id.nil?
+      mapped_ticket_id = get_ticket_id_from_alias_mapping(mail)
+      if mapped_ticket_id
+        ticket_id = mapped_ticket_id
+        @logger.info("Found matching alias in address matrix, assigning to ticket ##{ticket_id}")
+        
+        # ID im Betreff ergänzen (wie gewünscht)
+        original_subject = mail.subject || ""
+        mail.subject = "[##{ticket_id}] #{original_subject}"
+      end
+    end
+    
     # Check if user already exists
     existing_user = find_existing_user(from_address)
     
@@ -996,6 +1025,77 @@ class MailHandlerService
     match ? match[1].to_i : nil
   end
 
+  # Check if email to-address is mapped to a ticket ID via address matrix
+  def get_ticket_id_from_alias_mapping(mail)
+    matrix_setting = @settings['address_matrix']
+    return nil if matrix_setting.blank?
+    
+    # Parse matrix text
+    mapping = {}
+    matrix_setting.split("\n").each do |line|
+      next if line.strip.blank?
+      if line.match(/^([^:,]+)[:\,]\s*(\d+)$/)
+        email = $1.strip.downcase
+        ticket_id = $2.strip.to_i
+        mapping[email] = ticket_id
+      end
+    end
+    
+    return nil if mapping.empty?
+    
+    # Sammle mögliche Empfänger-Adressen
+    recipients = []
+    
+    # Standard-Header (geben Arrays oder nil zurück)
+    [mail.to, mail.cc, mail.bcc].each do |field|
+      if field.is_a?(Array)
+        recipients.concat(field)
+      elsif field.present?
+        recipients << field.to_s
+      end
+    end
+    
+    # Spezifische Envelope- und Delivery-Header
+    ['Delivered-To', 'X-Original-To', 'Envelope-To'].each do |header_name|
+      header_value = mail.header[header_name]
+      if header_value
+        if header_value.is_a?(Array)
+          recipients.concat(header_value.map(&:to_s))
+        else
+          recipients << header_value.to_s
+        end
+      end
+    end
+    
+    recipients.compact.map { |r| r.to_s.downcase.strip }.each do |recipient|
+      # Extrahiere reine E-Mail-Adresse (z.B. aus "Name <email@example.com>")
+      extracted_email = recipient[/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i]
+      next unless extracted_email
+      
+      extracted_email = extracted_email.downcase
+      
+      # 1. Exakter Treffer
+      if mapping.key?(extracted_email)
+        return mapping[extracted_email]
+      end
+      
+      # 2. Präfix Treffer oder lokaler Teil (z.B. "pfp12345@" oder "pfp12345")
+      mapping.each do |mapped_email, t_id|
+        # Falls in der Matrix "alias@" hinterlegt ist
+        if mapped_email.end_with?('@') && extracted_email.start_with?(mapped_email)
+          return t_id
+        end
+        
+        # Falls in der Matrix nur der lokale Teil "alias" hinterlegt ist
+        if !mapped_email.include?('@') && extracted_email.split('@').first == mapped_email
+          return t_id
+        end
+      end
+    end
+    
+    nil
+  end
+
   # Add mail to specific ticket
   def add_mail_to_ticket(mail, ticket_id, user)
     ticket = Issue.find_by(id: ticket_id)
@@ -1009,8 +1109,26 @@ class MailHandlerService
     # Decode mail content
     content = decode_mail_content(mail)
     
-    # Verarbeite Anhänge und sammle blockierte Anhänge (vor Journal-Erstellung, damit wir den Content aktualisieren können)
-    blocked_attachments = process_mail_attachments(mail, ticket, user)
+    # Create journal entry first to ensure attachments are linked as details
+    journal = ticket.init_journal(user, content)
+
+    # Verarbeite Anhänge und sammle blockierte Anhänge
+    attachments_result = process_mail_attachments(mail, ticket, user)
+    blocked_attachments = attachments_result[:blocked]
+    
+    # Ersetze Platzhalter/CID-Referenzen für Bilder durch Redmine-Wiki-Syntax !filename!
+    content = apply_image_reference_filter(content, mail, blocked_attachments)
+    
+    # NEW: Apply performance image filter if enabled
+    if @settings['performance_disable_images'] == '1'
+      disabled_ids = @settings['performance_disabled_ticket_ids'].to_s.split(',').map(&:strip)
+      inbox_id = @settings['inbox_ticket_id'].to_s.strip
+      disabled_ids << inbox_id if inbox_id.present?
+
+      if disabled_ids.include?(ticket_id.to_s)
+        content = apply_performance_image_filter(content, ticket, user)
+      end
+    end
     
     # Füge Meldung über blockierte Anhänge hinzu, falls vorhanden
     if blocked_attachments.any?
@@ -1018,8 +1136,8 @@ class MailHandlerService
       content += "\n\n*⚠️ Die folgenden Anhänge konnten nicht angehängt werden (von Redmine blockiert): #{blocked_list}*"
     end
     
-    # Create journal entry
-    journal = ticket.init_journal(user, content)
+    # Update journal content
+    journal.notes = content
     
     # Rückdatierung anwenden, wenn aktiviert
     if @settings['backdate_comments'] == '1' && mail.date.present?
@@ -1042,6 +1160,74 @@ class MailHandlerService
     end
     
     add_mail_to_ticket(mail, inbox_ticket_id, user)
+  end
+
+  def apply_performance_image_filter(content, ticket, user)
+    placeholder_filename = 'vorschau_deaktiviert.png'
+    
+    # Check if we need to replace anything first to avoid uploading unused image
+    fmt = (Setting.respond_to?(:text_formatting) ? Setting.text_formatting.to_s.downcase : 'textile')
+    is_markdown = (fmt != 'textile') && !fmt.empty?
+    
+    needs_replacement = false
+    if is_markdown
+      needs_replacement = content.match?(/!\[\]\(attachment:(?!(?:#{placeholder_filename}))([^)]+)\)/)
+    else
+      needs_replacement = content.match?(/!(?!(?:#{placeholder_filename}))([^!\n]+\.(?:png|jpe?g|gif|bmp|webp|svg))!/i)
+    end
+    
+    return content unless needs_replacement
+
+    # Ensure placeholder image is attached to the ticket
+    unless ticket.attachments.any? { |a| a.filename == placeholder_filename }
+      attach_placeholder_image(ticket, user, placeholder_filename)
+    end
+
+    if is_markdown
+      content = content.gsub(/!\[\]\(attachment:(?!(?:#{placeholder_filename}))([^)]+)\)/) do |match|
+        filename = $1
+        "![](attachment:#{placeholder_filename})\n{{DISABLED_IMG:#{filename}}}"
+      end
+    else
+      content = content.gsub(/!(?!(?:#{placeholder_filename}))([^!\n]+\.(?:png|jpe?g|gif|bmp|webp|svg))!/i) do |match|
+        filename = $1
+        "!#{placeholder_filename}!\n{{DISABLED_IMG:#{filename}}}"
+      end
+    end
+
+    content
+  end
+
+  def attach_placeholder_image(ticket, user, filename)
+    # Check if the file exists in the plugin assets
+    plugin_dir = File.expand_path('../../', __FILE__)
+    filepath = File.join(plugin_dir, 'assets', 'images', filename)
+    
+    unless File.exist?(filepath)
+      @logger.warn("Placeholder image not found at #{filepath}")
+      return
+    end
+
+    begin
+      temp_file = File.open(filepath, 'rb')
+      attachment = Attachment.new(
+        :file => temp_file,
+        :filename => filename,
+        :author => user,
+        :content_type => 'image/png'
+      )
+      
+      if attachment.save
+        ticket.attachments << attachment
+        @logger.debug("Attached placeholder image #{filename} to ticket ##{ticket.id}")
+      else
+        @logger.error("Failed to attach placeholder image: #{attachment.errors.full_messages.join(', ')}")
+      end
+    rescue => e
+      @logger.error("Error attaching placeholder image: #{e.message}")
+    ensure
+      temp_file&.close if temp_file
+    end
   end
 
   # Dekodiere Mail-Inhalt
@@ -1122,11 +1308,124 @@ class MailHandlerService
         mail_body = apply_markdown_link_filter(mail_body)
       end
       
+      # Entferne Emojis/4-Byte-Chars für DB-Kompatibilität
+      mail_body = sanitize_utf8_for_mysql(mail_body)
+      
       # Füge den bereinigten Inhalt hinzu
       content += mail_body
     end
     
     
+    content
+  end
+
+  # Entferne 4-Byte UTF-8 Zeichen für MySQL-Kompatibilität (utf8 vs utf8mb4)
+  # Ersetzt diese durch ein Platzhalter-Symbol (□)
+  def sanitize_utf8_for_mysql(text)
+    return text unless text.is_a?(String)
+    text.gsub(/[\u{10000}-\u{10FFFF}]/, '□')
+  end
+
+  # Ersetze Bild-Platzhalter im Text durch Redmine-Bildreferenzen "!datei.ext!"
+  # Berücksichtigt:
+  # - U+FFFC (OBJECT REPLACEMENT CHARACTER), der oft aus HTML-Konvertierungen für Bilder entsteht
+  # - cid:CONTENT_ID Referenzen aus Inline-Bildern
+  # Falls keine Platzhalter gefunden werden, hängt Bildreferenzen am Ende an
+  def apply_image_reference_filter(content, mail, blocked_attachments = [])
+    return content if content.blank?
+    return content unless mail.respond_to?(:attachments) && mail.attachments.any?
+
+    fmt = (Setting.respond_to?(:text_formatting) ? Setting.text_formatting.to_s.downcase : 'textile')
+    is_markdown = (fmt != 'textile') && !fmt.empty?
+    build_ref = lambda do |fname|
+      bn = File.basename(fname.to_s)
+      if is_markdown
+        # Markdown: Bild aus Anhang
+        # Syntax: ![](attachment:filename)
+        # Encodiere Leerzeichen als %20, escapiere Klammern/Bracket
+        bn_url = bn.gsub(' ', '%20')
+        safe = bn_url.gsub(')', '\)').gsub('(', '\(').gsub(']', '\]')
+        "![](attachment:#{safe})"
+      else
+        # Textile: !filename! – Leerzeichen ebenfalls %20-kodieren
+        bn_url = bn.gsub(' ', '%20')
+        "!#{bn_url}!"
+      end
+    end
+
+    # Sammle Bildanhänge, schließe blockierte aus
+    image_attachments = mail.attachments.select do |att|
+      next false if blocked_attachments&.include?(att.filename)
+      ct = att.content_type.to_s.downcase
+      is_image_ct = ct.start_with?('image/')
+      is_image_ext = att.filename.to_s.downcase.match?(/\.(png|jpe?g|gif|bmp|webp|svg)$/)
+      is_image_ct || is_image_ext
+    end
+    return content if image_attachments.empty?
+
+    updated = false
+
+    # 1) Ersetze U+FFFC Platzhalter sequenziell
+    object_char = "\uFFFC"
+    if content.include?(object_char)
+      imgs = image_attachments.dup
+      content = content.gsub(object_char) do
+        if imgs.any?
+          updated = true
+          " #{build_ref.call(imgs.shift.filename)} "
+        else
+          object_char # kein passendes Bild mehr
+        end
+      end
+    end
+
+    # 2) Ersetze cid:CONTENTID Referenzen
+    image_attachments.each do |att|
+      begin
+        cid = nil
+        if att.respond_to?(:content_id) && att.content_id
+          cid = att.content_id.to_s.gsub(/[<>]/, '')
+        else
+          # Manche Mail-Objekte halten die Header anders
+          raw = att.respond_to?(:header) ? att.header['content-id'] : nil
+          cid = raw.to_s.gsub(/[<>]/, '') if raw
+        end
+        if cid.present?
+          # typische Formen: cid:ID oder <cid:ID>
+          ref = build_ref.call(att.filename)
+          replaced1 = content.gsub!(/cid:#{Regexp.escape(cid)}/i, ref)
+          replaced2 = content.gsub!(/<\s*cid:#{Regexp.escape(cid)}\s*>/i, ref)
+          updated ||= (!!replaced1 || !!replaced2)
+        end
+      rescue => e
+        @logger.debug("Fehler beim Ersetzen von CID für #{att.filename}: #{e.message}")
+      end
+    end
+
+    # 2b) Falls Markdown genutzt wird: Textile-ähnliche Platzhalter in Markdown umwandeln
+    if is_markdown
+      content = content.gsub(/!([^!\n]+\.(?:png|jpe?g|gif|bmp|webp|svg))!/i) do
+        build_ref.call($1)
+      end
+    end
+
+    # 2c) In Textile-Fällen vorhandene !filename! Bild-Marker auf %20-Leerzeichen kodieren
+    unless is_markdown
+      content = content.gsub(/!([^!\n]+\.(?:png|jpe?g|gif|bmp|webp|svg))!/i) do
+        inner = Regexp.last_match(1)
+        "!#{inner.gsub(' ', '%20')}!"
+      end
+    end
+
+    # 3) Falls nichts ersetzt wurde: Bildreferenzen am Ende anfügen
+    unless updated
+      refs = image_attachments.map { |att| build_ref.call(att.filename) }
+      unless refs.empty?
+        # füge mit Abstand an, aber vor evtl. späterer Blockierungs-Meldung
+        content = content.rstrip + "\n\n" + refs.join("\n")
+      end
+    end
+
     content
   end
 
@@ -1290,16 +1589,23 @@ class MailHandlerService
     return "" if header_value.blank?
     
     begin
-      # Prüfe ob mail-decoder verfügbar ist
+      # 1. Versuch: MailDecoder (optionales Plugin)
       if defined?(MailDecoder)
         decoded = MailDecoder.decode_header(header_value)
         return ensure_utf8_encoding(decoded)
-      else
-        @logger.warn("Mail-Decoder gem nicht verfügbar, verwende Standard-Decoding")
-        return ensure_utf8_encoding(header_value)
       end
+      
+      # 2. Versuch: Mail Gem (Standard in Redmine)
+      # Mail::Encodings.value_decode dekodiert MIME Encoded Words (=?UTF-8?Q?...?=)
+      if defined?(Mail::Encodings)
+        decoded = Mail::Encodings.value_decode(header_value)
+        return ensure_utf8_encoding(decoded)
+      end
+      
+      @logger.warn("Kein geeigneter Mail-Decoder verfügbar, verwende Standard-Decoding")
+      return ensure_utf8_encoding(header_value)
     rescue => e
-      @logger.warn("Mail-Decoder Header-Decoding fehlgeschlagen: #{e.message}")
+      @logger.warn("Header-Decoding fehlgeschlagen: #{e.message}")
       # Fallback auf Standard-Encoding-Behandlung
       return ensure_utf8_encoding(header_value)
     end
@@ -1555,9 +1861,10 @@ class MailHandlerService
 
 
   # Verarbeite E-Mail-Anhänge als Redmine-Attachments
-  # Gibt eine Liste der blockierten Anhänge zurück
+  # Gibt Hash mit blockierten und hinzugefügten Anhängen zurück: { blocked: [], added: [] }
   def process_mail_attachments(mail, ticket, user)
     blocked_attachments = []
+    added_attachments = []
     
     # Verarbeite reguläre Anhänge
     if mail.attachments.any?
@@ -1589,6 +1896,7 @@ class MailHandlerService
           if redmine_attachment.save
             # Verknüpfe Attachment mit Ticket
             ticket.attachments << redmine_attachment
+            added_attachments << attachment.filename
             @logger.info("Successfully attached file: #{attachment.filename} to ticket ##{ticket.id}")
           else
             # Anhang konnte nicht gespeichert werden - wahrscheinlich von Redmine blockiert
@@ -1611,10 +1919,11 @@ class MailHandlerService
     
     # HTML-Anhang erstellen, wenn aktiviert
     if @settings['html_attachment_enabled'] == '1'
-      create_html_attachment(mail, ticket, user)
+      html_file = create_html_attachment(mail, ticket, user)
+      added_attachments << html_file if html_file
     end
     
-    blocked_attachments
+    { blocked: blocked_attachments, added: added_attachments }
   end
   
   # Erstelle HTML-Anhang aus E-Mail-Inhalt
@@ -1647,8 +1956,10 @@ class MailHandlerService
         # Verknüpfe Attachment mit Ticket
         ticket.attachments << redmine_attachment
         @logger.info("Successfully attached HTML content as #{filename} to ticket ##{ticket.id}")
+        return filename
       else
         @logger.error("Failed to save HTML attachment #{filename}: #{redmine_attachment.errors.full_messages.join(', ')}")
+        return nil
       end
       
     rescue => e

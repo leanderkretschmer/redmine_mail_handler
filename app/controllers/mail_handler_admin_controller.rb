@@ -187,6 +187,9 @@ class MailHandlerAdminController < ApplicationController
       @search_from = params[:search_from]
       @search_subject = params[:search_subject]
       
+      # Lade Ausschlussliste aus Settings
+      @exclude_senders = Setting.plugin_redmine_mail_handler['deferred_view_exclude_list']
+      
       # Initialisiere Logging-Variablen
       @imap_debug_info = []
       
@@ -208,27 +211,38 @@ class MailHandlerAdminController < ApplicationController
           all_message_ids = ids_result[:message_ids]
           @imap_debug_info << "✓ #{all_message_ids.length} Message-IDs gefunden (schnelle Abfrage)"
           
-          # Bei Suche müssen wir leider alle laden, um zu filtern
-          if @search_from.present? || @search_subject.present?
-            @imap_debug_info << "ℹ Suchfilter aktiv - lade alle E-Mails für Filterung"
+          # Bei Suche oder Ausschluss-Filter müssen wir leider alle laden, um zu filtern
+          if @search_from.present? || @search_subject.present? || @exclude_senders.present?
+            @imap_debug_info << "ℹ Filter aktiv - lade alle E-Mails für Filterung"
             @deferred_mails = get_deferred_mails_from_imap_paginated(all_message_ids)
       
-      # Filtere nach Suchkriterien
-      original_count = @deferred_mails.length
-      if @search_from.present?
-        @deferred_mails = @deferred_mails.select { |mail| mail[:from]&.downcase&.include?(@search_from.downcase) }
-        @imap_debug_info << "✓ Nach Absender-Filter (#{@search_from}): #{@deferred_mails.length} E-Mails"
-      end
-      
-      if @search_subject.present?
-        @deferred_mails = @deferred_mails.select { |mail| mail[:subject]&.downcase&.include?(@search_subject.downcase) }
-        @imap_debug_info << "✓ Nach Betreff-Filter (#{@search_subject}): #{@deferred_mails.length} E-Mails"
-      end
-      
+            # Filtere nach Suchkriterien
+            original_count = @deferred_mails.length
+            if @search_from.present?
+              @deferred_mails = @deferred_mails.select { |mail| mail[:from]&.downcase&.include?(@search_from.downcase) }
+              @imap_debug_info << "✓ Nach Absender-Filter (#{@search_from}): #{@deferred_mails.length} E-Mails"
+            end
+            
+            if @search_subject.present?
+              @deferred_mails = @deferred_mails.select { |mail| mail[:subject]&.downcase&.include?(@search_subject.downcase) }
+              @imap_debug_info << "✓ Nach Betreff-Filter (#{@search_subject}): #{@deferred_mails.length} E-Mails"
+            end
+
+            # Filtere nach Ausschlusskriterien
+            if @exclude_senders.present?
+              exclude_patterns = @exclude_senders.split(',').map(&:strip).map(&:downcase).reject(&:blank?)
+              @deferred_mails = @deferred_mails.reject do |mail|
+                sender = mail[:from]&.downcase
+                next false if sender.blank?
+                exclude_patterns.any? { |pattern| sender.include?(pattern) }
+              end
+              @imap_debug_info << "✓ Nach Ausschluss-Filter (#{@exclude_senders}): #{@deferred_mails.length} E-Mails"
+            end
+            
             if @deferred_mails.length < original_count
-        filtered_out = original_count - @deferred_mails.length
-        @imap_debug_info << "ℹ #{filtered_out} E-Mails durch Suchfilter ausgeblendet"
-      end
+              filtered_out = original_count - @deferred_mails.length
+              @imap_debug_info << "ℹ #{filtered_out} E-Mails durch Filter ausgeblendet"
+            end
       
       @total_count = @deferred_mails.length
             @total_pages = (@total_count.to_f / @per_page).ceil
@@ -282,23 +296,53 @@ class MailHandlerAdminController < ApplicationController
     end
   end
 
+  def save_deferred_settings
+    begin
+      settings = Setting.plugin_redmine_mail_handler
+      new_settings = settings.merge('deferred_view_exclude_list' => params[:exclude_senders])
+      Setting.plugin_redmine_mail_handler = new_settings
+      flash[:notice] = "Einstellungen für ausgeblendete Absender gespeichert."
+    rescue => e
+      flash[:error] = "Fehler beim Speichern der Einstellungen: #{e.message}"
+    end
+    redirect_to action: :deferred_mails
+  end
+
   # AJAX-Endpoint für Lazy Loading weiterer E-Mails
   def load_deferred_mails_page
     begin
       page = (params[:page] || 1).to_i
       per_page = (params[:per_page] || 20).to_i
+      exclude_senders = Setting.plugin_redmine_mail_handler['deferred_view_exclude_list']
       
       ids_result = @service.get_deferred_message_ids
       
       if ids_result[:success]
         all_message_ids = ids_result[:message_ids]
-        total_count = all_message_ids.length
-        total_pages = (total_count.to_f / per_page).ceil
-        
-        offset = (page - 1) * per_page
         sorted_ids = all_message_ids.sort.reverse
         
-        deferred_mails = @service.get_deferred_mail_headers(sorted_ids, offset, per_page)
+        # Wenn Filter aktiv ist, müssen wir alle laden und filtern
+        if exclude_senders.present?
+           all_mails = get_deferred_mails_from_imap_paginated(all_message_ids)
+           
+           exclude_patterns = exclude_senders.split(',').map(&:strip).map(&:downcase).reject(&:blank?)
+           filtered_mails = all_mails.reject do |mail|
+             sender = mail[:from]&.downcase
+             next false if sender.blank?
+             exclude_patterns.any? { |pattern| sender.include?(pattern) }
+           end
+           
+           total_count = filtered_mails.length
+           total_pages = (total_count.to_f / per_page).ceil
+           offset = (page - 1) * per_page
+           deferred_mails = filtered_mails[offset, per_page] || []
+        else
+           # Standard Lazy Loading
+           total_count = all_message_ids.length
+           total_pages = (total_count.to_f / per_page).ceil
+           offset = (page - 1) * per_page
+           deferred_mails = @service.get_deferred_mail_headers(sorted_ids, offset, per_page)
+        end
         
         render json: {
           success: true,

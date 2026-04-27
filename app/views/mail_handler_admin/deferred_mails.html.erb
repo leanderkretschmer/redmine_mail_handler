@@ -217,6 +217,25 @@
   </div>
 <% end %>
 
+<!-- Einstellungen für ausgeblendete Absender -->
+<div class="search-form" style="margin-top: 15px;">
+  <%= form_tag({ :action => 'save_deferred_settings' }, { :method => :post }) do %>
+    <fieldset class="collapsible collapsed">
+      <legend onclick="toggleFieldset(this);">Einstellungen: Auszublendende Absender</legend>
+      <div style="display: none;">
+        <p style="color: #666; margin-bottom: 5px;">E-Mails von diesen Absendern werden in der unteren Liste ausgeblendet (verbleiben aber im Ordner).</p>
+        <p>
+          <label for="exclude_senders">Auszublendende Absender:</label>
+          <%= text_area_tag 'exclude_senders', @exclude_senders, :rows => 3, :style => 'width: 100%; box-sizing: border-box;', :placeholder => 'E-Mail-Adressen oder Domains (z.B. @spam.com), getrennt durch Komma' %>
+        </p>
+        <p>
+          <%= submit_tag 'Einstellungen speichern' %>
+        </p>
+      </div>
+    </fieldset>
+  <% end %>
+</div>
+
 <script type="text/javascript">
 // Set the archive URL for the external JavaScript
 document.addEventListener('DOMContentLoaded', function() {
