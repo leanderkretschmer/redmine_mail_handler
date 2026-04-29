@@ -1240,7 +1240,7 @@ class MailHandlerService
     # Betreff hinzufügen mit robustem Decoding
     if mail.subject
       subject = use_mail_decoder ? decode_header_with_mail_decoder(mail.subject) : mail.subject
-      content += "**Betreff:** #{subject}\n\n"
+      content += "#{subject}\n\n"
     end
     
     # Parser-Modus prüfen
