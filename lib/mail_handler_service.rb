@@ -23,6 +23,53 @@ class MailHandlerService
     @logger = MailHandlerLogger.new
   end
 
+  # ---------------------------------------------------------------------------
+  # Public API for external plugins
+  #
+  # Diese Methoden sind die offizielle Schnittstelle, ueber die andere Plugins
+  # auf die Adress-Matrix-Daten zugreifen koennen. Nur Eintraege, deren
+  # "Mark Projekt"-Flag in den Plugin-Einstellungen aktiviert ist, werden
+  # als aktive Alias→Projekt-Zuordnungen veroeffentlicht.
+  # ---------------------------------------------------------------------------
+
+  # Liefert alle Eintraege der Adress-Matrix als Array von Hashes.
+  #   [{ email: "alias@example.com", ticket_id: 123, mark_project: true }, ...]
+  def self.parse_address_matrix
+    settings = Setting.plugin_redmine_mail_handler || {}
+    raw = settings['address_matrix'].to_s
+    entries = []
+    raw.split("\n").each do |line|
+      next if line.strip.blank?
+      next unless line.match(/^([^:,]+)[:\,]\s*(\d+)(?:[:\,]\s*([01]))?\s*$/)
+      entries << {
+        email: $1.strip.downcase,
+        ticket_id: $2.to_i,
+        mark_project: ($3.to_s.strip == '1')
+      }
+    end
+    entries
+  end
+
+  # Hash { "alias@example.com" => <Project>, ... } fuer alle Eintraege mit
+  # gesetztem Mark-Projekt-Flag. Tickets ohne auffindbares Projekt werden
+  # uebersprungen.
+  def self.alias_project_mapping
+    mapping = {}
+    parse_address_matrix.each do |entry|
+      next unless entry[:mark_project]
+      issue = Issue.find_by(id: entry[:ticket_id])
+      next unless issue && issue.project
+      mapping[entry[:email]] = issue.project
+    end
+    mapping
+  end
+
+  # Liste der Alias-Adressen, die fuer ein bestimmtes Projekt aktiv markiert sind.
+  def self.aliases_for_project(project_or_id)
+    project_id = project_or_id.respond_to?(:id) ? project_or_id.id : project_or_id.to_i
+    alias_project_mapping.select { |_, project| project.id == project_id }.keys
+  end
+
   # Main method for mail import
   def import_mails(limit = nil)
     begin
@@ -1030,11 +1077,13 @@ class MailHandlerService
     matrix_setting = @settings['address_matrix']
     return nil if matrix_setting.blank?
     
-    # Parse matrix text
+    # Parse matrix text. Format pro Zeile: "email:ticket_id" oder
+    # "email:ticket_id:mark_project_flag" (rueckwaertskompatibel — drittes Feld
+    # ist optional und wird hier nicht ausgewertet, siehe alias_project_mapping).
     mapping = {}
     matrix_setting.split("\n").each do |line|
       next if line.strip.blank?
-      if line.match(/^([^:,]+)[:\,]\s*(\d+)$/)
+      if line.match(/^([^:,]+)[:\,]\s*(\d+)(?:[:\,]\s*[01])?\s*$/)
         email = $1.strip.downcase
         ticket_id = $2.strip.to_i
         mapping[email] = ticket_id

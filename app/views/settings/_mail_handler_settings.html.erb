@@ -126,12 +126,18 @@
     <p>
       Hier können Sie Alias-Adressen direkt zu Tickets zuweisen. Wenn eine E-Mail an eine dieser Adressen gesendet wird und noch keine Ticket-ID im Betreff hat, wird sie automatisch dem entsprechenden Ticket zugeordnet.
     </p>
-    
-    <table class="list" id="address-matrix-table" style="width: 100%; max-width: 600px; margin-bottom: 10px;">
+    <p>
+      <em class="info">
+        <strong>Mark Projekt:</strong> Schnittstelle für externe Plugins. Wenn aktiviert, wird das zum Ticket gehörende Redmine-Projekt als "aktiv für diese Alias-Adresse" veröffentlicht. Andere Plugins können so über die öffentliche API (<code>MailHandlerService.alias_project_mapping</code>) ermitteln, welche Alias-Mail in welchem Projekt aktiv ist. Der Mail-Versand selbst wird durch dieses Häkchen nicht beeinflusst.
+      </em>
+    </p>
+
+    <table class="list" id="address-matrix-table" style="width: 100%; max-width: 700px; margin-bottom: 10px;">
       <thead>
         <tr>
           <th>E-Mail Adresse (Alias)</th>
           <th>Ticket-ID</th>
+          <th style="text-align: center;">Mark Projekt</th>
           <th>Aktion</th>
         </tr>
       </thead>
@@ -526,16 +532,18 @@ function initMailHandlerSettings() {
       rows.forEach(function(row) {
         var emailInput = row.querySelector('.matrix-email');
         var ticketInput = row.querySelector('.matrix-ticket');
+        var markInput = row.querySelector('.matrix-mark-project');
         if (emailInput && ticketInput && emailInput.value.trim() !== '') {
-          data.push(emailInput.value.trim() + ':' + ticketInput.value.trim());
+          var markFlag = (markInput && markInput.checked) ? '1' : '0';
+          data.push(emailInput.value.trim() + ':' + ticketInput.value.trim() + ':' + markFlag);
         }
       });
       hiddenMatrixField.value = data.join('\n');
     }
 
-    function createMatrixRow(email, ticket) {
+    function createMatrixRow(email, ticket, markProject) {
       var tr = document.createElement('tr');
-      
+
       var tdEmail = document.createElement('td');
       var inputEmail = document.createElement('input');
       inputEmail.type = 'text';
@@ -546,7 +554,7 @@ function initMailHandlerSettings() {
       inputEmail.addEventListener('change', updateHiddenMatrixField);
       inputEmail.addEventListener('keyup', updateHiddenMatrixField);
       tdEmail.appendChild(inputEmail);
-      
+
       var tdTicket = document.createElement('td');
       var inputTicket = document.createElement('input');
       inputTicket.type = 'number';
@@ -557,7 +565,17 @@ function initMailHandlerSettings() {
       inputTicket.addEventListener('change', updateHiddenMatrixField);
       inputTicket.addEventListener('keyup', updateHiddenMatrixField);
       tdTicket.appendChild(inputTicket);
-      
+
+      var tdMark = document.createElement('td');
+      tdMark.style.textAlign = 'center';
+      var inputMark = document.createElement('input');
+      inputMark.type = 'checkbox';
+      inputMark.className = 'matrix-mark-project';
+      inputMark.checked = !!markProject;
+      inputMark.title = 'Projekt für externe Plugins als aktiv markieren';
+      inputMark.addEventListener('change', updateHiddenMatrixField);
+      tdMark.appendChild(inputMark);
+
       var tdAction = document.createElement('td');
       var delBtn = document.createElement('button');
       delBtn.type = 'button';
@@ -568,11 +586,12 @@ function initMailHandlerSettings() {
         updateHiddenMatrixField();
       });
       tdAction.appendChild(delBtn);
-      
+
       tr.appendChild(tdEmail);
       tr.appendChild(tdTicket);
+      tr.appendChild(tdMark);
       tr.appendChild(tdAction);
-      
+
       return tr;
     }
 
@@ -583,19 +602,20 @@ function initMailHandlerSettings() {
       if (parts.length >= 2) {
         var email = parts[0].trim();
         var ticket = parts[1].trim();
+        var mark = parts.length >= 3 && parts[2].trim() === '1';
         if (email) {
-          matrixTableBody.appendChild(createMatrixRow(email, ticket));
+          matrixTableBody.appendChild(createMatrixRow(email, ticket, mark));
         }
       }
     });
 
     // Add empty row if empty
     if (matrixTableBody.children.length === 0) {
-      matrixTableBody.appendChild(createMatrixRow('', ''));
+      matrixTableBody.appendChild(createMatrixRow('', '', false));
     }
 
     addMatrixRowBtn.addEventListener('click', function() {
-      matrixTableBody.appendChild(createMatrixRow('', ''));
+      matrixTableBody.appendChild(createMatrixRow('', '', false));
       updateHiddenMatrixField();
     });
     
