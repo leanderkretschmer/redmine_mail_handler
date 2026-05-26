@@ -423,10 +423,29 @@ class MailHandlerAdminController < ApplicationController
     redirect_to action: :deferred_mails
   end
 
+  # Lightweight JSON-Endpoint fuer den Admin-Index. Bedient sich aus dem
+  # persistierten Stats-Cache (Setting['_deferred_stats_cache']) und holt nur
+  # dann live von IMAP, wenn der Cache abgelaufen oder per ?refresh=1 erzwungen.
+  def deferred_stats_json
+    refresh = params[:refresh].to_s == '1'
+    stats = @service.deferred_stats_cached(refresh: refresh)
+    render json: {
+      total:      stats[:total],
+      active:     stats[:active],
+      expired:    stats[:expired],
+      truncated:  stats[:truncated] ? true : false,
+      updated_at: stats[:updated_at]&.iso8601,
+      from_cache: stats[:from_cache] ? true : false
+    }
+  rescue => e
+    Rails.logger.error("[mail_handler] deferred_stats_json: #{e.class}: #{e.message}")
+    render json: { error: e.message, total: 0, active: 0, expired: 0 }, status: 500
+  end
+
   def deferred_status
     begin
-      # Hole Statistiken aus IMAP-Ordner
-      @deferred_stats = @service.count_deferred_messages
+      # Hole Statistiken aus IMAP-Ordner (cached, kein direkter IMAP-Volllauf)
+      @deferred_stats = @service.deferred_stats_cached
       
       # Für die Anzeige: Keine einzelnen Einträge mehr, nur Statistiken
       @deferred_entries = []

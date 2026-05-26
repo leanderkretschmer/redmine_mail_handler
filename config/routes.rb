@@ -22,6 +22,7 @@ RedmineApp::Application.routes.draw do
         delete :delete_anonymous_comments
         delete :delete_orphaned_attachments
         get :deferred_status
+        get :deferred_stats_json
         get :deferred_mails
         get :load_deferred_mails_page
         post :reload_deferred_mails

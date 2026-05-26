@@ -561,50 +561,133 @@ class MailHandlerService
     end
   end
 
-  # Zähle Nachrichten im deferred Ordner
-  def count_deferred_messages
+  # Cache-TTL fuer die persistierte deferred-Statistik (in Sekunden).
+  DEFERRED_STATS_CACHE_TTL = 300
+
+  # Liefert die Deferred-Statistik. Bevorzugt den persistierten Snapshot in
+  # Setting['_deferred_stats_cache'] (Counts + updated_at, keine Mail-Inhalte).
+  # Frischt nur dann live nach, wenn der Snapshot fehlt oder aelter als TTL ist,
+  # bzw. wenn refresh: true uebergeben wird. Schreibt das Ergebnis als JSON
+  # zurueck ins Setting.
+  def deferred_stats_cached(refresh: false, ttl: DEFERRED_STATS_CACHE_TTL)
+    snapshot = read_deferred_stats_snapshot
+
+    if !refresh && snapshot && snapshot[:updated_at] && (Time.current - snapshot[:updated_at]) < ttl
+      return snapshot.merge(from_cache: true)
+    end
+
+    fresh = count_deferred_messages
+    write_deferred_stats_snapshot(fresh)
+    fresh.merge(updated_at: Time.current, from_cache: false)
+  end
+
+  def read_deferred_stats_snapshot
+    raw = (Setting.plugin_redmine_mail_handler || {})['_deferred_stats_cache']
+    return nil if raw.blank?
+    data = JSON.parse(raw)
+    {
+      total:      data['total'].to_i,
+      active:     data['active'].to_i,
+      expired:    data['expired'].to_i,
+      truncated:  data['truncated'] ? true : false,
+      updated_at: (Time.parse(data['updated_at']) rescue nil)
+    }
+  rescue => e
+    @logger.warn("Konnte deferred_stats_cache nicht parsen: #{e.message}")
+    nil
+  end
+
+  def write_deferred_stats_snapshot(stats)
+    settings = Setting.plugin_redmine_mail_handler || {}
+    settings = settings.dup
+    settings['_deferred_stats_cache'] = {
+      total:      stats[:total].to_i,
+      active:     stats[:active].to_i,
+      expired:    stats[:expired].to_i,
+      truncated:  !!stats[:truncated],
+      updated_at: Time.current.iso8601
+    }.to_json
+    Setting.plugin_redmine_mail_handler = settings
+  rescue => e
+    @logger.warn("Konnte deferred_stats_cache nicht schreiben: #{e.message}")
+  end
+
+  # Zähle Nachrichten im deferred Ordner.
+  #
+  # Performance-Hinweis: Es werden NUR die Header (RFC822.HEADER) geholt, nicht
+  # die kompletten Mail-Bodies. Das reduziert den IMAP-Traffic um Faktor 100-1000
+  # gegenueber dem alten RFC822-Fetch, weil keine Anhaenge uebertragen werden.
+  # Zusaetzlich wird per Batch-Fetch und einem Hard-Limit (DEFERRED_COUNT_MAX)
+  # die Bearbeitungszeit gedeckelt. Nur Counts werden zurueckgegeben, keine
+  # Mail-Inhalte werden gespeichert.
+  DEFERRED_COUNT_MAX = 500
+  DEFERRED_FETCH_BATCH = 100
+
+  def count_deferred_messages(limit: DEFERRED_COUNT_MAX)
     begin
       imap = connect_to_imap
-      return { total: 0, active: 0, expired: 0 } unless imap
-      
+      return { total: 0, active: 0, expired: 0, truncated: false } unless imap
+
       deferred_folder = @settings['deferred_folder'].presence || 'Deferred'
-      
+
       # Prüfe ob Ordner existiert
       begin
         imap.select(deferred_folder)
       rescue Net::IMAP::NoResponseError
-        return { total: 0, active: 0, expired: 0 }
+        return { total: 0, active: 0, expired: 0, truncated: false }
       end
-      
-      msg_ids = imap.search(['ALL'])
+
+      msg_ids = imap.search(['ALL']) || []
       total_count = msg_ids.length
+      truncated = limit && total_count > limit
+      sample_ids = truncated ? msg_ids.last(limit) : msg_ids
+
       active_count = 0
       expired_count = 0
-      
-      msg_ids.each do |msg_id|
+
+      # Header-Batch-Fetch: nur RFC822.HEADER pro Mail (kBytes statt MBytes).
+      sample_ids.each_slice(DEFERRED_FETCH_BATCH) do |batch|
         begin
-          msg_data = imap.fetch(msg_id, 'RFC822')[0].attr['RFC822']
-          next if msg_data.blank?
-          
-          mail = Mail.read_from_string(msg_data)
-          next if mail.nil?
-          
-          if mail_deferred_expired?(mail)
-            expired_count += 1
-          else
+          fetch_results = imap.fetch(batch, 'RFC822.HEADER') || []
+        rescue => e
+          @logger.warn("Header-Batch-Fetch fuer deferred-Folder fehlgeschlagen: #{e.message}")
+          # Fallback: Batch als aktiv zaehlen, statt einzeln nachzulegen.
+          active_count += batch.length
+          next
+        end
+
+        fetch_results.each do |fr|
+          begin
+            header_data = fr&.attr&.dig('RFC822.HEADER')
+            if header_data.blank?
+              active_count += 1
+              next
+            end
+
+            mail = Mail.read_from_string(header_data)
+            if mail && mail_deferred_expired?(mail)
+              expired_count += 1
+            else
+              active_count += 1
+            end
+          rescue => e
+            @logger.warn("Failed to parse deferred header for message #{fr&.seqno}: #{e.message}")
             active_count += 1
           end
-        rescue => e
-          @logger.warn("Failed to check deferred status for message #{msg_id}: #{e.message}")
-          # Bei Fehlern als aktiv zählen
-          active_count += 1
         end
       end
-      
-      { total: total_count, active: active_count, expired: expired_count }
+
+      # Wenn truncated: hochrechnen, damit der Admin trotzdem eine Schaetzung sieht.
+      if truncated && sample_ids.length > 0
+        ratio = total_count.to_f / sample_ids.length
+        active_count  = (active_count  * ratio).round
+        expired_count = (expired_count * ratio).round
+      end
+
+      { total: total_count, active: active_count, expired: expired_count, truncated: !!truncated }
     rescue => e
       @logger.error("Failed to count deferred messages: #{e.message}")
-      { total: 0, active: 0, expired: 0 }
+      { total: 0, active: 0, expired: 0, truncated: false }
     ensure
       imap&.disconnect
     end

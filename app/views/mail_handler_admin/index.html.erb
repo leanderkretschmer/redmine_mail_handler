@@ -33,14 +33,64 @@
 
 <div class="box">
   <h3>Zurückgestellte Mails</h3>
-  <% deferred_stats = @service.count_deferred_messages rescue { total: 0, active: 0, expired: 0 } %>
-  <p>
-    <%= deferred_stats[:active] %> aktiv, <%= deferred_stats[:expired] %> abgelaufen.
+  <p id="deferred-stats-line" data-stats-url="<%= url_for(:action => 'deferred_stats_json') %>">
+    <span id="deferred-stats-summary"><em>lädt&hellip;</em></span>
+    <span id="deferred-stats-meta" style="color:#888; font-size: 0.9em;"></span>
     <%= link_to 'Details anzeigen', { :action => 'deferred_mails' }, :class => 'icon icon-time' %>
     |
     <%= link_to 'Jetzt verarbeiten', { :action => 'process_deferred' }, :method => :post, :class => 'icon icon-reload' %>
+    |
+    <a href="#" id="deferred-stats-refresh" class="icon icon-reload" title="Statistik live neu laden">Aktualisieren</a>
   </p>
 </div>
+
+<script>
+(function() {
+  var line = document.getElementById('deferred-stats-line');
+  if (!line) return;
+  var url = line.getAttribute('data-stats-url');
+  var summary = document.getElementById('deferred-stats-summary');
+  var meta = document.getElementById('deferred-stats-meta');
+  var refreshLink = document.getElementById('deferred-stats-refresh');
+
+  function render(data) {
+    if (data.error) {
+      summary.innerHTML = '<span style="color:#a00;">Fehler: ' + data.error + '</span>';
+      meta.textContent = '';
+      return;
+    }
+    var txt = data.active + ' aktiv, ' + data.expired + ' abgelaufen';
+    if (data.truncated) {
+      txt += ' (geschätzt aus Stichprobe, ' + data.total + ' insgesamt)';
+    }
+    summary.textContent = txt + '. ';
+    var info = '';
+    if (data.updated_at) {
+      var d = new Date(data.updated_at);
+      info = '— Stand: ' + d.toLocaleString() + (data.from_cache ? ' (Cache)' : ' (live)') + ' ';
+    }
+    meta.textContent = info;
+  }
+
+  function load(refresh) {
+    summary.innerHTML = '<em>lädt&hellip;</em>';
+    meta.textContent = '';
+    fetch(url + (refresh ? '?refresh=1' : ''), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+      .then(function(r) { return r.json(); })
+      .then(render)
+      .catch(function(e) { render({ error: e.message }); });
+  }
+
+  if (refreshLink) {
+    refreshLink.addEventListener('click', function(ev) {
+      ev.preventDefault();
+      load(true);
+    });
+  }
+
+  load(false);
+})();
+</script>
 
 <div class="box">
   <h3>Manueller Import</h3>
