@@ -203,70 +203,40 @@ class MailHandlerAdminController < ApplicationController
       
       if @imap_connection_available
         @imap_debug_info << "✓ IMAP-Verbindung erfolgreich hergestellt"
-        
-        # LAZY LOADING: Hole nur die Message-IDs (sehr schnell)
-        ids_result = @service.get_deferred_message_ids
-        
+
+        exclude_patterns = @exclude_senders.to_s.split(',').map(&:strip).reject(&:blank?)
+        filters_active = @search_from.present? || @search_subject.present? || exclude_patterns.any?
+
+        # LAZY LOADING: Hole nur die Message-IDs (sehr schnell). Filter werden
+        # server-seitig per IMAP SEARCH angewendet, damit auch bei aktivem
+        # Suchfilter nicht der komplette Ordner (inkl. Anhaenge) geladen werden muss.
+        if filters_active
+          @imap_debug_info << "ℹ Filter aktiv - server-seitige IMAP-Suche wird verwendet"
+          ids_result = @service.search_deferred_message_ids(
+            from_query: @search_from,
+            subject_query: @search_subject,
+            exclude_patterns: exclude_patterns
+          )
+        else
+          ids_result = @service.get_deferred_message_ids
+        end
+
         if ids_result[:success]
           all_message_ids = ids_result[:message_ids]
           @imap_debug_info << "✓ #{all_message_ids.length} Message-IDs gefunden (schnelle Abfrage)"
-          
-          # Bei Suche oder Ausschluss-Filter müssen wir leider alle laden, um zu filtern
-          if @search_from.present? || @search_subject.present? || @exclude_senders.present?
-            @imap_debug_info << "ℹ Filter aktiv - lade alle E-Mails für Filterung"
-            @deferred_mails = get_deferred_mails_from_imap_paginated(all_message_ids)
-      
-            # Filtere nach Suchkriterien
-            original_count = @deferred_mails.length
-            if @search_from.present?
-              @deferred_mails = @deferred_mails.select { |mail| mail[:from]&.downcase&.include?(@search_from.downcase) }
-              @imap_debug_info << "✓ Nach Absender-Filter (#{@search_from}): #{@deferred_mails.length} E-Mails"
-            end
-            
-            if @search_subject.present?
-              @deferred_mails = @deferred_mails.select { |mail| mail[:subject]&.downcase&.include?(@search_subject.downcase) }
-              @imap_debug_info << "✓ Nach Betreff-Filter (#{@search_subject}): #{@deferred_mails.length} E-Mails"
-            end
 
-            # Filtere nach Ausschlusskriterien
-            if @exclude_senders.present?
-              exclude_patterns = @exclude_senders.split(',').map(&:strip).map(&:downcase).reject(&:blank?)
-              @deferred_mails = @deferred_mails.reject do |mail|
-                sender = mail[:from]&.downcase
-                next false if sender.blank?
-                exclude_patterns.any? { |pattern| sender.include?(pattern) }
-              end
-              @imap_debug_info << "✓ Nach Ausschluss-Filter (#{@exclude_senders}): #{@deferred_mails.length} E-Mails"
-            end
-            
-            if @deferred_mails.length < original_count
-              filtered_out = original_count - @deferred_mails.length
-              @imap_debug_info << "ℹ #{filtered_out} E-Mails durch Filter ausgeblendet"
-            end
-      
-      @total_count = @deferred_mails.length
-            @total_pages = (@total_count.to_f / @per_page).ceil
-            
-            # Pagination auf gefilterte Ergebnisse anwenden
-            offset = (@page - 1) * @per_page
-            @deferred_mails = @deferred_mails[offset, @per_page] || []
-          else
-            # LAZY LOADING: Ohne Suche - nur die benötigten E-Mails für die aktuelle Seite laden
-            @total_count = all_message_ids.length
-            @total_pages = (@total_count.to_f / @per_page).ceil
-            
-            # Berechne Offset und lade nur die benötigten E-Mails
-            offset = (@page - 1) * @per_page
-            
-            # Sortiere IDs (neueste zuerst - höhere IDs sind in der Regel neuer)
-            sorted_ids = all_message_ids.sort.reverse
-            
-            @imap_debug_info << "ℹ Lade nur E-Mails #{offset + 1} bis #{[offset + @per_page, @total_count].min} von #{@total_count}"
-            
-            # Lade nur die E-Mails für die aktuelle Seite
-            @deferred_mails = @service.get_deferred_mail_headers(sorted_ids, offset, @per_page)
-            @imap_debug_info << "✓ #{@deferred_mails.length} E-Mails für aktuelle Seite geladen"
-          end
+          @total_count = all_message_ids.length
+          @total_pages = (@total_count.to_f / @per_page).ceil
+
+          # Sortiere IDs (neueste zuerst - höhere IDs sind in der Regel neuer)
+          sorted_ids = all_message_ids.sort.reverse
+          offset = (@page - 1) * @per_page
+
+          @imap_debug_info << "ℹ Lade nur E-Mails #{offset + 1} bis #{[offset + @per_page, @total_count].min} von #{@total_count}"
+
+          # LAZY LOADING: nur die benötigten E-Mails für die aktuelle Seite laden
+          @deferred_mails = @service.get_deferred_mail_headers(sorted_ids, offset, @per_page)
+          @imap_debug_info << "✓ #{@deferred_mails.length} E-Mails für aktuelle Seite geladen"
         else
           @imap_debug_info << "✗ Fehler beim Abrufen der Message-IDs: #{ids_result[:error]}"
           @deferred_mails = []
@@ -313,37 +283,35 @@ class MailHandlerAdminController < ApplicationController
     begin
       page = (params[:page] || 1).to_i
       per_page = (params[:per_page] || 20).to_i
+      search_from = params[:search_from]
+      search_subject = params[:search_subject]
       exclude_senders = Setting.plugin_redmine_mail_handler['deferred_view_exclude_list']
-      
-      ids_result = @service.get_deferred_message_ids
-      
+      exclude_patterns = exclude_senders.to_s.split(',').map(&:strip).reject(&:blank?)
+
+      filters_active = search_from.present? || search_subject.present? || exclude_patterns.any?
+
+      # Filter werden server-seitig per IMAP SEARCH angewendet (statt alle Mails
+      # zu laden und lokal zu filtern), damit auch bei aktivem Filter nur die
+      # aktuell angeforderte Seite von IMAP geladen wird.
+      ids_result = if filters_active
+        @service.search_deferred_message_ids(
+          from_query: search_from,
+          subject_query: search_subject,
+          exclude_patterns: exclude_patterns
+        )
+      else
+        @service.get_deferred_message_ids
+      end
+
       if ids_result[:success]
         all_message_ids = ids_result[:message_ids]
         sorted_ids = all_message_ids.sort.reverse
-        
-        # Wenn Filter aktiv ist, müssen wir alle laden und filtern
-        if exclude_senders.present?
-           all_mails = get_deferred_mails_from_imap_paginated(all_message_ids)
-           
-           exclude_patterns = exclude_senders.split(',').map(&:strip).map(&:downcase).reject(&:blank?)
-           filtered_mails = all_mails.reject do |mail|
-             sender = mail[:from]&.downcase
-             next false if sender.blank?
-             exclude_patterns.any? { |pattern| sender.include?(pattern) }
-           end
-           
-           total_count = filtered_mails.length
-           total_pages = (total_count.to_f / per_page).ceil
-           offset = (page - 1) * per_page
-           deferred_mails = filtered_mails[offset, per_page] || []
-        else
-           # Standard Lazy Loading
-           total_count = all_message_ids.length
-           total_pages = (total_count.to_f / per_page).ceil
-           offset = (page - 1) * per_page
-           deferred_mails = @service.get_deferred_mail_headers(sorted_ids, offset, per_page)
-        end
-        
+
+        total_count = all_message_ids.length
+        total_pages = (total_count.to_f / per_page).ceil
+        offset = (page - 1) * per_page
+        deferred_mails = @service.get_deferred_mail_headers(sorted_ids, offset, per_page)
+
         render json: {
           success: true,
           mails: deferred_mails,

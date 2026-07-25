@@ -721,6 +721,47 @@ class MailHandlerService
     end
   end
 
+  # Server-seitige IMAP-Suche nach Message-IDs im deferred Ordner.
+  #
+  # Performance-Hinweis: Filtert direkt auf dem IMAP-Server (SEARCH FROM/SUBJECT/NOT),
+  # statt wie frueher alle Mails (inkl. Anhaenge) auf den App-Server zu laden und dort
+  # zu filtern. Dadurch bleibt die Suche auch bei mehreren tausend Mails im Ordner
+  # schnell, und das Ergebnis kann wie bei get_deferred_message_ids stueckweise
+  # (paginiert) per get_deferred_mail_headers nachgeladen werden.
+  def search_deferred_message_ids(from_query: nil, subject_query: nil, exclude_patterns: [])
+    begin
+      imap = connect_to_imap
+      return { success: false, message_ids: [], total: 0 } unless imap
+
+      deferred_folder = @settings['deferred_folder'].presence || 'Deferred'
+
+      begin
+        imap.select(deferred_folder)
+      rescue Net::IMAP::NoResponseError
+        @logger.info("Deferred folder '#{deferred_folder}' does not exist")
+        return { success: false, message_ids: [], total: 0 }
+      end
+
+      criteria = []
+      criteria += ['FROM', from_query] if from_query.present?
+      criteria += ['SUBJECT', subject_query] if subject_query.present?
+      Array(exclude_patterns).each do |pattern|
+        next if pattern.blank?
+        criteria += ['NOT', 'FROM', pattern]
+      end
+      criteria = ['ALL'] if criteria.empty?
+
+      msg_ids = imap.search(criteria)
+
+      { success: true, message_ids: msg_ids, total: msg_ids.length }
+    rescue => e
+      @logger.error("Failed to search deferred message IDs: #{e.message}")
+      { success: false, message_ids: [], total: 0, error: e.message }
+    ensure
+      imap&.disconnect
+    end
+  end
+
   # Hole Metadaten für Message-IDs ohne vollständigen Body (schneller als RFC822)
   def get_deferred_mail_headers(msg_ids, offset = 0, limit = 20)
     return [] if msg_ids.empty?
@@ -740,76 +781,31 @@ class MailHandlerService
       # Berechne welche IDs geladen werden sollen
       paginated_ids = msg_ids[offset, limit] || []
       return [] if paginated_ids.empty?
-      
+
       mails = []
-      
-      paginated_ids.each do |msg_id|
+
+      # Batch-Fetch: ein IMAP-Roundtrip pro Batch statt einer pro Mail. Das ist
+      # entscheidend bei grossen Ordnern (mehrere tausend Mails), weil jeder
+      # einzelne Roundtrip Netzwerklatenz kostet und sich sonst summiert.
+      paginated_ids.each_slice(DEFERRED_FETCH_BATCH) do |batch|
         begin
-          # Hole nur Header-Informationen (schneller als RFC822)
-          fetch_result = imap.fetch(msg_id, ['ENVELOPE', 'INTERNALDATE', 'RFC822.HEADER'])
-          next unless fetch_result && fetch_result[0]
-          
-          fetch_data = fetch_result[0].attr
-          envelope = fetch_data['ENVELOPE']
-          internal_date = fetch_data['INTERNALDATE']
-          header_data = fetch_data['RFC822.HEADER']
-          
-          next unless envelope
-          
-          # Parse Header für X-Redmine-Deferred
-          header_mail = Mail.read_from_string(header_data) if header_data
-          deferred_info = get_mail_deferred_info(header_mail) if header_mail
-          
-          # Fallback für E-Mails ohne deferred Header
-          if deferred_info.nil?
-            parsed_date = internal_date ? Time.parse(internal_date) : Time.current
-            deferred_info = {
-              deferred_at: parsed_date,
-              expires_at: parsed_date + 30.days,
-              reason: 'manual_defer'
-            }
-          end
-          
-          # Extrahiere From-Adresse aus Envelope
-          from_address = nil
-          if envelope.from && envelope.from.first
-            from_mailbox = envelope.from.first
-            from_address = "#{from_mailbox.mailbox}@#{from_mailbox.host}" if from_mailbox.mailbox && from_mailbox.host
-          end
-          
-          # Dekodiere Betreff
-          subject = envelope.subject
-          if subject.present?
-            # Versuche robustes Decoding
-            begin
-              subject = decode_header_with_mail_decoder(subject)
-              # Entferne nicht unterstützte Zeichen
-              subject = sanitize_utf8_for_mysql(subject)
-            rescue => e
-              @logger.warn("Failed to decode subject for #{msg_id}: #{e.message}")
-              subject = envelope.subject # Fallback
-            end
-          end
-          
-          mail_data = {
-            id: msg_id,
-            message_id: envelope.message_id,
-            from: from_address,
-            subject: subject,
-            date: envelope.date ? Time.parse(envelope.date.to_s) : nil,
-            deferred_at: deferred_info[:deferred_at],
-            expires_at: deferred_info[:expires_at],
-            reason: deferred_info[:reason],
-            expired: deferred_info[:expires_at] ? deferred_info[:expires_at] < Time.current : false
-          }
-          
-          mails << mail_data
+          fetch_results = imap.fetch(batch, ['ENVELOPE', 'INTERNALDATE', 'RFC822.HEADER']) || []
         rescue => e
-          @logger.warn("Failed to fetch headers for message #{msg_id}: #{e.message}")
+          @logger.warn("Header-Batch-Fetch fehlgeschlagen: #{e.message}")
           next
         end
+
+        fetch_results.each do |fetch_result|
+          begin
+            mail_data = build_deferred_mail_header_data(fetch_result)
+            mails << mail_data if mail_data
+          rescue => e
+            @logger.warn("Failed to fetch headers for message #{fetch_result&.seqno}: #{e.message}")
+            next
+          end
+        end
       end
-      
+
       # Sortiere nach deferred_at (neueste zuerst)
       mails.sort_by { |m| m[:deferred_at] || Time.current }.reverse
     rescue => e
@@ -818,6 +814,66 @@ class MailHandlerService
     ensure
       imap&.disconnect
     end
+  end
+
+  # Baut die Mail-Metadaten aus einem einzelnen IMAP-Fetch-Ergebnis
+  # (ENVELOPE/INTERNALDATE/RFC822.HEADER) auf. Wird sowohl beim Batch-Fetch der
+  # aktuellen Seite als auch nicht mehr einzeln pro Nachricht aufgerufen.
+  def build_deferred_mail_header_data(fetch_result)
+    return nil unless fetch_result
+
+    msg_id = fetch_result.seqno
+    fetch_data = fetch_result.attr
+    envelope = fetch_data['ENVELOPE']
+    internal_date = fetch_data['INTERNALDATE']
+    header_data = fetch_data['RFC822.HEADER']
+
+    return nil unless envelope
+
+    # Parse Header für X-Redmine-Deferred
+    header_mail = Mail.read_from_string(header_data) if header_data
+    deferred_info = get_mail_deferred_info(header_mail) if header_mail
+
+    # Fallback für E-Mails ohne deferred Header
+    if deferred_info.nil?
+      parsed_date = internal_date ? Time.parse(internal_date) : Time.current
+      deferred_info = {
+        deferred_at: parsed_date,
+        expires_at: parsed_date + 30.days,
+        reason: 'manual_defer'
+      }
+    end
+
+    # Extrahiere From-Adresse aus Envelope
+    from_address = nil
+    if envelope.from && envelope.from.first
+      from_mailbox = envelope.from.first
+      from_address = "#{from_mailbox.mailbox}@#{from_mailbox.host}" if from_mailbox.mailbox && from_mailbox.host
+    end
+
+    # Dekodiere Betreff
+    subject = envelope.subject
+    if subject.present?
+      begin
+        subject = decode_header_with_mail_decoder(subject)
+        subject = sanitize_utf8_for_mysql(subject)
+      rescue => e
+        @logger.warn("Failed to decode subject for #{msg_id}: #{e.message}")
+        subject = envelope.subject # Fallback
+      end
+    end
+
+    {
+      id: msg_id,
+      message_id: envelope.message_id,
+      from: from_address,
+      subject: subject,
+      date: envelope.date ? Time.parse(envelope.date.to_s) : nil,
+      deferred_at: deferred_info[:deferred_at],
+      expires_at: deferred_info[:expires_at],
+      reason: deferred_info[:reason],
+      expired: deferred_info[:expires_at] ? deferred_info[:expires_at] < Time.current : false
+    }
   end
 
   # Hole vollständige E-Mail-Daten für bestimmte Message-IDs (für detaillierte Ansicht)

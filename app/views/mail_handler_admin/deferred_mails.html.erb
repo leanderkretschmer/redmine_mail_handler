@@ -16,9 +16,6 @@
     <span class="icon icon-info"></span>
     <strong>Lazy Loading aktiv:</strong> 
     Es werden nur die E-Mails für die aktuelle Seite geladen (<%= @deferred_mails.length %> von <%= @total_count %>).
-    <% if @search_from.present? || @search_subject.present? %>
-      <em class="filter-warning">(Bei Suchfilter werden alle E-Mails zur Filterung geladen)</em>
-    <% end %>
   </div>
 <% end %>
 
