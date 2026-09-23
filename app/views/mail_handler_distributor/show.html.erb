@@ -1,0 +1,109 @@
+<%# Verteiler-Ansicht: ersetzt issues/show fuer Posteingang- und Alias-Verteiler-Tickets %>
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag 'mail_handler_distributor', :plugin => 'redmine_mail_handler' %>
+  <%= javascript_include_tag 'mail_handler_distributor', :plugin => 'redmine_mail_handler' %>
+<% end %>
+<% html_title "##{@issue.id} #{@issue.subject}" %>
+
+<div id="mh-distributor"
+     class="mh-distributor mh-kind-<%= @distributor_kind %><%= ' mh-readonly' unless @distributor_can_move %>"
+     data-issue-id="<%= @issue.id %>"
+     data-move-url="<%= mail_handler_distributor_move_comment_path %>">
+
+  <div class="mh-topbar">
+    <span class="mh-title">
+      <%= @distributor_kind == :root ? 'Posteingang-Verteiler' : 'Alias-Verteiler' %>
+      <%= link_to "##{@issue.id}", issue_path(@issue, :classic => 1), :title => 'Standard-Ticketansicht öffnen' %>
+      <span class="mh-title-subject"><%= @issue.subject %></span>
+      <% if @distributor_kind == :alias %>
+        <span class="mh-title-project">· <%= link_to @issue.project.name, project_path(@issue.project) %></span>
+      <% end %>
+    </span>
+    <span class="mh-topbar-right">
+      <span class="mh-count"><%= @distributor_comments.length %> Kommentare</span>
+      <%= link_to 'Standardansicht', issue_path(@issue, :classic => 1), :class => 'mh-classic-link' %>
+    </span>
+  </div>
+
+  <div class="mh-comments" id="mh-comments">
+    <% if @distributor_comments.empty? %>
+      <div class="mh-empty">Keine Kommentare in diesem Verteiler.</div>
+    <% end %>
+    <% @distributor_comments.each do |c| %>
+      <% journal = c.journal %>
+      <div class="mh-comment"
+           id="mh-comment-<%= journal.id %>"
+           draggable="<%= @distributor_can_move ? 'true' : 'false' %>"
+           data-journal-id="<%= journal.id %>"
+           data-user-id="<%= journal.user_id %>"
+           title="<%= c.tooltip %>">
+        <span class="mh-c-id"><%= link_to "##{journal.id}", issue_path(@issue, :classic => 1, :anchor => "note-#{c.indice}"), :title => "Kommentar #{c.indice} in der Standardansicht öffnen" %></span>
+        <span class="mh-c-sep">|</span>
+        <span class="mh-c-user"><%= journal.user ? journal.user.name : 'Anonym' %></span>
+        <span class="mh-c-sep">|</span>
+        <span class="mh-c-text"><%= c.preview.presence || '(kein Text)' %></span>
+        <span class="mh-c-actions">
+          <input type="text" class="mh-c-target" placeholder="Ticket-Nr." inputmode="numeric" autocomplete="off"
+                 <%= 'disabled' unless @distributor_can_move %> />
+          <button type="button" class="mh-c-go" title="In dieses Ticket verschieben" <%= 'disabled' unless @distributor_can_move %>>→</button>
+          <span class="mh-c-suggest-wrap">
+            <% if c.suggestion %>
+              <a href="#" class="mh-c-suggest" data-target-id="<%= c.suggestion.id %>"
+                 title="Vorschlag: bisher mehrfach nach ##{c.suggestion.id} verschoben – klicken zum Verschieben">
+                #<%= c.suggestion.id %> <%= truncate(c.suggestion.subject, :length => 40) %>
+              </a>
+            <% end %>
+          </span>
+        </span>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="mh-targets" id="mh-targets">
+    <% if @distributor_kind == :root %>
+      <div class="mh-targets-head">Alias-Verteiler <span class="mh-hint">– Kommentar per Drag &amp; Drop hierher ziehen</span></div>
+      <% if @distributor_aliases.blank? %>
+        <div class="mh-empty">Keine Alias-Verteiler in der Adress-Matrix konfiguriert.</div>
+      <% end %>
+      <div class="mh-alias-grid">
+        <% @distributor_aliases.each do |a| %>
+          <div class="mh-box mh-alias-box mh-drop" data-target-id="<%= a.issue.id %>">
+            <div class="mh-box-id"><%= link_to "##{a.issue.id}", issue_path(a.issue) %></div>
+            <div class="mh-box-project"><%= a.project ? a.project.name : '–' %></div>
+            <div class="mh-box-subject"><%= a.issue.subject %></div>
+            <div class="mh-box-alias"><%= a.email %></div>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="mh-targets-head">
+        Tickets in <strong><%= @issue.project.name %></strong>
+        <span class="mh-hint">– Tracker anklicken, um nur diesen als Raster zu zeigen</span>
+        <label class="mh-closed-toggle"><input type="checkbox" id="mh-show-closed" /> geschlossene anzeigen</label>
+      </div>
+      <% if @distributor_columns.blank? %>
+        <div class="mh-empty">Keine Tickets in diesem Projekt.</div>
+      <% end %>
+      <div class="mh-tracker-columns" id="mh-tracker-columns">
+        <% @distributor_columns.each do |col| %>
+          <div class="mh-tracker-col" data-tracker-id="<%= col.tracker.id %>">
+            <div class="mh-tracker-head" title="Nur diesen Tracker anzeigen / zurück">
+              <span class="mh-tracker-name"><%= col.tracker.name %></span>
+              <span class="mh-tracker-count"><%= col.issues.count { |i| !i.closed? } %>/<%= col.issues.length %></span>
+            </div>
+            <div class="mh-tracker-body">
+              <% col.issues.each do |i| %>
+                <div class="mh-box mh-issue-box mh-drop<%= ' mh-closed' if i.closed? %>" data-target-id="<%= i.id %>">
+                  <div class="mh-box-id"><%= link_to "##{i.id}", issue_path(i) %> <span class="mh-box-status"><%= i.status.name %></span></div>
+                  <div class="mh-box-subject"><%= i.subject %></div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="mh-toast" id="mh-toast" hidden></div>
+</div>

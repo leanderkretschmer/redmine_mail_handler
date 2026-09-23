@@ -2,6 +2,9 @@
 # See: http://guides.rubyonrails.org/routing.html
 
 RedmineApp::Application.routes.draw do
+  # Verteiler-Ansicht (Kommentare per Drag & Drop / Eingabe in andere Tickets verschieben)
+  post 'mail_handler/distributor/move_comment', to: 'mail_handler_distributor#move_comment', as: 'mail_handler_distributor_move_comment'
+
   # Admin-Routen
   scope '/admin' do
     resources :mail_handler_admin, :only => [:index] do

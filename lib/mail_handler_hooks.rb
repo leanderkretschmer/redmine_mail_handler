@@ -24,6 +24,17 @@ class MailHandlerHooks < Redmine::Hook::ViewListener
   
 
   
+  # Hook des Plugins redmine_move_comments: wird nach jedem verschobenen
+  # Kommentar gefeuert. Wir protokollieren den Move, um in der
+  # Verteiler-Ansicht Ziel-Vorschlaege pro Absender machen zu koennen.
+  def move_comments_after_journal_move(context = {})
+    MailHandlerCommentMove.record(context[:source_journal], context[:new_journal], context[:target_issue])
+    ''
+  rescue => e
+    Rails.logger.error("[MailHandler] Konnte Kommentar-Verschiebung nicht protokollieren: #{e.message}")
+    ''
+  end
+
   # Hook für zusätzliche Admin-Links
   def view_admin_index_left(context = {})
     content_tag :p do

@@ -60,6 +60,7 @@ Mails from unknown users without ticket IDs are parked in the 'Deferred' folder.
 
 - The system periodically checks these mails.
 - If the user has been created since the mail arrived, the mail is processed.
+- If the mail now resolves to a ticket (ticket ID in the subject or an alias address from the address matrix), the user is created and the mail is filed into that ticket. **Alias mails never stay in 'Deferred'.**
 - If the deferral period expires, the mail is moved to 'Archive'.
 
 ## Restart & "Sudden" User Creation from Deferred
@@ -68,7 +69,7 @@ If many mails from the "Deferred" folder are processed after a restart, it usual
 
 **Explanation:**
 1.  **Logic:** The deferred processing job ([MailHandlerService#process_deferred_message](file:///Users/leanderkretschmer/redmine_mail_handler-2/lib/mail_handler_service.rb#L204)) strictly checks if a user **already exists** (`find_existing_user`).
-2.  **No Creation:** It does **NOT** create new users.
+2.  **No Creation:** It does **NOT** create new users, except for mails that resolve to a ticket via subject or alias matrix (those are processed immediately).
 3.  **Trigger:** When the scheduler starts (on restart) or the cron job runs (e.g. 02:00), it iterates through all deferred mails.
 4.  **Match:** If it finds that users (who were previously unknown) now exist in Redmine, it processes the mails and archives them.
 
@@ -76,6 +77,25 @@ If many mails from the "Deferred" folder are processed after a restart, it usual
 - **LDAP Synchronization:** Users logged in or were synced via cron.
 - **Manual Administration:** An admin created the users.
 - **Other Plugins:** Another tool created the user records.
+
+## Distributor View (Verteiler-Ansicht)
+
+For distributor tickets the plugin replaces the normal issue page (`issues#show`) with a sorting UI. Redmine's header and menus stay, only the content area changes. `?classic=1` opens the standard issue view.
+
+**Distributor tickets:**
+- **Root distributor:** the inbox ticket (`inbox_ticket_id`).
+- **Alias distributors:** every ticket referenced in the address matrix.
+
+**Layout:**
+- Top 40 %: all comments of the ticket, one compact row each: `#journal_id | author | first line of the comment`, followed by a ticket number input (Enter or → moves the comment) and, if available, a suggested target ticket (click to move).
+- Below: the move targets. The root distributor shows one box per alias distributor (ticket ID, project, alias address). An alias distributor shows all visible tickets of its project as vertical columns per tracker (tracker order); clicking a tracker header shows only that tracker as a grid across the full width, clicking again restores all columns. Closed tickets are hidden by default (toggle).
+- Comments can be dragged from the top area and dropped on any box.
+
+**Moving:** `POST /mail_handler/distributor/move_comment` (`journal_id`, `target_issue_id`) delegates to the `redmine_move_comments` plugin via its `controller_journals_edit_post` hook, so the move behaves exactly like "move to issue" in the comment edit form (attachments, sendmail badges, pdftopng listeners). The plugin must be installed. Only users who may edit the comment can move it.
+
+**Suggestions:** every move is logged in `mail_handler_comment_moves` (hook `move_comments_after_journal_move`). A target is suggested for a sender once their last 3 moves out of the same distributor all went to the same ticket. If the targets vary, no suggestion is shown.
+
+**Code:** `lib/mail_handler_distributor.rb` (data), `lib/mail_handler_distributor_issues_patch.rb` (issues#show override), `app/controllers/mail_handler_distributor_controller.rb`, `app/views/mail_handler_distributor/show.html.erb`, `assets/{javascripts,stylesheets}/mail_handler_distributor.*`, `app/models/mail_handler_comment_move.rb`.
 
 ## Code References
 

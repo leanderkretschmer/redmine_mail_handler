@@ -1,0 +1,204 @@
+/* Verteiler-Ansicht (redmine_mail_handler) – ersetzt issues/show fuer Verteiler-Tickets */
+
+#main:has(#mh-distributor) #sidebar { display: none; }
+#main:has(#mh-distributor) #content { background: #fff; overflow: hidden; }
+#main.mh-nosidebar #sidebar { display: none; }
+
+.mh-distributor {
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
+  background: #fff;
+  color: #222;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+/* Kopfzeile */
+.mh-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0 0 6px 0;
+  border-bottom: 1px solid #ddd;
+  flex: 0 0 auto;
+}
+.mh-title { font-weight: bold; font-size: 15px; }
+.mh-title a { color: #169; }
+.mh-title-subject { font-weight: normal; margin-left: 4px; }
+.mh-title-project { font-weight: normal; color: #666; margin-left: 4px; }
+.mh-topbar-right { color: #666; font-size: 12px; }
+.mh-topbar-right .mh-classic-link { margin-left: 12px; }
+
+/* Obere 40 %: Kommentare */
+.mh-comments {
+  flex: 0 0 40%;
+  min-height: 120px;
+  overflow-y: auto;
+  border-bottom: 2px solid #ccc;
+  padding: 4px 0;
+}
+.mh-comment {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-bottom: 1px solid #f0f0f0;
+  white-space: nowrap;
+  cursor: grab;
+  line-height: 22px;
+}
+.mh-comment:hover { background: #f5f9ff; }
+.mh-comment.mh-dragging { opacity: 0.4; }
+.mh-comment.mh-busy { opacity: 0.5; pointer-events: none; }
+.mh-comment.mh-removing { transition: opacity .25s, max-height .25s; opacity: 0; max-height: 0; overflow: hidden; padding-top: 0; padding-bottom: 0; }
+.mh-readonly .mh-comment { cursor: default; }
+.mh-c-id { flex: 0 0 auto; font-family: monospace; color: #169; min-width: 56px; }
+.mh-c-id a { color: #169; text-decoration: none; }
+.mh-c-sep { color: #bbb; flex: 0 0 auto; }
+.mh-c-user { flex: 0 0 auto; font-weight: bold; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.mh-c-text { flex: 1 1 auto; min-width: 60px; overflow: hidden; text-overflow: ellipsis; color: #333; }
+.mh-c-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; margin-left: 8px; }
+.mh-c-target { width: 80px; padding: 2px 4px; font-size: 12px; border: 1px solid #ccc; border-radius: 2px; }
+.mh-c-target.mh-invalid { border-color: #c00; background: #fff4f4; }
+.mh-c-go { padding: 1px 8px; font-size: 12px; cursor: pointer; }
+.mh-c-suggest-wrap { min-width: 180px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.mh-c-suggest {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px dashed #4a8;
+  border-radius: 10px;
+  color: #285;
+  background: #f2fbf5;
+  text-decoration: none;
+  font-size: 12px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.mh-c-suggest:hover { background: #dff5e6; }
+
+/* Untere 60 %: Ziele */
+.mh-targets {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: 6px;
+}
+.mh-targets-head { flex: 0 0 auto; font-weight: bold; padding: 0 0 6px 0; color: #333; }
+.mh-hint { font-weight: normal; color: #888; font-size: 12px; }
+.mh-closed-toggle { font-weight: normal; color: #666; font-size: 12px; margin-left: 16px; cursor: pointer; }
+.mh-empty { color: #888; padding: 12px 6px; }
+
+/* Kaesten */
+.mh-box {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fafafa;
+  padding: 6px 8px;
+  box-sizing: border-box;
+  transition: background .1s, border-color .1s;
+}
+.mh-box-id { font-weight: bold; }
+.mh-box-id a { color: #169; text-decoration: none; }
+.mh-box-status { font-weight: normal; color: #888; font-size: 11px; margin-left: 4px; }
+.mh-box-project { color: #333; margin-top: 2px; }
+.mh-box-subject {
+  color: #444;
+  font-size: 12px;
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.mh-box-alias { color: #888; font-size: 11px; margin-top: 3px; word-break: break-all; }
+.mh-drop.mh-drop-over { background: #e3f1ff; border-color: #169; box-shadow: 0 0 0 2px rgba(17,102,153,.25); }
+.mh-drop.mh-drop-done { background: #dff5e6; border-color: #4a8; }
+.mh-issue-box.mh-closed { opacity: .55; display: none; }
+.mh-show-closed .mh-issue-box.mh-closed { display: block; }
+
+/* Root: Alias-Verteiler als Raster */
+.mh-alias-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  align-content: start;
+  padding: 2px;
+}
+.mh-alias-box { min-height: 90px; }
+
+/* Alias: Tracker-Spalten */
+.mh-tracker-columns {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 6px 2px;
+}
+.mh-tracker-col {
+  flex: 0 0 230px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f4f4f4;
+}
+.mh-tracker-head {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  font-weight: bold;
+  background: #e8e8e8;
+  border-bottom: 1px solid #ddd;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+.mh-tracker-head:hover { background: #dde8f2; }
+.mh-tracker-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mh-tracker-count { color: #777; font-weight: normal; font-size: 11px; flex: 0 0 auto; }
+.mh-tracker-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mh-tracker-body .mh-box { background: #fff; }
+
+/* Fokus-Modus: nur ein Tracker, Tickets als Raster ueber die ganze Breite */
+.mh-tracker-columns.mh-focused .mh-tracker-col { display: none; }
+.mh-tracker-columns.mh-focused .mh-tracker-col.mh-focus { display: flex; flex: 1 1 auto; }
+.mh-tracker-columns.mh-focused .mh-tracker-col.mh-focus .mh-tracker-head { background: #cfe0ef; }
+.mh-tracker-columns.mh-focused .mh-tracker-col.mh-focus .mh-tracker-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  align-content: start;
+}
+
+/* Toast */
+.mh-toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1000;
+  background: #285;
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  font-size: 13px;
+}
+.mh-toast.mh-toast-error { background: #c33; }
