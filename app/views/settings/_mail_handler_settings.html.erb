@@ -122,6 +122,13 @@
 <!-- Tab Content: Matrix -->
 <div id="tab-matrix" class="tab-content" style="display: none;">
   <div class="box tabular settings">
+    <h3>Verteiler-Ansicht</h3>
+    <p>
+      <label for="settings_distributor_role_name">Rolle für Menüpunkt „Ticket-Verteiler“</label>
+      <%= text_field_tag 'settings[distributor_role_name]', @settings['distributor_role_name'].presence || 'Ticket_Verteiler', size: 30 %>
+      <em class="info">Benutzer mit dieser Rolle (und Administratoren) sehen im Hauptmenü den Punkt „Ticket-Verteiler“ zum Posteingang-Ticket und in Projekten mit Alias-Verteiler den Projekt-Menüpunkt zum Alias-Verteiler.</em>
+    </p>
+
     <h3>Adress-Matrix (Alias-Zuweisung)</h3>
     <p>
       Hier können Sie Alias-Adressen direkt zu Tickets zuweisen. Wenn eine E-Mail an eine dieser Adressen gesendet wird und noch keine Ticket-ID im Betreff hat, wird sie automatisch dem entsprechenden Ticket zugeordnet.

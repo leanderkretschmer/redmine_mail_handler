@@ -54,12 +54,23 @@ Redmine::Plugin.register :redmine_mail_handler do
       'deduplication_enabled' => '1',
       'address_matrix' => '',
       'performance_disable_images' => '0',
-      'performance_disabled_ticket_ids' => ''
+      'performance_disabled_ticket_ids' => '',
+      'distributor_role_name' => 'Ticket_Verteiler'
     }, :partial => 'settings/mail_handler_settings'
 
   # Menü-Einträge hinzufügen
   menu :admin_menu, :mail_handler, { :controller => 'mail_handler_admin', :action => 'index' }, 
        :caption => 'Mail Handler', :html => {:class => 'icon icon-email'}
+
+  # Menüpunkte "Ticket-Verteiler" – nur fuer Benutzer mit der Verteiler-Rolle
+  # (Einstellung distributor_role_name, Standard "Ticket_Verteiler") bzw. Admins.
+  # Top-Menü → Posteingang-Verteiler, Projektmenü → Alias-Verteiler des Projekts.
+  menu :top_menu, :ticket_distributor, :mail_handler_root_distributor_path,
+       :caption => 'Ticket-Verteiler',
+       :if => Proc.new { MailHandlerDistributor.show_top_menu? }
+  menu :project_menu, :ticket_distributor, :mail_handler_project_distributor_path,
+       :caption => 'Ticket-Verteiler', :after => :activity,
+       :if => Proc.new { |project| MailHandlerDistributor.show_project_menu?(project) }
 
   # Berechtigungen definieren
   project_module :mail_handler do
@@ -81,6 +92,7 @@ require File.expand_path('../lib/mail_handler_hooks', __FILE__)
 require File.expand_path('../lib/mail_handler_journal_patch', __FILE__)
 require File.expand_path('../lib/mail_handler_distributor', __FILE__)
 require File.expand_path('../lib/mail_handler_distributor_issues_patch', __FILE__)
+require File.expand_path('../lib/mail_handler_distributor_menu_helper', __FILE__)
 
 # Initialisiere Scheduler nach Plugin-Load
 Rails.application.config.after_initialize do

@@ -57,6 +57,53 @@ module MailHandlerDistributor
       !kind(issue).nil?
     end
 
+    # ── Menü / Rolle ────────────────────────────────────────────────────────
+    DEFAULT_ROLE_NAME = 'Ticket_Verteiler'.freeze
+
+    # Name der Rolle, die die Menüpunkte "Ticket-Verteiler" sehen darf.
+    def role_name
+      settings['distributor_role_name'].presence || DEFAULT_ROLE_NAME
+    end
+
+    # Hat der Benutzer die Verteiler-Rolle in diesem Projekt (oder ist Admin)?
+    def user_has_role?(user, project)
+      return false unless user && project
+      return true if user.admin?
+      user.roles_for_project(project).any? { |r| r.name == role_name }
+    end
+
+    # Hat der Benutzer die Verteiler-Rolle in irgendeinem Projekt (oder ist Admin)?
+    def user_has_role_anywhere?(user)
+      return false unless user && user.logged?
+      return true if user.admin?
+      user.memberships.joins(:roles).where(roles: { name: role_name }).exists?
+    end
+
+    # Verteiler-Ticket eines Projekts: Alias-Verteiler (niedrigste ID), sonst
+    # das Posteingang-Ticket, falls es in diesem Projekt liegt.
+    def issue_for_project(project)
+      return nil unless project
+      alias_issue = alias_entries.select { |e| e.project && e.project.id == project.id }
+                                 .map(&:issue).min_by(&:id)
+      return alias_issue if alias_issue
+      root = Issue.find_by(id: root_issue_id) if root_issue_id > 0
+      root if root && root.project_id == project.id
+    end
+
+    def root_issue
+      root_issue_id > 0 ? Issue.find_by(id: root_issue_id) : nil
+    end
+
+    # Bedingungen fuer die Menüpunkte (siehe init.rb)
+    def show_project_menu?(project, user = User.current)
+      return false unless project && user_has_role?(user, project)
+      !issue_for_project(project).nil?
+    end
+
+    def show_top_menu?(user = User.current)
+      root_issue_id > 0 && user_has_role_anywhere?(user)
+    end
+
     # Soll fuer diesen Request die Verteiler-Ansicht statt der normalen
     # Ticket-Ansicht gerendert werden? Mit ?classic=1 laesst sich die
     # Standardansicht weiterhin aufrufen (z.B. um das Ticket zu bearbeiten).

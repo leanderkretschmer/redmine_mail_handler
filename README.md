@@ -95,6 +95,8 @@ For distributor tickets the plugin replaces the normal issue page (`issues#show`
 
 **Suggestions:** every move is logged in `mail_handler_comment_moves` (hook `move_comments_after_journal_move`). A target is suggested for a sender once their last 3 moves out of the same distributor all went to the same ticket. If the targets vary, no suggestion is shown.
 
+**Menu items:** users with the role named in the setting `distributor_role_name` (default `Ticket_Verteiler`) and admins get a top-menu entry "Ticket-Verteiler" linking to the inbox ticket, and in every project that has an alias distributor a project-menu entry "Ticket-Verteiler" linking to that project's alias ticket (lowest ID if several). Registered in `init.rb`, URLs come from `lib/mail_handler_distributor_menu_helper.rb`.
+
 **Code:** `lib/mail_handler_distributor.rb` (data), `lib/mail_handler_distributor_issues_patch.rb` (issues#show override), `app/controllers/mail_handler_distributor_controller.rb`, `app/views/mail_handler_distributor/show.html.erb`, `assets/{javascripts,stylesheets}/mail_handler_distributor.*`, `app/models/mail_handler_comment_move.rb`.
 
 ## Code References
