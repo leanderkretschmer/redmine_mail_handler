@@ -282,24 +282,37 @@ class MailHandlerService
       return :expired
     end
     
-    # Prüfe ob Benutzer jetzt existiert
     from_address = mail.from&.first
     return :skipped if from_address.blank?
-    
+
+    # Gleiche Regel wie im Inbox-Pfad: Ticket-ID aus Betreff oder Alias-Matrix.
+    # Eine als Alias-Mail erkannte Nachricht gehoert nicht in deferred – sie wird
+    # sofort verarbeitet (bei Bedarf mit angelegtem Benutzer), z.B. wenn der
+    # Matrix-Eintrag erst nach der Zurueckstellung angelegt wurde.
+    ticket_id, ticket_source = resolve_ticket_id(mail)
+
     existing_user = find_existing_user(from_address)
-    
-    if existing_user
-      # Benutzer existiert jetzt → Mail normal verarbeiten
-      @logger.info("User #{from_address} now exists, processing deferred message #{msg_id}")
-      
+    user = existing_user
+
+    if user.nil? && ticket_id
+      @logger.info("Deferred message #{msg_id} resolves to ticket ##{ticket_id} via #{ticket_source}, creating user #{from_address}")
+      user = create_new_user(from_address)
+      unless user
+        @logger.error("Failed to create user for #{from_address}, keeping deferred message #{msg_id}")
+        return :kept
+      end
+    end
+
+    if user
+      if existing_user
+        @logger.info("User #{from_address} now exists, processing deferred message #{msg_id}")
+      end
+
       begin
-        # Extrahiere Ticket-ID (falls vorhanden)
-        ticket_id = extract_ticket_id(mail.subject)
-        
         if ticket_id
-          add_mail_to_ticket(mail, ticket_id, existing_user)
+          add_mail_to_ticket(mail, ticket_id, user)
         else
-          add_mail_to_inbox_ticket(mail, existing_user)
+          add_mail_to_inbox_ticket(mail, user)
         end
         
         # Mail archivieren
@@ -313,7 +326,7 @@ class MailHandlerService
         return :skipped
       end
     else
-      # Benutzer existiert noch nicht → zurückgestellt lassen
+      # Benutzer existiert noch nicht und kein Ticket-/Alias-Bezug → zurückgestellt lassen
       @logger.debug("User #{from_address} still does not exist, keeping message #{msg_id} deferred")
       return :kept
     end
@@ -1138,21 +1151,10 @@ class MailHandlerService
       return
     end
     
-    # Extract ticket ID from subject
-    ticket_id = extract_ticket_id(mail.subject)
-    
-    # Check alias matrix if no ticket ID was found in the subject
-    if ticket_id.nil?
-      mapped_ticket_id = get_ticket_id_from_alias_mapping(mail)
-      if mapped_ticket_id
-        ticket_id = mapped_ticket_id
-        @logger.info("Found matching alias in address matrix, assigning to ticket ##{ticket_id}")
-        
-        # ID im Betreff ergänzen (wie gewünscht)
-        original_subject = mail.subject || ""
-        mail.subject = "[##{ticket_id}] #{original_subject}"
-      end
-    end
+    # Ticket-ID ermitteln: zuerst aus dem Betreff, sonst ueber die Adress-Matrix
+    # (Alias-Adresse im To/Cc/Delivered-To ...). Ein Alias-Treffer zaehlt wie
+    # eine Ticket-ID im Betreff.
+    ticket_id, ticket_source = resolve_ticket_id(mail)
     
     # Check if user already exists
     existing_user = find_existing_user(from_address)
@@ -1167,15 +1169,17 @@ class MailHandlerService
         add_mail_to_inbox_ticket(mail, existing_user)
       end
     elsif ticket_id
-      # Unknown user + ticket ID → create user and process mail
+      # Unknown user + ticket ID (Betreff oder Alias) → create user and process mail.
+      # REGEL: Mails, die als Alias-Mail erkannt wurden, landen NIE in deferred –
+      # auch wenn der Absender unbekannt ist.
       new_user = create_new_user(from_address)
       if new_user
         add_mail_to_ticket(mail, ticket_id, new_user)
       else
-        @logger.error("Failed to create user for #{from_address}, cannot process mail")
+        @logger.error("Failed to create user for #{from_address}, cannot process mail (ticket ##{ticket_id} via #{ticket_source})")
       end
     else
-      # Unknown user without ticket ID → defer
+      # Unknown user without ticket ID and without alias match → defer
       @logger.info("Moving mail from unknown user #{from_address} without ticket ID to deferred")
       defer_message(imap, msg_id, mail)
       return # Don't archive, as deferred
@@ -1198,6 +1202,32 @@ class MailHandlerService
       @logger.warn("Message #{msg_id} remains in inbox - may be reprocessed on next import (deduplication will prevent duplicates)")
       raise archive_error
     end
+  end
+
+  # Ermittelt die Ziel-Ticket-ID einer Mail.
+  #
+  # 1. Ticket-ID im Betreff ("[#123]" / "[Text #123]")
+  # 2. Sonst: Alias-Adresse aus der Adress-Matrix (To/Cc/Bcc/Delivered-To ...)
+  #    – in diesem Fall wird die ID zusaetzlich im Betreff ergaenzt.
+  #
+  # Rueckgabe: [ticket_id, :subject | :alias] bzw. [nil, nil], wenn nichts passt.
+  # Wird von der Inbox-Verarbeitung UND der Deferred-Nachverarbeitung genutzt,
+  # damit als Alias-Mail erkannte Nachrichten in beiden Pfaden gleich behandelt
+  # werden (und insbesondere nie in deferred haengen bleiben).
+  def resolve_ticket_id(mail)
+    ticket_id = extract_ticket_id(mail.subject)
+    return [ticket_id, :subject] if ticket_id
+
+    mapped_ticket_id = get_ticket_id_from_alias_mapping(mail)
+    return [nil, nil] unless mapped_ticket_id
+
+    @logger.info("Found matching alias in address matrix, assigning to ticket ##{mapped_ticket_id}")
+
+    # ID im Betreff ergaenzen (wie gewuenscht)
+    original_subject = mail.subject || ""
+    mail.subject = "[##{mapped_ticket_id}] #{original_subject}"
+
+    [mapped_ticket_id, :alias]
   end
 
   # Extract ticket ID from subject

@@ -1,4 +1,6 @@
 require 'rspec'
+require 'active_support'
+require 'active_support/core_ext'
 
 # Stub-Umgebung, damit das Laden der Service-Klasse ohne Redmine möglich ist
 module Redmine; module I18n; end; end
@@ -13,8 +15,9 @@ class MailHandlerLogger
   def self.reset_logger_state; end
   def info(*) end
   def debug(*) end
+  def debug_mail(*) end
   def warn(*) end
-  def error(*) end
+  def error(msg = nil, *) $stderr.puts("[error] #{msg}") if ENV['SPEC_DEBUG']; end
   def info_mail(*) end
   def error_mail(*) end
 end
@@ -139,7 +142,111 @@ RSpec.describe MailHandlerService do
       expect(journal).to receive(:notes=).with("Original Text")
       
       # Execute
-      service.add_mail_to_ticket(mail, 1, user)
+      service.send(:add_mail_to_ticket, mail, 1, user)
+    end
+  end
+
+  describe 'Alias-Mails und deferred' do
+    let(:imap) { double('IMAP') }
+    let(:user) { double('User', id: 7, login: 'neu@extern.de') }
+    let(:matrix_settings) { { 'address_matrix' => "support@firma.de:42\n", 'inbox_ticket_id' => '1' } }
+
+    def build_mail(to:, subject:, from: 'neu@extern.de')
+      Mail.new(from: from, to: to, subject: subject, body: 'Hallo')
+    end
+
+    before do
+      allow(service).to receive(:find_existing_user).and_return(nil)
+      allow(service).to receive(:archive_message)
+      allow(service).to receive(:defer_message)
+      allow(service).to receive(:add_mail_to_ticket)
+      allow(service).to receive(:add_mail_to_inbox_ticket)
+    end
+
+    describe '#resolve_ticket_id' do
+      it 'liefert die ID aus dem Betreff' do
+        mail = build_mail(to: 'irgendwer@firma.de', subject: '[#5] Test')
+        expect(service.send(:resolve_ticket_id, mail)).to eq([5, :subject])
+      end
+
+      it 'liefert die Alias-ID und ergaenzt den Betreff' do
+        service.update_settings(matrix_settings)
+        mail = build_mail(to: 'support@firma.de', subject: 'Frage')
+        expect(service.send(:resolve_ticket_id, mail)).to eq([42, :alias])
+        expect(mail.subject).to eq('[#42] Frage')
+      end
+
+      it 'liefert nil ohne Treffer' do
+        service.update_settings(matrix_settings)
+        mail = build_mail(to: 'anders@firma.de', subject: 'Frage')
+        expect(service.send(:resolve_ticket_id, mail)).to eq([nil, nil])
+      end
+    end
+
+    describe '#process_message' do
+      before do
+        allow(imap).to receive(:fetch).with(1, 'UID').and_return([double(attr: { 'UID' => 1 })])
+      end
+
+      def stub_fetch(mail)
+        allow(imap).to receive(:fetch).with(1, 'RFC822').and_return([double(attr: { 'RFC822' => mail.to_s })])
+      end
+
+      it 'legt bei erkannter Alias-Mail einen Benutzer an statt zurueckzustellen' do
+        service.update_settings(matrix_settings)
+        stub_fetch(build_mail(to: 'support@firma.de', subject: 'Frage'))
+        expect(service).to receive(:create_new_user).with('neu@extern.de').and_return(user)
+        expect(service).to receive(:add_mail_to_ticket).with(anything, 42, user)
+        expect(service).not_to receive(:defer_message)
+        expect(service).to receive(:archive_message)
+
+        service.send(:process_message, imap, 1)
+      end
+
+      it 'stellt Mails ohne Ticket-Bezug von unbekannten Absendern weiterhin zurueck' do
+        service.update_settings(matrix_settings)
+        stub_fetch(build_mail(to: 'anders@firma.de', subject: 'Frage'))
+        expect(service).not_to receive(:create_new_user)
+        expect(service).to receive(:defer_message)
+        expect(service).not_to receive(:archive_message)
+
+        service.send(:process_message, imap, 1)
+      end
+    end
+
+    describe '#process_deferred_message' do
+      def stub_fetch(mail)
+        allow(imap).to receive(:fetch).with(1, 'RFC822').and_return([double(attr: { 'RFC822' => mail.to_s })])
+      end
+
+      it 'verarbeitet eine zurueckgestellte Alias-Mail sofort und legt den Benutzer an' do
+        service.update_settings(matrix_settings)
+        stub_fetch(build_mail(to: 'support@firma.de', subject: 'Frage'))
+        expect(service).to receive(:create_new_user).with('neu@extern.de').and_return(user)
+        expect(service).to receive(:add_mail_to_ticket).with(anything, 42, user)
+        expect(service).to receive(:archive_message)
+
+        expect(service.process_deferred_message(imap, 1)).to eq(:processed)
+      end
+
+      it 'behaelt Mails ohne Ticket-Bezug von unbekannten Absendern in deferred' do
+        service.update_settings(matrix_settings)
+        stub_fetch(build_mail(to: 'anders@firma.de', subject: 'Frage'))
+        expect(service).not_to receive(:create_new_user)
+        expect(service).not_to receive(:archive_message)
+
+        expect(service.process_deferred_message(imap, 1)).to eq(:kept)
+      end
+
+      it 'nutzt bei bekanntem Benutzer das Alias-Ticket statt des Inbox-Tickets' do
+        service.update_settings(matrix_settings)
+        allow(service).to receive(:find_existing_user).and_return(user)
+        stub_fetch(build_mail(to: 'support@firma.de', subject: 'Frage'))
+        expect(service).to receive(:add_mail_to_ticket).with(anything, 42, user)
+        expect(service).not_to receive(:add_mail_to_inbox_ticket)
+
+        expect(service.process_deferred_message(imap, 1)).to eq(:processed)
+      end
     end
   end
 
@@ -147,12 +254,12 @@ RSpec.describe MailHandlerService do
     it 'entfernt Emojis (4-Byte UTF-8 Zeichen)' do
       input = "Hallo Welt 😊"
       expected = "Hallo Welt □"
-      expect(service.sanitize_utf8_for_mysql(input)).to eq(expected)
+      expect(service.send(:sanitize_utf8_for_mysql, input)).to eq(expected)
     end
 
     it 'behält normale Zeichen bei' do
       input = "Hallo Welt 123 äöü"
-      expect(service.sanitize_utf8_for_mysql(input)).to eq(input)
+      expect(service.send(:sanitize_utf8_for_mysql, input)).to eq(input)
     end
   end
 
@@ -166,7 +273,7 @@ RSpec.describe MailHandlerService do
       allow(encodings_double).to receive(:value_decode).with(input).and_return(expected)
       stub_const('Mail::Encodings', encodings_double)
       
-      expect(service.decode_header_with_mail_decoder(input)).to eq(expected)
+      expect(service.send(:decode_header_with_mail_decoder, input)).to eq(expected)
     end
   end
 end
