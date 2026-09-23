@@ -25,11 +25,29 @@
       main.classList.add('nosidebar', 'mh-nosidebar');
     }
 
+    // Hoehe so setzen, dass alles unterhalb (Content-Abstand, Footer) noch auf
+    // den Bildschirm passt und die Seite nicht scrollen muss.
+    function px(el, prop) {
+      if (!el) return 0;
+      return parseFloat(window.getComputedStyle(el)[prop]) || 0;
+    }
     function resize() {
       var rect = root.getBoundingClientRect();
       var top = rect.top + window.pageYOffset;
-      var h = window.innerHeight - top - 12;
-      root.style.height = Math.max(400, h) + 'px';
+      var content = document.getElementById('content');
+      var footer = document.getElementById('footer');
+      var below = px(content, 'paddingBottom') + px(content, 'marginBottom');
+      if (footer) {
+        below += footer.getBoundingClientRect().height + px(footer, 'marginTop') + px(footer, 'marginBottom');
+      }
+      var h = window.innerHeight - top - below - 4;
+      root.style.height = Math.max(320, Math.floor(h)) + 'px';
+      // Zweiter Durchgang: was die Seite jetzt noch ueber-/unterschreitet
+      // (Theme-Abstaende, "Nach oben"-Link usw.) wird ausgeglichen.
+      var delta = document.documentElement.scrollHeight - window.innerHeight;
+      if (delta !== 0) {
+        root.style.height = Math.max(320, Math.floor(h - delta)) + 'px';
+      }
     }
     resize();
     window.addEventListener('resize', resize);
@@ -146,8 +164,48 @@
       }
     }
 
-    // ── Eingabe / Vorschlag (Event-Delegation) ────────────────────────────
+    // ── Overlay (Kommentar im Mail-Stil) ──────────────────────────────────
+    var overlay = document.getElementById('mh-overlay');
+    var overlayContent = document.getElementById('mh-overlay-content');
+
+    function openOverlay(row) {
+      var full = row.querySelector('.mh-c-full');
+      if (!full || !overlay) return;
+      overlayContent.innerHTML = full.innerHTML;
+      var classic = overlay.querySelector('.mh-overlay-classic');
+      var idLink = row.querySelector('.mh-c-id a');
+      if (classic && idLink) classic.href = idLink.href;
+      var title = overlay.querySelector('.mh-overlay-title');
+      var user = row.querySelector('.mh-c-user');
+      if (title) title.textContent = 'Kommentar #' + row.getAttribute('data-journal-id') + (user ? ' – ' + user.textContent : '');
+      overlay.hidden = false;
+      var closeBtn = overlay.querySelector('.mh-overlay-close');
+      if (closeBtn) closeBtn.focus();
+    }
+
+    function closeOverlay() {
+      if (!overlay) return;
+      overlay.hidden = true;
+      overlayContent.innerHTML = '';
+    }
+
+    if (overlay) {
+      overlay.addEventListener('click', function (e) {
+        if (e.target === overlay || e.target.closest('.mh-overlay-close')) closeOverlay();
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !overlay.hidden) closeOverlay();
+      });
+    }
+
+    // ── Eingabe / Vorschlag / Zeilenklick (Event-Delegation) ─────────────
     comments.addEventListener('click', function (e) {
+      if (e.target.closest('input, button, a')) {
+        // Links, Eingaben und Buttons behalten ihr eigenes Verhalten (s.u.)
+      } else {
+        var clickedRow = e.target.closest('.mh-comment');
+        if (clickedRow) { openOverlay(clickedRow); return; }
+      }
       var suggest = e.target.closest('.mh-c-suggest');
       if (suggest) {
         e.preventDefault();

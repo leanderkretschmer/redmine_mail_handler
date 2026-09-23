@@ -35,8 +35,7 @@
            id="mh-comment-<%= journal.id %>"
            draggable="<%= @distributor_can_move ? 'true' : 'false' %>"
            data-journal-id="<%= journal.id %>"
-           data-user-id="<%= journal.user_id %>"
-           title="<%= c.tooltip %>">
+           data-user-id="<%= journal.user_id %>">
         <span class="mh-c-id"><%= link_to "##{journal.id}", issue_path(@issue, :classic => 1, :anchor => "note-#{c.indice}"), :title => "Kommentar #{c.indice} in der Standardansicht öffnen" %></span>
         <span class="mh-c-sep">|</span>
         <span class="mh-c-user"><%= journal.user ? journal.user.name : 'Anonym' %></span>
@@ -55,6 +54,24 @@
             <% end %>
           </span>
         </span>
+        <%# Vollansicht fuer das Overlay (Mail-Stil); wird per Klick auf die Zeile geoeffnet %>
+        <div class="mh-c-full" hidden>
+          <div class="mh-mail-head">
+            <div><span class="mh-mail-label">Von:</span> <%= journal.user ? journal.user.name : 'Anonym' %><% if journal.user && journal.user.mail.present? %> &lt;<%= journal.user.mail %>&gt;<% end %></div>
+            <div><span class="mh-mail-label">Datum:</span> <%= format_time(journal.created_on) %></div>
+            <div><span class="mh-mail-label">Ticket:</span> #<%= @issue.id %> <%= @issue.subject %> · Kommentar #<%= c.indice %> (Journal <%= journal.id %>)</div>
+            <% atts = journal.details.select { |d| d.property == 'attachment' && d.value.present? } %>
+            <% if atts.any? %>
+              <div><span class="mh-mail-label">Anhänge:</span>
+                <% atts.each do |d| %>
+                  <% att = Attachment.find_by(id: d.prop_key) %>
+                  <% if att %><%= link_to_attachment att, :download => true %><% else %><%= d.value %><% end %>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+          <div class="mh-mail-body wiki"><%= textilizable(journal, :notes) %></div>
+        </div>
       </div>
     <% end %>
   </div>
@@ -106,4 +123,17 @@
   </div>
 
   <div class="mh-toast" id="mh-toast" hidden></div>
+
+  <div class="mh-overlay" id="mh-overlay" hidden>
+    <div class="mh-overlay-box" role="dialog" aria-modal="true">
+      <div class="mh-overlay-bar">
+        <span class="mh-overlay-title">Kommentar</span>
+        <span class="mh-overlay-actions">
+          <a href="#" class="mh-overlay-classic" target="_blank">In Ticketansicht öffnen</a>
+          <button type="button" class="mh-overlay-close" title="Schließen (Esc)">×</button>
+        </span>
+      </div>
+      <div class="mh-overlay-content" id="mh-overlay-content"></div>
+    </div>
+  </div>
 </div>

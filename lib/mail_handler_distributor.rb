@@ -9,9 +9,8 @@ module MailHandlerDistributor
   # Kurze Vorschau eines Kommentars: erste nicht-leere Zeile, ohne Markup,
   # auf diese Laenge gekuerzt (CSS kuerzt zusaetzlich per Ellipsis).
   PREVIEW_LENGTH = 140
-  TOOLTIP_LENGTH = 400
 
-  Comment = Struct.new(:journal, :indice, :preview, :tooltip, :suggestion, keyword_init: true)
+  Comment = Struct.new(:journal, :indice, :preview, :suggestion, keyword_init: true)
   AliasEntry = Struct.new(:email, :issue, :project, keyword_init: true)
   TrackerColumn = Struct.new(:tracker, :issues, keyword_init: true)
 
@@ -83,7 +82,6 @@ module MailHandlerDistributor
           journal: journal,
           indice: journal.indice,
           preview: preview_text(journal.notes, PREVIEW_LENGTH),
-          tooltip: preview_text(journal.notes, TOOLTIP_LENGTH, multiline: true),
           suggestion: suggestions[journal.user_id]
         )
       end
