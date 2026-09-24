@@ -134,6 +134,7 @@
         <strong>Ausgewählte E-Mails:</strong>
         <%= submit_tag "Neu scannen", :name => 'rescan', :class => 'small', :onclick => 'return confirmAction("Möchten Sie die ausgewählten E-Mails wirklich neu scannen?")' %>
         <%= submit_tag "Archivieren", :name => 'archive', :class => 'small', :onclick => 'return submitArchive()' %>
+        <%= submit_tag "Benutzer erstellen (Auswahl)", :name => 'create_users', :class => 'small icon icon-user', :onclick => 'return submitCreateUsers()' %>
       </p>
     </div>
 
@@ -239,6 +240,7 @@ document.addEventListener('DOMContentLoaded', function() {
   var form = document.getElementById('deferred_mails_form');
   if (form) {
     form.setAttribute('data-archive-url', '<%= url_for(:action => 'archive_deferred_mails') %>');
+    form.setAttribute('data-create-users-url', '<%= url_for(:action => 'create_users_from_mails') %>');
     form.setAttribute('data-search-from', '<%= @search_from %>');
     form.setAttribute('data-search-subject', '<%= @search_subject %>');
   }

@@ -38,7 +38,26 @@ function submitArchive() {
   var form = document.getElementById('deferred_mails_form');
   // Note: The action URL needs to be set dynamically in the view
   form.action = form.getAttribute('data-archive-url');
-  
+
+  return true;
+}
+
+function submitCreateUsers() {
+  // Prüfe ob mindestens eine E-Mail ausgewählt ist
+  var selectedCheckboxes = document.querySelectorAll('.mail-checkbox:checked');
+  if (selectedCheckboxes.length === 0) {
+    alert('Bitte wählen Sie mindestens eine E-Mail aus.');
+    return false;
+  }
+
+  if (!confirm('Für die Absender der ausgewählten E-Mails werden gesperrte Benutzerkonten angelegt (bereits vorhandene Benutzer werden übersprungen). Fortfahren?')) {
+    return false;
+  }
+
+  // Ändere die Form-Action zum Erstellen der Benutzer
+  var form = document.getElementById('deferred_mails_form');
+  form.action = form.getAttribute('data-create-users-url');
+
   return true;
 }
 

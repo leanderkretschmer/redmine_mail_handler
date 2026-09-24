@@ -531,6 +531,66 @@ class MailHandlerAdminController < ApplicationController
     redirect_to action: :deferred_mails
   end
 
+  # Legt fuer mehrere in der Deferred-Liste ausgewaehlte E-Mails auf einmal
+  # gesperrte Benutzerkonten anhand der Absenderadresse an (Mehrfachauswahl,
+  # analog zu 'Neu scannen'/'Archivieren').
+  def create_users_from_mails
+    selected_ids = params[:selected_ids] || []
+
+    if selected_ids.empty?
+      flash[:error] = "Bitte wählen Sie mindestens eine E-Mail aus."
+      redirect_to action: :deferred_mails
+      return
+    end
+
+    begin
+      from_addresses = collect_from_addresses_for_ids(selected_ids)
+
+      if from_addresses.empty?
+        flash[:error] = "Für die ausgewählten E-Mails konnte kein Absender ermittelt werden."
+        redirect_to action: :deferred_mails
+        return
+      end
+
+      created = []
+      existing = []
+      failed = []
+
+      from_addresses.each do |from_address|
+        begin
+          if @service.find_existing_user(from_address)
+            existing << from_address
+            next
+          end
+
+          if @service.create_new_user(from_address)
+            created << from_address
+          else
+            failed << from_address
+          end
+        rescue => e
+          Rails.logger.error "Fehler beim Erstellen des Benutzers für #{from_address}: #{e.message}"
+          failed << from_address
+        end
+      end
+
+      message_parts = []
+      message_parts << "#{created.length} Benutzer erstellt (gesperrt, muss aktiviert werden)" if created.any?
+      message_parts << "#{existing.length} bereits vorhanden" if existing.any?
+      message_parts << "#{failed.length} fehlgeschlagen (#{failed.join(', ')})" if failed.any?
+
+      if created.any? || existing.any?
+        flash[:notice] = message_parts.join(', ') + '.'
+      else
+        flash[:error] = message_parts.join(', ') + '.'
+      end
+    rescue => e
+      flash[:error] = "Fehler beim Erstellen der Benutzer: #{e.message}"
+    end
+
+    redirect_to action: :deferred_mails
+  end
+
   def process_deferred_mail
     # Diese Funktion ist nicht mehr verfügbar, da keine einzelnen deferred Einträge mehr verarbeitet werden
     flash[:error] = "Diese Funktion ist nicht mehr verfügbar. Verwenden Sie 'Alle zurückgestellten E-Mails verarbeiten'."
@@ -965,6 +1025,17 @@ class MailHandlerAdminController < ApplicationController
     ensure
       imap&.disconnect
     end
+  end
+
+  # Ermittelt die (eindeutigen) Absenderadressen fuer eine Menge ausgewaehlter
+  # Deferred-Mails. Nutzt den vorhandenen Batch-Header-Fetch (nur Header, kein
+  # voller Body), damit auch groessere Mehrfachauswahlen schnell bleiben.
+  def collect_from_addresses_for_ids(selected_ids)
+    ids = selected_ids.map(&:to_i).uniq
+    return [] if ids.empty?
+
+    mails = @service.get_deferred_mail_headers(ids, 0, ids.length)
+    mails.map { |mail| mail[:from] }.compact.map(&:strip).reject(&:blank?).uniq
   end
 
   # Einfache Archivierungs-Methode ohne komplexe Message-ID Logik
