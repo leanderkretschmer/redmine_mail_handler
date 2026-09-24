@@ -9,6 +9,10 @@ class Setting
   def self.plugin_redmine_mail_handler
     {} # minimale Settings
   end
+
+  def self.mail_from
+    'redmine@firma.de'
+  end
 end
 
 class MailHandlerLogger
@@ -56,7 +60,7 @@ RSpec.describe MailHandlerService do
       mail = MailStub.new([img1, img2])
       content = "Text \uFFFC und \uFFFC Ende"
       result = service.send(:apply_image_reference_filter, content, mail, [])
-      expect(result).to include('Text !bild1.png! und !foto2.jpg! Ende')
+      expect(result.gsub(/\s+/, ' ')).to include('Text !bild1.png! und !foto2.jpg! Ende')
     end
 
     it 'ersetzt cid:CONTENTID durch !filename!' do
@@ -137,6 +141,7 @@ RSpec.describe MailHandlerService do
       
       allow(journal).to receive(:created_on=)
       allow(journal).to receive(:save).and_return(true)
+      allow(ticket).to receive(:save).and_return(true)
       
       # Erwarte, dass Notes aktualisiert werden
       expect(journal).to receive(:notes=).with("Original Text")
@@ -149,7 +154,7 @@ RSpec.describe MailHandlerService do
   describe 'Alias-Mails und deferred' do
     let(:imap) { double('IMAP') }
     let(:user) { double('User', id: 7, login: 'neu@extern.de') }
-    let(:matrix_settings) { { 'address_matrix' => "support@firma.de:42\n", 'inbox_ticket_id' => '1' } }
+    let(:matrix_settings) { { 'address_matrix' => "support@firma.de:42\n", 'inbox_ticket_id' => '1', 'imap_username' => 'pm@firma.de', 'ignore_email_addresses' => "noreply@firma.de\n" } }
 
     def build_mail(to:, subject:, from: 'neu@extern.de')
       Mail.new(from: from, to: to, subject: subject, body: 'Hallo')
@@ -159,8 +164,28 @@ RSpec.describe MailHandlerService do
       allow(service).to receive(:find_existing_user).and_return(nil)
       allow(service).to receive(:archive_message)
       allow(service).to receive(:defer_message)
+      allow(service).to receive(:move_to_ignored_folder)
       allow(service).to receive(:add_mail_to_ticket)
       allow(service).to receive(:add_mail_to_inbox_ticket)
+    end
+
+    describe '#system_address?' do
+      it 'erkennt IMAP-Konto, Redmine-Absender und Dummy-Domain' do
+        service.update_settings(matrix_settings.merge('dummy_mail_enabled' => '1', 'dummy_mail_suffix' => 'dummy.firma.de'))
+        expect(service.send(:system_address?, 'pm@firma.de')).to be true
+        expect(service.send(:system_address?, 'PM Postfach <PM@firma.de>')).to be true
+        expect(service.send(:system_address?, 'redmine@firma.de')).to be true
+        expect(service.send(:system_address?, 'jemand@dummy.firma.de')).to be true
+        expect(service.send(:system_address?, 'kunde@extern.de')).to be false
+      end
+    end
+
+    describe '#create_new_user' do
+      it 'legt fuer Systemadressen keinen Benutzer an' do
+        service.update_settings(matrix_settings)
+        expect(User).not_to receive(:new)
+        expect(service.send(:create_new_user, 'pm@firma.de')).to be_nil
+      end
     end
 
     describe '#resolve_ticket_id' do
@@ -203,6 +228,16 @@ RSpec.describe MailHandlerService do
         service.send(:process_message, imap, 1)
       end
 
+      it 'verschiebt Mails von der eigenen Postfachadresse in den Ignored-Ordner' do
+        service.update_settings(matrix_settings)
+        stub_fetch(build_mail(to: 'support@firma.de', subject: '[#42] Ticket wurde aktualisiert', from: 'pm@firma.de'))
+        expect(service).not_to receive(:create_new_user)
+        expect(service).to receive(:move_to_ignored_folder)
+        expect(service).not_to receive(:defer_message)
+
+        service.send(:process_message, imap, 1)
+      end
+
       it 'stellt Mails ohne Ticket-Bezug von unbekannten Absendern weiterhin zurueck' do
         service.update_settings(matrix_settings)
         stub_fetch(build_mail(to: 'anders@firma.de', subject: 'Frage'))
@@ -227,6 +262,26 @@ RSpec.describe MailHandlerService do
         expect(service).to receive(:archive_message)
 
         expect(service.process_deferred_message(imap, 1)).to eq(:processed)
+      end
+
+      it 'legt bei Ticket-ID im Betreff ohne Alias KEINEN Benutzer an und behaelt die Mail in deferred' do
+        service.update_settings(matrix_settings)
+        stub_fetch(build_mail(to: 'anders@firma.de', subject: '[#51340] Ticket wurde aktualisiert'))
+        expect(service).not_to receive(:create_new_user)
+        expect(service).not_to receive(:add_mail_to_ticket)
+
+        expect(service.process_deferred_message(imap, 1)).to eq(:kept)
+      end
+
+      it 'verschiebt zurueckgestellte Mails von Ignore-Liste oder Systemadresse in den Ignored-Ordner' do
+        service.update_settings(matrix_settings)
+        stub_fetch(build_mail(to: 'support@firma.de', subject: '[#42] x', from: 'pm@firma.de'))
+        expect(service).not_to receive(:create_new_user)
+        expect(service).to receive(:move_to_ignored_folder)
+        expect(service.process_deferred_message(imap, 1)).to eq(:ignored)
+
+        stub_fetch(build_mail(to: 'support@firma.de', subject: 'x', from: 'noreply@firma.de'))
+        expect(service.process_deferred_message(imap, 1)).to eq(:ignored)
       end
 
       it 'behaelt Mails ohne Ticket-Bezug von unbekannten Absendern in deferred' do

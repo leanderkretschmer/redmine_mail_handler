@@ -60,7 +60,8 @@ Mails from unknown users without ticket IDs are parked in the 'Deferred' folder.
 
 - The system periodically checks these mails.
 - If the user has been created since the mail arrived, the mail is processed.
-- If the mail now resolves to a ticket (ticket ID in the subject or an alias address from the address matrix), the user is created and the mail is filed into that ticket. **Alias mails never stay in 'Deferred'.**
+- If the mail is from an address on the ignore list or from one of the system's own addresses (IMAP/SMTP account, Redmine `mail_from`, dummy-mail domain), it is moved to 'Ignored' instead. No user is ever created for a system address.
+- If the recipient matches an alias from the address matrix, the user is created and the mail is filed into the alias ticket. **Alias mails never stay in 'Deferred'.** A ticket ID in the subject alone does *not* create a user (that would re-import bounced Redmine notifications); such mails stay deferred until the sender exists.
 - If the deferral period expires, the mail is moved to 'Archive'.
 
 ## Restart & "Sudden" User Creation from Deferred
@@ -69,7 +70,7 @@ If many mails from the "Deferred" folder are processed after a restart, it usual
 
 **Explanation:**
 1.  **Logic:** The deferred processing job ([MailHandlerService#process_deferred_message](file:///Users/leanderkretschmer/redmine_mail_handler-2/lib/mail_handler_service.rb#L204)) strictly checks if a user **already exists** (`find_existing_user`).
-2.  **No Creation:** It does **NOT** create new users, except for mails that resolve to a ticket via subject or alias matrix (those are processed immediately).
+2.  **No Creation:** It does **NOT** create new users, except for mails whose recipient matches an alias in the address matrix (those are processed immediately).
 3.  **Trigger:** When the scheduler starts (on restart) or the cron job runs (e.g. 02:00), it iterates through all deferred mails.
 4.  **Match:** If it finds that users (who were previously unknown) now exist in Redmine, it processes the mails and archives them.
 

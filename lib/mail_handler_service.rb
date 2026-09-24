@@ -161,6 +161,7 @@ class MailHandlerService
       
       processed_count = 0
       expired_count = 0
+      ignored_count = 0
       
       # Verarbeite jede zurückgestellte Nachricht
       message_ids.each do |msg_id|
@@ -171,6 +172,8 @@ class MailHandlerService
             processed_count += 1
           when :expired
             expired_count += 1
+          when :ignored
+            ignored_count += 1
           end
         rescue => e
           @logger.error("Error processing deferred message #{msg_id}: #{e.class.name} - #{e.message}")
@@ -178,7 +181,7 @@ class MailHandlerService
         end
       end
       
-      @logger.info("Deferred processing completed: #{processed_count} processed, #{expired_count} expired")
+      @logger.info("Deferred processing completed: #{processed_count} processed, #{expired_count} expired, #{ignored_count} ignored")
       
       # Automatische Log-Bereinigung nach Zurückgestellt-Verarbeitung
       MailHandlerLog.run_scheduled_cleanup
@@ -285,17 +288,29 @@ class MailHandlerService
     from_address = mail.from&.first
     return :skipped if from_address.blank?
 
-    # Gleiche Regel wie im Inbox-Pfad: Ticket-ID aus Betreff oder Alias-Matrix.
-    # Eine als Alias-Mail erkannte Nachricht gehoert nicht in deferred – sie wird
-    # sofort verarbeitet (bei Bedarf mit angelegtem Benutzer), z.B. wenn der
-    # Matrix-Eintrag erst nach der Zurueckstellung angelegt wurde.
+    # Ignore-Liste und eigene Systemadressen gelten auch fuer zurueckgestellte
+    # Mails (z.B. Eintraege, die erst nach der Zurueckstellung ergaenzt wurden).
+    # Solche Mails werden nie verarbeitet, sondern in den Ignored-Ordner verschoben.
+    if should_ignore_email?(from_address) || system_address?(from_address)
+      @logger.info("Deferred message #{msg_id} from #{from_address} matches ignore pattern or system address, moving to ignored folder")
+      move_to_ignored_folder(imap, msg_id, mail)
+      return :ignored
+    end
+
+    # Ticket-ID aus Betreff oder Alias-Matrix. Eine als Alias-Mail erkannte
+    # Nachricht gehoert nicht in deferred – sie wird sofort verarbeitet (bei
+    # Bedarf mit angelegtem Benutzer), z.B. wenn der Matrix-Eintrag erst nach
+    # der Zurueckstellung angelegt wurde. Eine Ticket-ID im Betreff allein
+    # legt KEINEN Benutzer an: solche Mails bleiben zurueckgestellt, bis der
+    # Absender existiert (sonst wuerden z.B. zurueckgelaufene Redmine-
+    # Benachrichtigungen als Kommentare importiert).
     ticket_id, ticket_source = resolve_ticket_id(mail)
 
     existing_user = find_existing_user(from_address)
     user = existing_user
 
-    if user.nil? && ticket_id
-      @logger.info("Deferred message #{msg_id} resolves to ticket ##{ticket_id} via #{ticket_source}, creating user #{from_address}")
+    if user.nil? && ticket_id && ticket_source == :alias
+      @logger.info("Deferred message #{msg_id} resolves to ticket ##{ticket_id} via alias, creating user #{from_address}")
       user = create_new_user(from_address)
       unless user
         @logger.error("Failed to create user for #{from_address}, keeping deferred message #{msg_id}")
@@ -449,6 +464,12 @@ class MailHandlerService
     
     # Normalize email address
     original_email = email.to_s.strip.downcase
+
+    # Nie einen Benutzer fuer eigene Systemadressen anlegen
+    if system_address?(original_email)
+      @logger.error("Refusing to create user for system address #{original_email}")
+      return nil
+    end
     
     # Validate email format
     unless original_email.match?(/\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i)
@@ -555,6 +576,31 @@ class MailHandlerService
   # Bestimme Nachname basierend auf Konfiguration
   def get_user_lastname
     @settings['user_lastname_custom'] || 'Auto-generated'
+  end
+
+  # Eigene Adressen des Systems: IMAP-/SMTP-Konto des Plugins, Redmine-
+  # Absenderadresse (Setting.mail_from) und alles unter der Dummy-Mail-Domain.
+  # Fuer diese Adressen wird nie ein Benutzer angelegt und Mails von ihnen
+  # werden weder importiert noch nachverarbeitet.
+  def system_address?(address)
+    addr = extract_email_address(address)
+    return false if addr.blank?
+
+    own = [@settings['imap_username'], @settings['smtp_username']]
+    own << Setting.mail_from if Setting.respond_to?(:mail_from)
+    own = own.map { |a| extract_email_address(a) }.compact.reject(&:blank?)
+    return true if own.include?(addr)
+
+    suffix = @settings['dummy_mail_suffix'].to_s.strip.downcase
+    return true if @settings['dummy_mail_enabled'] == '1' && suffix.present? && addr.end_with?("@#{suffix}")
+
+    false
+  end
+
+  # "Name <user@example.com>" / "user@example.com" -> "user@example.com" (downcase)
+  def extract_email_address(value)
+    return nil if value.blank?
+    value.to_s[/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/i]&.downcase
   end
 
   def should_ignore_email?(from_address)
@@ -1137,9 +1183,12 @@ class MailHandlerService
     
     @logger.debug_mail("Processing mail from #{from_address} with subject: #{mail.subject}", mail)
 
-    # Check if email should be ignored (before deduplication)
-    if should_ignore_email?(from_address)
-      @logger.info("Mail from #{from_address} matches ignore pattern, moving to ignored folder")
+    # Check if email should be ignored (before deduplication).
+    # Eigene Systemadressen (IMAP-/SMTP-Konto, Redmine-Absender, Dummy-Domain)
+    # werden immer ignoriert – sonst wuerden zurueckgelaufene Benachrichtigungen
+    # als Kommentare importiert.
+    if should_ignore_email?(from_address) || system_address?(from_address)
+      @logger.info("Mail from #{from_address} matches ignore pattern or system address, moving to ignored folder")
       move_to_ignored_folder(imap, msg_id, mail)
       return # Don't archive
     end
