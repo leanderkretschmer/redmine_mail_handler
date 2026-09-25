@@ -37,6 +37,11 @@
            draggable="<%= @distributor_can_move ? 'true' : 'false' %>"
            data-journal-id="<%= journal.id %>"
            data-user-id="<%= journal.user_id %>">
+        <span class="mh-c-move">
+          <input type="text" class="mh-c-target" placeholder="Ticket-Nr." inputmode="numeric" autocomplete="off"
+                 <%= 'disabled' unless @distributor_can_move %> />
+          <button type="button" class="mh-c-go" title="In dieses Ticket verschieben" <%= 'disabled' unless @distributor_can_move %>>→</button>
+        </span>
         <span class="mh-c-id"><%= link_to "##{journal.id}", issue_path(@issue, :classic => 1, :anchor => "note-#{c.indice}"), :title => "Kommentar #{c.indice} in der Standardansicht öffnen" %></span>
         <span class="mh-c-sep">|</span>
         <span class="mh-c-user"><%= journal.user ? journal.user.name : 'Anonym' %></span>
@@ -57,9 +62,6 @@
               <button type="button" class="mh-c-restore" data-target-id="<%= c.origin_issue.id %>" title="Zurück nach #<%= c.origin_issue.id %> <%= c.origin_issue.subject %>">↩ zurück nach #<%= c.origin_issue.id %></button>
             <% end %>
           <% end %>
-          <input type="text" class="mh-c-target" placeholder="Ticket-Nr." inputmode="numeric" autocomplete="off"
-                 <%= 'disabled' unless @distributor_can_move %> />
-          <button type="button" class="mh-c-go" title="In dieses Ticket verschieben" <%= 'disabled' unless @distributor_can_move %>>→</button>
           <span class="mh-c-suggest-wrap">
             <% if c.suggestion %>
               <% label = MailHandlerDistributor.target_label(@distributor_kind, c.suggestion) %>
@@ -124,9 +126,7 @@
         <% @distributor_aliases.each do |a| %>
           <div class="mh-box mh-alias-box mh-drop" data-target-id="<%= a.issue.id %>"
                data-search="<%= [a.project&.identifier, a.project&.name, a.issue.id, a.issue.subject, a.email].compact.join(' ').downcase %>">
-            <div class="mh-box-project-id"><%= a.project ? link_to(a.project.identifier, project_path(a.project)) : '–' %></div>
-            <div class="mh-box-project"><%= a.project ? a.project.name : '' %></div>
-            <div class="mh-box-subject"><span class="mh-box-ticket"><%= link_to "##{a.issue.id}", issue_path(a.issue) %></span> <%= a.issue.subject %></div>
+            <div class="mh-box-project-id" title="<%= a.project ? a.project.name : '' %> · Ticket #<%= a.issue.id %>"><%= link_to(a.project ? MailHandlerDistributor.short_name(a.project.name) : "##{a.issue.id}", issue_path(a.issue)) %></div>
             <div class="mh-box-alias"><%= a.email %></div>
           </div>
         <% end %>

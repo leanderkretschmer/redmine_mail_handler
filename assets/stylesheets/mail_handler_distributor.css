@@ -54,6 +54,7 @@
 .mh-comment.mh-removing { transition: opacity .25s, max-height .25s; opacity: 0; max-height: 0; overflow: hidden; padding-top: 0; padding-bottom: 0; }
 .mh-readonly .mh-comment { cursor: default; }
 .mh-c-full { display: none; }
+.mh-c-move { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; margin-right: 6px; }
 .mh-c-id { flex: 0 0 auto; font-family: monospace; color: #169; min-width: 56px; }
 .mh-c-id a { color: #169; text-decoration: none; }
 .mh-c-sep { color: #bbb; flex: 0 0 auto; }
@@ -177,7 +178,8 @@
   align-content: start;
   padding: 2px;
 }
-.mh-alias-box { min-height: 90px; }
+.mh-alias-box { min-height: 0; }
+.mh-alias-box .mh-box-alias { font-size: 12px; color: #555; margin-top: 4px; }
 
 /* Alias: Tracker-Spalten */
 .mh-tracker-columns {
