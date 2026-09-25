@@ -96,6 +96,14 @@ For distributor tickets the plugin replaces the normal issue page (`issues#show`
 
 **Suggestions:** every move is logged in `mail_handler_comment_moves` (hook `move_comments_after_journal_move`). A target is suggested for a sender once their last 3 moves out of the same distributor all went to the same ticket. If the targets vary, no suggestion is shown.
 
+**Search:** the targets area has a filter box; tiles (and tracker columns) that do not match all typed words are hidden. The filter survives moves (no reload) and is remembered per distributor in `sessionStorage`.
+
+**Suggestions in the root distributor** are shown as projects (`identifier · name`), because targets there are alias distributors, one per project. Alias distributors suggest tickets (`#id subject`). Root tiles show the project identifier bold and the ticket number small.
+
+**Trash:** the setting `trash_ticket_id` names a system ticket that every distributor offers as drop target "Papierkorb". Moved comments are kept `trash_retention_hours` (default 48) and then deleted by an hourly scheduler job (`MailHandlerDistributor.purge_trash!`, including moved attachments). The trash ticket has its own view listing every entry with origin ticket, remaining time and a "zurück" button that moves the comment back to the ticket it came from (origin taken from `mail_handler_comment_moves`).
+
+**System tracker:** the setting `distributor_tracker_name` (default `Ticket-Verteiler`) names a tracker for all system tickets (inbox, alias distributors, trash). "Mail Handler Administration › System-Tracker anwenden" creates it if needed, enables it in the affected projects and assigns it to those tickets. `IssueQuery` is patched (`lib/mail_handler_issue_query_patch.rb`) so that every new query with Redmine's default filter additionally gets "Tracker is not <that tracker>", hiding the system tickets from issue lists by default; the filter is visible and removable, saved queries and explicit filters are untouched.
+
 **Menu items:** users with the role named in the setting `distributor_role_name` (default `Ticket_Verteiler`) and admins get a top-menu entry "Ticket-Verteiler" linking to the inbox ticket, and in every project that has an alias distributor a project-menu entry "Ticket-Verteiler" linking to that project's alias ticket (lowest ID if several). Registered in `init.rb`, URLs come from `lib/mail_handler_distributor_menu_helper.rb`.
 
 **Code:** `lib/mail_handler_distributor.rb` (data), `lib/mail_handler_distributor_issues_patch.rb` (issues#show override), `app/controllers/mail_handler_distributor_controller.rb`, `app/views/mail_handler_distributor/show.html.erb`, `assets/{javascripts,stylesheets}/mail_handler_distributor.*`, `app/models/mail_handler_comment_move.rb`.

@@ -45,13 +45,14 @@ class MailHandlerDistributorController < ApplicationController
     end
 
     suggestion = MailHandlerCommentMove.suggestion_for(source_issue.id, source_user_id)
+    kind = MailHandlerDistributor.kind(source_issue)
 
     render json: {
       ok: true,
       journal_id: journal.id,
       user_id: source_user_id,
-      target: issue_json(target_issue),
-      suggestion: suggestion ? issue_json(suggestion) : nil
+      target: issue_json(target_issue, kind),
+      suggestion: suggestion ? issue_json(suggestion, kind) : nil
     }
   rescue => e
     Rails.logger.error("[MailHandler] move_comment failed: #{e.class}: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
@@ -64,8 +65,8 @@ class MailHandlerDistributorController < ApplicationController
     Redmine::Hook.hook_listeners(:controller_journals_edit_post).any? { |l| l.class.name == 'MoveCommentsHooks' }
   end
 
-  def issue_json(issue)
-    { id: issue.id, subject: issue.subject, project: issue.project&.name, url: issue_path(issue) }
+  def issue_json(issue, kind = nil)
+    MailHandlerDistributor.issue_json(issue, kind).merge(url: issue_path(issue))
   end
 
   def render_error_json(message, status)

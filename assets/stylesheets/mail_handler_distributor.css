@@ -88,7 +88,46 @@
   flex-direction: column;
   padding-top: 6px;
 }
-.mh-targets-head { flex: 0 0 auto; font-weight: bold; padding: 0 0 6px 0; color: #333; }
+.mh-targets-head {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-weight: bold;
+  padding: 0 0 6px 0;
+  color: #333;
+}
+.mh-targets-title { flex: 1 1 auto; min-width: 0; }
+.mh-targets-tools { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; font-weight: normal; }
+.mh-search { width: 220px; padding: 4px 8px; font-size: 12px; border: 1px solid #ccc; border-radius: 3px; }
+.mh-search-active .mh-drop.mh-search-hide { display: none !important; }
+.mh-search-active .mh-tracker-col.mh-search-hide { display: none !important; }
+.mh-search-empty { color: #888; padding: 12px 6px; }
+
+/* Papierkorb-Kachel (in jedem Verteiler als Ziel) */
+.mh-trash-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 8px;
+  min-width: 150px;
+  background: #fff5f5;
+  border-color: #d9a3a3;
+}
+.mh-trash-box .mh-trash-icon { font-size: 18px; }
+.mh-trash-text { display: flex; flex-direction: column; line-height: 1.2; }
+.mh-trash-text a { font-weight: bold; color: #a33; text-decoration: none; }
+.mh-trash-text small { color: #999; font-size: 10px; }
+.mh-trash-box.mh-drop-over { background: #ffe0e0; border-color: #c33; box-shadow: 0 0 0 2px rgba(204,51,51,.25); }
+.mh-trash-info { color: #555; padding: 12px 6px; line-height: 1.5; }
+.mh-kind-trash .mh-comments { flex: 1 1 auto; }
+.mh-kind-trash .mh-targets { flex: 0 0 auto; }
+.mh-c-origin { color: #666; font-size: 12px; }
+.mh-c-origin a { color: #169; text-decoration: none; }
+.mh-c-expires { color: #a33; font-size: 11px; white-space: nowrap; }
+.mh-c-restore { padding: 1px 8px; font-size: 12px; cursor: pointer; color: #285; }
+.mh-c-suggest-trash { border-color: #d9a3a3; color: #a33; background: #fff5f5; }
 .mh-hint { font-weight: normal; color: #888; font-size: 12px; }
 .mh-closed-toggle { font-weight: normal; color: #666; font-size: 12px; margin-left: 16px; cursor: pointer; }
 .mh-empty { color: #888; padding: 12px 6px; }
@@ -103,6 +142,12 @@
   transition: background .1s, border-color .1s;
 }
 .mh-box-id { font-weight: bold; }
+/* Root: Projektnummer dick, Ticketnummer klein */
+.mh-box-project-id { font-weight: bold; font-size: 14px; }
+.mh-box-project-id a { color: #169; text-decoration: none; }
+.mh-alias-box .mh-box-project { color: #333; margin-top: 1px; }
+.mh-alias-box .mh-box-subject { color: #777; }
+.mh-box-ticket a { color: #888; font-size: 11px; text-decoration: none; }
 .mh-box-id a { color: #169; text-decoration: none; }
 .mh-box-status { font-weight: normal; color: #888; font-size: 11px; margin-left: 4px; }
 .mh-box-project { color: #333; margin-top: 2px; }

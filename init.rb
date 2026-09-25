@@ -55,7 +55,10 @@ Redmine::Plugin.register :redmine_mail_handler do
       'address_matrix' => '',
       'performance_disable_images' => '0',
       'performance_disabled_ticket_ids' => '',
-      'distributor_role_name' => 'Ticket_Verteiler'
+      'distributor_role_name' => 'Ticket_Verteiler',
+      'distributor_tracker_name' => 'Ticket-Verteiler',
+      'trash_ticket_id' => '',
+      'trash_retention_hours' => '48'
     }, :partial => 'settings/mail_handler_settings'
 
   # Menü-Einträge hinzufügen
@@ -93,6 +96,7 @@ require File.expand_path('../lib/mail_handler_journal_patch', __FILE__)
 require File.expand_path('../lib/mail_handler_distributor', __FILE__)
 require File.expand_path('../lib/mail_handler_distributor_issues_patch', __FILE__)
 require File.expand_path('../lib/mail_handler_distributor_menu_helper', __FILE__)
+require File.expand_path('../lib/mail_handler_issue_query_patch', __FILE__)
 
 # Initialisiere Scheduler nach Plugin-Load
 Rails.application.config.after_initialize do

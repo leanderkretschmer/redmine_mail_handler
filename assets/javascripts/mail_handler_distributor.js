@@ -12,6 +12,8 @@
     if (!root) return;
 
     var moveUrl = root.getAttribute('data-move-url');
+    var kind = root.getAttribute('data-kind');
+    var issueId = root.getAttribute('data-issue-id');
     var readonly = root.classList.contains('mh-readonly');
     var comments = document.getElementById('mh-comments');
     var targets = document.getElementById('mh-targets');
@@ -130,22 +132,23 @@
       }, 260);
 
       // Vorschlaege aller Zeilen desselben Absenders aktualisieren
+      // (im Papierkorb gibt es keine Vorschlaege)
       var userId = String(data.user_id);
       var rows = comments.querySelectorAll('.mh-comment[data-user-id="' + userId + '"]');
       Array.prototype.forEach.call(rows, function (r) {
         if (r === row) return;
         var wrap = r.querySelector('.mh-c-suggest-wrap');
-        if (!wrap) return;
+        if (!wrap || kind === 'trash') return;
         wrap.innerHTML = '';
         if (data.suggestion) {
           var a = document.createElement('a');
           a.href = '#';
-          a.className = 'mh-c-suggest';
+          a.className = 'mh-c-suggest' + (data.suggestion.is_trash ? ' mh-c-suggest-trash' : '');
           a.setAttribute('data-target-id', data.suggestion.id);
-          a.title = 'Vorschlag: bisher mehrfach nach #' + data.suggestion.id + ' verschoben – klicken zum Verschieben';
-          var subj = data.suggestion.subject || '';
-          if (subj.length > 40) subj = subj.substring(0, 37) + '...';
-          a.textContent = '#' + data.suggestion.id + ' ' + subj;
+          var label = data.suggestion.label || ('#' + data.suggestion.id + ' ' + (data.suggestion.subject || ''));
+          a.title = 'Vorschlag: bisher mehrfach hierhin verschoben (' + label + ') – klicken zum Verschieben';
+          if (label.length > 48) label = label.substring(0, 47) + '…';
+          a.textContent = label;
           wrap.appendChild(a);
         }
       });
@@ -216,6 +219,11 @@
       if (go) {
         var row = go.closest('.mh-comment');
         moveComment(row, row.querySelector('.mh-c-target').value);
+        return;
+      }
+      var restore = e.target.closest('.mh-c-restore');
+      if (restore) {
+        moveComment(restore.closest('.mh-comment'), restore.getAttribute('data-target-id'));
       }
     });
 
@@ -310,6 +318,39 @@
           col.classList.add('mh-focus');
         }
       });
+    }
+
+    // ── Suchfeld: blendet nicht passende Ziele aus; bleibt beim Verschieben
+    //    erhalten (kein Reload) und wird je Verteiler in sessionStorage gemerkt
+    var search = document.getElementById('mh-search');
+    if (search) {
+      var storeKey = 'mh-search-' + issueId;
+      function applySearch() {
+        var q = search.value.trim().toLowerCase();
+        var terms = q.split(/\s+/).filter(Boolean);
+        targets.classList.toggle('mh-search-active', terms.length > 0);
+        var tiles = targets.querySelectorAll('.mh-drop:not(.mh-trash-box)');
+        Array.prototype.forEach.call(tiles, function (tile) {
+          var hay = (tile.getAttribute('data-search') || tile.textContent).toLowerCase();
+          var hit = terms.every(function (t) { return hay.indexOf(t) !== -1; });
+          tile.classList.toggle('mh-search-hide', !hit);
+        });
+        // Tracker-Spalten ohne Treffer ausblenden
+        Array.prototype.forEach.call(targets.querySelectorAll('.mh-tracker-col'), function (col) {
+          var visible = col.querySelectorAll('.mh-drop:not(.mh-search-hide)').length;
+          col.classList.toggle('mh-search-hide', terms.length > 0 && visible === 0);
+        });
+        try { window.sessionStorage.setItem(storeKey, search.value); } catch (err) { /* ignore */ }
+      }
+      try {
+        var saved = window.sessionStorage.getItem(storeKey);
+        if (saved) search.value = saved;
+      } catch (err) { /* ignore */ }
+      search.addEventListener('input', applySearch);
+      search.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { search.value = ''; applySearch(); }
+      });
+      applySearch();
     }
 
     var closedToggle = document.getElementById('mh-show-closed');

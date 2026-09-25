@@ -21,12 +21,17 @@ module MailHandlerDistributorIssuesPatch
     @distributor_can_move = @distributor_comments.any? { |c| c.journal.editable_by?(User.current) } ||
                             User.current.allowed_to?(:edit_issue_notes, @issue.project)
 
+    @distributor_trash = MailHandlerDistributor.trash_issue
+    @distributor_trash = nil if @distributor_trash && @distributor_trash.id == @issue.id
+
     case @distributor_kind
     when :root
       @distributor_aliases = MailHandlerDistributor.alias_entries
     when :alias
-      exclude = [@issue.id, MailHandlerDistributor.root_issue_id] + MailHandlerDistributor.alias_issue_ids
+      exclude = [@issue.id, MailHandlerDistributor.root_issue_id, MailHandlerDistributor.trash_issue_id] + MailHandlerDistributor.alias_issue_ids
       @distributor_columns = MailHandlerDistributor.tracker_columns(@issue.project, exclude.uniq)
+    when :trash
+      @distributor_retention_hours = MailHandlerDistributor.trash_retention_hours
     end
 
     render template: 'mail_handler_distributor/show'

@@ -16,7 +16,9 @@ class MailHandlerScheduler
     reminder_enabled = settings['reminder_enabled'] == '1'
     deferred_enabled = settings['deferred_enabled'] == '1'
     
-    unless auto_import_enabled || reminder_enabled || deferred_enabled
+    trash_enabled = settings['trash_ticket_id'].to_i > 0
+    
+    unless auto_import_enabled || reminder_enabled || deferred_enabled || trash_enabled
       @@logger.info("Scheduler start skipped: No scheduled features enabled")
       return false
     end
@@ -34,10 +36,12 @@ class MailHandlerScheduler
     schedule_mail_import
     schedule_deferred_processing
     schedule_deferred_cleanup
+    schedule_trash_purge
     
     features = []
     features << "mail import" if auto_import_enabled
     features << "deferred processing" if deferred_enabled
+    features << "trash purge" if trash_enabled
     
     @@logger.info("Mail Handler Scheduler started with features: #{features.join(', ')}")
     true
@@ -260,6 +264,21 @@ class MailHandlerScheduler
     end
     
     @@logger.info("Scheduled deferred processing at #{deferred_recheck_time}")
+  end
+
+  # Papierkorb: stuendlich abgelaufene Kommentare loeschen
+  def self.schedule_trash_purge
+    return unless Setting.plugin_redmine_mail_handler['trash_ticket_id'].to_i > 0
+
+    @@scheduler.every '1h', first_in: '2m' do
+      begin
+        deleted = MailHandlerDistributor.purge_trash!
+        @@logger.info("Trash purge: #{deleted} expired comments deleted") if deleted > 0
+      rescue => e
+        @@logger.error("Trash purge failed: #{e.message}")
+      end
+    end
+    @@logger.info("Scheduled trash purge every hour")
   end
 
   def self.schedule_deferred_cleanup

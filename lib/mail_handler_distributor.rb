@@ -10,7 +10,7 @@ module MailHandlerDistributor
   # auf diese Laenge gekuerzt (CSS kuerzt zusaetzlich per Ellipsis).
   PREVIEW_LENGTH = 140
 
-  Comment = Struct.new(:journal, :indice, :preview, :suggestion, keyword_init: true)
+  Comment = Struct.new(:journal, :indice, :preview, :suggestion, :origin_issue, :moved_at, :expires_at, keyword_init: true)
   AliasEntry = Struct.new(:email, :issue, :project, keyword_init: true)
   TrackerColumn = Struct.new(:tracker, :issues, keyword_init: true)
 
@@ -21,6 +21,102 @@ module MailHandlerDistributor
 
     def root_issue_id
       settings['inbox_ticket_id'].to_i
+    end
+
+    # ── Papierkorb ──────────────────────────────────────────────────────────
+    DEFAULT_TRASH_RETENTION_HOURS = 48
+
+    def trash_issue_id
+      settings['trash_ticket_id'].to_i
+    end
+
+    def trash_issue
+      trash_issue_id > 0 ? Issue.find_by(id: trash_issue_id) : nil
+    end
+
+    def trash?(issue)
+      issue && trash_issue_id > 0 && issue.id == trash_issue_id
+    end
+
+    def trash_retention_hours
+      h = settings['trash_retention_hours'].to_i
+      h > 0 ? h : DEFAULT_TRASH_RETENTION_HOURS
+    end
+
+    # Ablaufzeitpunkt eines Kommentars im Papierkorb: Zeitpunkt der
+    # Verschiebung (Move-Protokoll) + Aufbewahrungsfrist; ohne Protokoll
+    # zaehlt updated_on des Journals (wird beim Anlegen durch den Move gesetzt).
+    def trash_expiry(journal, move = nil)
+      base = move&.created_at || journal.updated_on || journal.created_on || Time.current
+      base + trash_retention_hours.hours
+    end
+
+    # Loescht abgelaufene Kommentare im Papierkorb (inkl. mitverschobener
+    # Anhaenge). Liefert die Anzahl geloeschter Kommentare.
+    def purge_trash!
+      trash = trash_issue
+      return 0 unless trash
+
+      deleted = 0
+      journals = trash.journals.where.not(notes: [nil, '']).includes(:details).to_a
+      moves = MailHandlerCommentMove.where(new_journal_id: journals.map(&:id)).index_by(&:new_journal_id)
+      journals.each do |journal|
+        next unless trash_expiry(journal, moves[journal.id]) <= Time.current
+        journal.details.select { |d| d.property == 'attachment' }.each do |d|
+          Attachment.find_by(id: d.prop_key)&.destroy
+        end
+        journal.destroy
+        deleted += 1
+      end
+      Rails.logger.info("[MailHandler] Papierkorb: #{deleted} abgelaufene Kommentare geloescht") if deleted > 0
+      deleted
+    end
+
+    # ── System-Tracker ──────────────────────────────────────────────────────
+    DEFAULT_TRACKER_NAME = 'Ticket-Verteiler'.freeze
+
+    def tracker_name
+      settings['distributor_tracker_name'].presence || DEFAULT_TRACKER_NAME
+    end
+
+    def tracker
+      Tracker.find_by(name: tracker_name)
+    end
+
+    # ID des Trackers, der in Ticketlisten standardmaessig ausgeblendet wird
+    # (kurz gecacht, wird bei jeder neuen IssueQuery abgefragt).
+    def hidden_tracker_id
+      Rails.cache.fetch("mail_handler/distributor_tracker_id/#{tracker_name}", expires_in: 5.minutes) do
+        tracker&.id || 0
+      end.then { |id| id > 0 ? id : nil }
+    end
+
+    # Alle System-Tickets: Posteingang, Alias-Verteiler, Papierkorb
+    def system_issues
+      ids = [root_issue_id, trash_issue_id] + alias_issue_ids
+      Issue.where(id: ids.select { |i| i > 0 }.uniq).to_a
+    end
+
+    # Legt den Tracker an (falls noetig), aktiviert ihn in den betroffenen
+    # Projekten und weist ihn allen System-Tickets zu. Liefert [tracker, anzahl].
+    def apply_tracker!
+      t = tracker
+      unless t
+        t = Tracker.new(name: tracker_name, default_status: IssueStatus.sorted.first)
+        t.position = (Tracker.maximum(:position) || 0) + 1
+        t.save!
+      end
+      Rails.cache.delete("mail_handler/distributor_tracker_id/#{tracker_name}")
+
+      changed = 0
+      system_issues.each do |issue|
+        project = issue.project
+        project.trackers << t unless project.trackers.include?(t)
+        next if issue.tracker_id == t.id
+        issue.update_column(:tracker_id, t.id)
+        changed += 1
+      end
+      [t, changed]
     end
 
     # Alle Alias-Eintraege der Adress-Matrix mit existierendem Ticket,
@@ -42,15 +138,41 @@ module MailHandlerDistributor
     end
 
     def alias_issue_ids
-      MailHandlerService.parse_address_matrix.map { |e| e[:ticket_id] }.uniq
+      MailHandlerService.parse_address_matrix.map { |e| e[:ticket_id] }.uniq - [trash_issue_id]
     end
 
-    # :root, :alias oder nil
+    # :root, :alias, :trash oder nil
     def kind(issue)
       return nil unless issue
       return :root if root_issue_id > 0 && issue.id == root_issue_id
+      return :trash if trash?(issue)
       return :alias if alias_issue_ids.include?(issue.id)
       nil
+    end
+
+    # Beschriftung eines Vorschlags / Ziels, abhaengig von der Ansicht:
+    # im Root-Verteiler nur Projekte (Kennung + Name), sonst Ticket.
+    def target_label(kind, issue)
+      return nil unless issue
+      return 'Papierkorb' if trash?(issue)
+      if kind == :root
+        proj = issue.project
+        proj ? "#{proj.identifier} · #{proj.name}" : "##{issue.id}"
+      else
+        "##{issue.id} #{issue.subject}"
+      end
+    end
+
+    def issue_json(issue, kind = nil)
+      return nil unless issue
+      {
+        id: issue.id,
+        subject: issue.subject,
+        project: issue.project&.name,
+        project_identifier: issue.project&.identifier,
+        is_trash: trash?(issue),
+        label: target_label(kind, issue)
+      }
     end
 
     def distributor?(issue)
@@ -118,18 +240,25 @@ module MailHandlerDistributor
     end
 
     # Kommentare (Journale mit Notizen) eines Verteiler-Tickets inkl. Vorschlag.
+    # Im Papierkorb zusaetzlich Herkunfts-Ticket und Ablaufzeitpunkt.
     def comments(issue, user = User.current)
       journals = issue.visible_journals_with_index.select { |j| j.notes.present? }
       journals.reverse! if user.wants_comments_in_reverse_order?
 
-      suggestions = MailHandlerCommentMove.suggestions_for(issue.id, journals.map(&:user_id), user)
+      in_trash = trash?(issue)
+      suggestions = in_trash ? {} : MailHandlerCommentMove.suggestions_for(issue.id, journals.map(&:user_id), user)
+      moves = MailHandlerCommentMove.where(new_journal_id: journals.map(&:id)).index_by(&:new_journal_id)
 
       journals.map do |journal|
+        move = moves[journal.id]
         Comment.new(
           journal: journal,
           indice: journal.indice,
           preview: preview_text(journal.notes, PREVIEW_LENGTH),
-          suggestion: suggestions[journal.user_id]
+          suggestion: suggestions[journal.user_id],
+          origin_issue: (move && Issue.visible(user).find_by(id: move.source_issue_id)),
+          moved_at: move&.created_at,
+          expires_at: (in_trash ? trash_expiry(journal, move) : nil)
         )
       end
     end

@@ -104,6 +104,15 @@
 </div>
 
 <div class="box">
+  <h3>Verteiler-Ansicht</h3>
+  <p>
+    <label>&nbsp;</label>
+    <%= link_to 'System-Tracker anwenden', { :action => 'apply_distributor_tracker' }, :method => :post, :class => 'button', :data => { :confirm => "Tracker „#{Setting.plugin_redmine_mail_handler['distributor_tracker_name'].presence || 'Ticket-Verteiler'}“ anlegen (falls nötig) und Posteingang, Alias-Verteilern und Papierkorb zuweisen?" } %>
+    <em class="info">Tickets mit diesem Tracker werden in Ticketlisten standardmäßig ausgeblendet.</em>
+  </p>
+</div>
+
+<div class="box">
   <h3>Posteingang-Ticket Aktionen</h3>
   <p>
     <label>&nbsp;</label>

@@ -677,6 +677,17 @@ class MailHandlerAdminController < ApplicationController
     redirect_to({ controller: 'settings', action: 'plugin', id: 'redmine_mail_handler' })
   end
 
+  # Legt den System-Tracker an und weist ihn Posteingang, Alias-Verteilern
+  # und Papierkorb zu (siehe MailHandlerDistributor.apply_tracker!).
+  def apply_distributor_tracker
+    tracker, changed = MailHandlerDistributor.apply_tracker!
+    flash[:notice] = "Tracker „#{tracker.name}“ (ID #{tracker.id}) angewendet: #{changed} Ticket(s) umgestellt, #{MailHandlerDistributor.system_issues.length} System-Ticket(s) insgesamt."
+  rescue => e
+    flash[:error] = "System-Tracker konnte nicht angewendet werden: #{e.message}"
+  ensure
+    redirect_to action: :index
+  end
+
   def delete_all_comments
     begin
       settings = Setting.plugin_redmine_mail_handler

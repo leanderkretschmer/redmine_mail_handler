@@ -8,11 +8,12 @@
 <div id="mh-distributor"
      class="mh-distributor mh-kind-<%= @distributor_kind %><%= ' mh-readonly' unless @distributor_can_move %>"
      data-issue-id="<%= @issue.id %>"
+     data-kind="<%= @distributor_kind %>"
      data-move-url="<%= mail_handler_distributor_move_comment_path %>">
 
   <div class="mh-topbar">
     <span class="mh-title">
-      <%= @distributor_kind == :root ? 'Posteingang-Verteiler' : 'Alias-Verteiler' %>
+      <%= { root: 'Posteingang-Verteiler', alias: 'Alias-Verteiler', trash: 'Papierkorb' }[@distributor_kind] %>
       <%= link_to "##{@issue.id}", issue_path(@issue, :classic => 1), :title => 'Standard-Ticketansicht öffnen' %>
       <span class="mh-title-subject"><%= @issue.subject %></span>
       <% if @distributor_kind == :alias %>
@@ -42,14 +43,29 @@
         <span class="mh-c-sep">|</span>
         <span class="mh-c-text"><%= c.preview.presence || '(kein Text)' %></span>
         <span class="mh-c-actions">
+          <% if @distributor_kind == :trash %>
+            <span class="mh-c-origin">
+              <% if c.origin_issue %>aus <%= link_to "##{c.origin_issue.id}", issue_path(c.origin_issue), :title => c.origin_issue.subject %><% else %>Herkunft unbekannt<% end %>
+            </span>
+            <span class="mh-c-expires" title="<%= c.expires_at ? format_time(c.expires_at) : '' %>">
+              <% if c.expires_at %>
+                <% remaining = [((c.expires_at - Time.current) / 3600).ceil, 0].max %>
+                löscht in <%= remaining %> h
+              <% end %>
+            </span>
+            <% if c.origin_issue && @distributor_can_move %>
+              <button type="button" class="mh-c-restore" data-target-id="<%= c.origin_issue.id %>" title="Zurück nach #<%= c.origin_issue.id %> <%= c.origin_issue.subject %>">↩ zurück nach #<%= c.origin_issue.id %></button>
+            <% end %>
+          <% end %>
           <input type="text" class="mh-c-target" placeholder="Ticket-Nr." inputmode="numeric" autocomplete="off"
                  <%= 'disabled' unless @distributor_can_move %> />
           <button type="button" class="mh-c-go" title="In dieses Ticket verschieben" <%= 'disabled' unless @distributor_can_move %>>→</button>
           <span class="mh-c-suggest-wrap">
             <% if c.suggestion %>
-              <a href="#" class="mh-c-suggest" data-target-id="<%= c.suggestion.id %>"
-                 title="Vorschlag: bisher mehrfach nach ##{c.suggestion.id} verschoben – klicken zum Verschieben">
-                #<%= c.suggestion.id %> <%= truncate(c.suggestion.subject, :length => 40) %>
+              <% label = MailHandlerDistributor.target_label(@distributor_kind, c.suggestion) %>
+              <a href="#" class="mh-c-suggest<%= ' mh-c-suggest-trash' if MailHandlerDistributor.trash?(c.suggestion) %>" data-target-id="<%= c.suggestion.id %>"
+                 title="Vorschlag: bisher mehrfach hierhin verschoben (<%= label %>) – klicken zum Verschieben">
+                <%= truncate(label, :length => 48) %>
               </a>
             <% end %>
           </span>
@@ -77,27 +93,45 @@
   </div>
 
   <div class="mh-targets" id="mh-targets">
+    <% unless @distributor_kind == :trash %>
+      <div class="mh-targets-head">
+        <span class="mh-targets-title">
+          <% if @distributor_kind == :root %>
+            Alias-Verteiler <span class="mh-hint">– Kommentar per Drag &amp; Drop hierher ziehen</span>
+          <% else %>
+            Tickets in <strong><%= @issue.project.name %></strong>
+            <span class="mh-hint">– Tracker anklicken, um nur diesen als Raster zu zeigen</span>
+            <label class="mh-closed-toggle"><input type="checkbox" id="mh-show-closed" /> geschlossene anzeigen</label>
+          <% end %>
+        </span>
+        <span class="mh-targets-tools">
+          <input type="search" id="mh-search" class="mh-search" placeholder="Ziele filtern …" autocomplete="off" />
+          <% if @distributor_trash %>
+            <div class="mh-box mh-trash-box mh-drop" data-target-id="<%= @distributor_trash.id %>" title="Kommentar hierher ziehen: wird <%= MailHandlerDistributor.trash_retention_hours %> h aufbewahrt und dann gelöscht">
+              <span class="mh-trash-icon">🗑</span>
+              <span class="mh-trash-text"><%= link_to 'Papierkorb', issue_path(@distributor_trash) %><small><%= MailHandlerDistributor.trash_retention_hours %> h</small></span>
+            </div>
+          <% end %>
+        </span>
+      </div>
+    <% end %>
+
     <% if @distributor_kind == :root %>
-      <div class="mh-targets-head">Alias-Verteiler <span class="mh-hint">– Kommentar per Drag &amp; Drop hierher ziehen</span></div>
       <% if @distributor_aliases.blank? %>
         <div class="mh-empty">Keine Alias-Verteiler in der Adress-Matrix konfiguriert.</div>
       <% end %>
       <div class="mh-alias-grid">
         <% @distributor_aliases.each do |a| %>
-          <div class="mh-box mh-alias-box mh-drop" data-target-id="<%= a.issue.id %>">
-            <div class="mh-box-id"><%= link_to "##{a.issue.id}", issue_path(a.issue) %></div>
-            <div class="mh-box-project"><%= a.project ? a.project.name : '–' %></div>
-            <div class="mh-box-subject"><%= a.issue.subject %></div>
+          <div class="mh-box mh-alias-box mh-drop" data-target-id="<%= a.issue.id %>"
+               data-search="<%= [a.project&.identifier, a.project&.name, a.issue.id, a.issue.subject, a.email].compact.join(' ').downcase %>">
+            <div class="mh-box-project-id"><%= a.project ? link_to(a.project.identifier, project_path(a.project)) : '–' %></div>
+            <div class="mh-box-project"><%= a.project ? a.project.name : '' %></div>
+            <div class="mh-box-subject"><span class="mh-box-ticket"><%= link_to "##{a.issue.id}", issue_path(a.issue) %></span> <%= a.issue.subject %></div>
             <div class="mh-box-alias"><%= a.email %></div>
           </div>
         <% end %>
       </div>
-    <% else %>
-      <div class="mh-targets-head">
-        Tickets in <strong><%= @issue.project.name %></strong>
-        <span class="mh-hint">– Tracker anklicken, um nur diesen als Raster zu zeigen</span>
-        <label class="mh-closed-toggle"><input type="checkbox" id="mh-show-closed" /> geschlossene anzeigen</label>
-      </div>
+    <% elsif @distributor_kind == :alias %>
       <% if @distributor_columns.blank? %>
         <div class="mh-empty">Keine Tickets in diesem Projekt.</div>
       <% end %>
@@ -110,7 +144,8 @@
             </div>
             <div class="mh-tracker-body">
               <% col.issues.each do |i| %>
-                <div class="mh-box mh-issue-box mh-drop<%= ' mh-closed' if i.closed? %>" data-target-id="<%= i.id %>">
+                <div class="mh-box mh-issue-box mh-drop<%= ' mh-closed' if i.closed? %>" data-target-id="<%= i.id %>"
+                     data-search="<%= [i.id, i.subject, i.status.name, col.tracker.name].join(' ').downcase %>">
                   <div class="mh-box-id"><%= link_to "##{i.id}", issue_path(i) %> <span class="mh-box-status"><%= i.status.name %></span></div>
                   <div class="mh-box-subject"><%= i.subject %></div>
                 </div>
@@ -118,6 +153,11 @@
             </div>
           </div>
         <% end %>
+      </div>
+    <% else %>
+      <div class="mh-trash-info">
+        <strong>Papierkorb.</strong> Kommentare bleiben hier <%= @distributor_retention_hours %> Stunden und werden dann automatisch gelöscht.
+        Mit „↩ zurück“ landet ein Kommentar wieder in dem Ticket, aus dem er verschoben wurde. Über das Ticket-Nr.-Feld kann er in ein beliebiges Ticket verschoben werden.
       </div>
     <% end %>
   </div>
