@@ -69,15 +69,59 @@
       return m ? m.getAttribute('content') : '';
     }
 
+    // ── Mehrfachauswahl (Strg/Cmd + Klick) ───────────────────────────────
+    var bulk = document.getElementById('mh-bulk');
+    var bulkN = document.getElementById('mh-bulk-n');
+
+    function selectedRows() {
+      return Array.prototype.slice.call(comments.querySelectorAll('.mh-comment.mh-selected'));
+    }
+    function updateBulk() {
+      var n = selectedRows().length;
+      if (bulkN) bulkN.textContent = n;
+      if (bulk) bulk.hidden = n === 0;
+      resize();
+    }
+    function clearSelection() {
+      selectedRows().forEach(function (r) { r.classList.remove('mh-selected'); });
+      updateBulk();
+    }
+    function toggleSelected(row) {
+      row.classList.toggle('mh-selected');
+      updateBulk();
+    }
+
+    // Mehrere Zeilen nacheinander verschieben (gleiches Ziel oder je Zeile
+    // ein eigenes Ziel per targetFor(row)); Ergebnis als Sammel-Toast.
+    function moveMany(rows, targetFor, dropBox) {
+      if (readonly || !rows.length) return Promise.resolve();
+      var ok = 0, failed = 0;
+      var chain = Promise.resolve();
+      rows.forEach(function (row) {
+        chain = chain.then(function () {
+          var target = typeof targetFor === 'function' ? targetFor(row) : targetFor;
+          if (!target) { failed += 1; return; }
+          return moveComment(row, target, dropBox, true).then(function (res) {
+            if (res) ok += 1; else failed += 1;
+          });
+        });
+      });
+      return chain.then(function () {
+        toast(ok + ' Kommentar(e) verschoben' + (failed ? ', ' + failed + ' fehlgeschlagen' : ''), failed > 0);
+        updateBulk();
+      });
+    }
+
     // ── Verschieben ───────────────────────────────────────────────────────
-    function moveComment(row, targetId, dropBox) {
-      if (readonly || !row || row.classList.contains('mh-busy')) return;
+    // Liefert ein Promise mit true (verschoben) / false (Fehler).
+    function moveComment(row, targetId, dropBox, quiet) {
+      if (readonly || !row || row.classList.contains('mh-busy')) return Promise.resolve(false);
       targetId = String(targetId || '').trim().replace(/^#/, '');
       var input = row.querySelector('.mh-c-target');
       if (!/^\d+$/.test(targetId)) {
         if (input) { input.classList.add('mh-invalid'); input.focus(); }
         toast('Bitte eine gültige Ticket-Nummer eingeben.', true);
-        return;
+        return Promise.resolve(false);
       }
       if (input) input.classList.remove('mh-invalid');
       row.classList.add('mh-busy');
@@ -86,7 +130,7 @@
       body.append('journal_id', row.getAttribute('data-journal-id'));
       body.append('target_issue_id', targetId);
 
-      fetch(moveUrl, {
+      return fetch(moveUrl, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
@@ -102,19 +146,22 @@
         if (!data.ok) {
           row.classList.remove('mh-busy');
           if (input) input.classList.add('mh-invalid');
-          toast(data.error || 'Verschieben fehlgeschlagen.', true);
-          return;
+          if (!quiet) toast(data.error || 'Verschieben fehlgeschlagen.', true);
+          return false;
         }
-        onMoved(row, data, dropBox);
+        onMoved(row, data, dropBox, quiet);
+        return true;
       }).catch(function (err) {
         row.classList.remove('mh-busy');
-        toast('Netzwerkfehler: ' + err, true);
+        if (!quiet) toast('Netzwerkfehler: ' + err, true);
+        return false;
       });
     }
 
-    function onMoved(row, data, dropBox) {
+    function onMoved(row, data, dropBox, quiet) {
       var t = data.target || {};
-      toast('Kommentar #' + data.journal_id + ' nach #' + t.id + ' verschoben' + (t.subject ? ' (' + t.subject + ')' : ''));
+      if (!quiet) toast('Kommentar #' + data.journal_id + ' nach #' + t.id + ' verschoben' + (t.subject ? ' (' + t.subject + ')' : ''));
+      row.classList.remove('mh-selected');
 
       if (dropBox) {
         dropBox.classList.add('mh-drop-done');
@@ -129,6 +176,7 @@
       setTimeout(function () {
         if (row.parentNode) row.parentNode.removeChild(row);
         updateCount();
+        updateBulk();
       }, 260);
 
       // Vorschlaege aller Zeilen desselben Absenders aktualisieren
@@ -207,7 +255,11 @@
         // Links, Eingaben und Buttons behalten ihr eigenes Verhalten (s.u.)
       } else {
         var clickedRow = e.target.closest('.mh-comment');
-        if (clickedRow) { openOverlay(clickedRow); return; }
+        if (clickedRow) {
+          if ((e.ctrlKey || e.metaKey) && !readonly) { e.preventDefault(); toggleSelected(clickedRow); }
+          else openOverlay(clickedRow);
+          return;
+        }
       }
       var suggest = e.target.closest('.mh-c-suggest');
       if (suggest) {
@@ -216,9 +268,11 @@
         return;
       }
       var go = e.target.closest('.mh-c-go');
-      if (go) {
+      if (go && go.closest('.mh-comment')) {
         var row = go.closest('.mh-comment');
-        moveComment(row, row.querySelector('.mh-c-target').value);
+        var value = row.querySelector('.mh-c-target').value;
+        if (row.classList.contains('mh-selected') && selectedRows().length > 1) moveMany(selectedRows(), value);
+        else moveComment(row, value);
         return;
       }
       var restore = e.target.closest('.mh-c-restore');
@@ -230,10 +284,38 @@
     comments.addEventListener('keydown', function (e) {
       if (e.key !== 'Enter') return;
       var input = e.target.closest('.mh-c-target');
-      if (!input) return;
+      if (!input || !input.closest('.mh-comment')) return;
       e.preventDefault();
-      moveComment(input.closest('.mh-comment'), input.value);
+      var inRow = input.closest('.mh-comment');
+      if (inRow.classList.contains('mh-selected') && selectedRows().length > 1) moveMany(selectedRows(), input.value);
+      else moveComment(inRow, input.value);
     });
+
+    // Sammel-Leiste
+    if (bulk) {
+      var bulkTarget = document.getElementById('mh-bulk-target');
+      var bulkGo = document.getElementById('mh-bulk-go');
+      var bulkRestore = document.getElementById('mh-bulk-restore');
+      var bulkClear = document.getElementById('mh-bulk-clear');
+      function bulkMove() {
+        var v = bulkTarget.value.trim().replace(/^#/, '');
+        if (!/^\d+$/.test(v)) { bulkTarget.classList.add('mh-invalid'); bulkTarget.focus(); toast('Bitte eine gültige Ticket-Nummer eingeben.', true); return; }
+        bulkTarget.classList.remove('mh-invalid');
+        moveMany(selectedRows(), v).then(function () { bulkTarget.value = ''; });
+      }
+      if (bulkGo) bulkGo.addEventListener('click', bulkMove);
+      if (bulkTarget) bulkTarget.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); bulkMove(); } });
+      if (bulkRestore) bulkRestore.addEventListener('click', function () {
+        moveMany(selectedRows(), function (row) {
+          var btn = row.querySelector('.mh-c-restore');
+          return btn ? btn.getAttribute('data-target-id') : null;
+        });
+      });
+      if (bulkClear) bulkClear.addEventListener('click', clearSelection);
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && overlay && overlay.hidden && selectedRows().length) clearSelection();
+      });
+    }
 
     comments.addEventListener('input', function (e) {
       var input = e.target.closest('.mh-c-target');
@@ -259,12 +341,15 @@
       if (!row || readonly) { e.preventDefault(); return; }
       dragRow = row;
       row.classList.add('mh-dragging');
+      if (row.classList.contains('mh-selected')) {
+        selectedRows().forEach(function (r) { r.classList.add('mh-dragging'); });
+      }
       e.dataTransfer.effectAllowed = 'move';
       try { e.dataTransfer.setData('text/plain', row.getAttribute('data-journal-id')); } catch (err) { /* IE */ }
     });
 
     comments.addEventListener('dragend', function () {
-      if (dragRow) dragRow.classList.remove('mh-dragging');
+      Array.prototype.forEach.call(comments.querySelectorAll('.mh-dragging'), function (r) { r.classList.remove('mh-dragging'); });
       dragRow = null;
       var over = targets.querySelectorAll('.mh-drop-over');
       Array.prototype.forEach.call(over, function (b) { b.classList.remove('mh-drop-over'); });
@@ -297,7 +382,9 @@
         row = jid ? document.getElementById('mh-comment-' + jid) : null;
       }
       if (!row) return;
-      moveComment(row, box.getAttribute('data-target-id'), box);
+      var targetId = box.getAttribute('data-target-id');
+      if (row.classList.contains('mh-selected') && selectedRows().length > 1) moveMany(selectedRows(), targetId, box);
+      else moveComment(row, targetId, box);
     });
 
     // ── Tracker-Fokus ─────────────────────────────────────────────────────

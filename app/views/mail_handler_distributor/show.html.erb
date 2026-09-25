@@ -26,6 +26,18 @@
     </span>
   </div>
 
+  <div class="mh-bulk" id="mh-bulk" hidden>
+    <span class="mh-bulk-count"><b id="mh-bulk-n">0</b> ausgewählt</span>
+    <span class="mh-bulk-hint">Strg/Cmd + Klick wählt weitere Kommentare aus</span>
+    <span class="mh-bulk-actions">
+      <input type="text" id="mh-bulk-target" class="mh-c-target" placeholder="Ticket-Nr." inputmode="numeric" autocomplete="off" />
+      <button type="button" id="mh-bulk-go" class="mh-c-go" title="Alle ausgewählten in dieses Ticket verschieben">→ alle verschieben</button>
+      <% if @distributor_kind == :trash %>
+        <button type="button" id="mh-bulk-restore" class="mh-c-restore" title="Alle ausgewählten in ihr Herkunftsticket zurückschieben">↩ alle zurück</button>
+      <% end %>
+      <button type="button" id="mh-bulk-clear" class="mh-bulk-clear">Auswahl aufheben</button>
+    </span>
+  </div>
   <div class="mh-comments" id="mh-comments">
     <% if @distributor_comments.empty? %>
       <div class="mh-empty">Keine Kommentare in diesem Verteiler.</div>
@@ -110,7 +122,7 @@
           <input type="search" id="mh-search" class="mh-search" placeholder="Ziele filtern …" autocomplete="off" />
           <% if @distributor_trash %>
             <div class="mh-box mh-trash-box mh-drop" data-target-id="<%= @distributor_trash.id %>" title="Kommentar hierher ziehen: wird <%= MailHandlerDistributor.trash_retention_hours %> h aufbewahrt und dann gelöscht">
-              <span class="mh-trash-icon">🗑</span>
+              <span class="mh-trash-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/></svg></span>
               <span class="mh-trash-text"><%= link_to 'Papierkorb', issue_path(@distributor_trash) %><small><%= MailHandlerDistributor.trash_retention_hours %> h</small></span>
             </div>
           <% end %>

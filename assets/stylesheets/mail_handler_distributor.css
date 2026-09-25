@@ -50,6 +50,25 @@
 }
 .mh-comment:hover { background: #f5f9ff; }
 .mh-comment.mh-dragging { opacity: 0.4; }
+.mh-comment.mh-selected { background: #dfeeff; box-shadow: inset 3px 0 0 #169; }
+.mh-comment.mh-selected:hover { background: #d2e6fb; }
+
+/* Mehrfachauswahl-Leiste */
+.mh-bulk {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 5px 8px;
+  background: #eef5fc;
+  border-bottom: 1px solid #b9d3ea;
+  font-size: 12px;
+}
+.mh-bulk[hidden] { display: none; }
+.mh-bulk-count { font-size: 13px; }
+.mh-bulk-hint { color: #777; flex: 1 1 auto; }
+.mh-bulk-actions { display: flex; align-items: center; gap: 6px; }
+.mh-bulk-clear { padding: 1px 8px; font-size: 12px; cursor: pointer; }
 .mh-comment.mh-busy { opacity: 0.5; pointer-events: none; }
 .mh-comment.mh-removing { transition: opacity .25s, max-height .25s; opacity: 0; max-height: 0; overflow: hidden; padding-top: 0; padding-bottom: 0; }
 .mh-readonly .mh-comment { cursor: default; }
@@ -116,7 +135,8 @@
   background: #fff5f5;
   border-color: #d9a3a3;
 }
-.mh-trash-box .mh-trash-icon { font-size: 18px; }
+.mh-trash-box .mh-trash-icon { display: inline-flex; color: #a33; }
+.mh-trash-box .mh-trash-icon svg { display: block; }
 .mh-trash-text { display: flex; flex-direction: column; line-height: 1.2; }
 .mh-trash-text a { font-weight: bold; color: #a33; text-decoration: none; }
 .mh-trash-text small { color: #999; font-size: 10px; }

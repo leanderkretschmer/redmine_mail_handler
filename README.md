@@ -96,6 +96,8 @@ For distributor tickets the plugin replaces the normal issue page (`issues#show`
 
 **Suggestions:** every move is logged in `mail_handler_comment_moves` (hook `move_comments_after_journal_move`). A target is suggested for a sender once their last 3 moves out of the same distributor all went to the same ticket. If the targets vary, no suggestion is shown.
 
+**Multi-select:** Ctrl/Cmd + click toggles a row's selection (highlighted, bar on top shows the count). Dragging a selected row drags all selected rows; Enter/→ in a selected row, or the bar's ticket number field, moves all selected comments to the same ticket. In the trash the bar also offers "↩ alle zurück", which restores each selected comment to its own origin ticket. Esc or "Auswahl aufheben" clears the selection.
+
 **Search:** the targets area has a filter box; tiles (and tracker columns) that do not match all typed words are hidden. The filter survives moves (no reload) and is remembered per distributor in `sessionStorage`.
 
 **Suggestions in the root distributor** are shown as projects (`identifier · name`), because targets there are alias distributors, one per project. Alias distributors suggest tickets (`#id subject`). Root tiles show the project identifier bold and the ticket number small.
