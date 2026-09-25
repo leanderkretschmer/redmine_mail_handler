@@ -138,7 +138,7 @@
         <% @distributor_aliases.each do |a| %>
           <div class="mh-box mh-alias-box mh-drop" data-target-id="<%= a.issue.id %>"
                data-search="<%= [a.project&.identifier, a.project&.name, a.issue.id, a.issue.subject, a.email].compact.join(' ').downcase %>">
-            <div class="mh-box-project-id" title="<%= a.project ? a.project.name : '' %> · Ticket #<%= a.issue.id %>"><%= link_to(a.project ? MailHandlerDistributor.short_name(a.project.name) : "##{a.issue.id}", issue_path(a.issue)) %></div>
+            <div class="mh-box-project-id" title="<%= a.project ? "#{a.project.identifier} · #{a.project.name}" : '' %> · Ticket #<%= a.issue.id %>"><%= link_to(a.project ? MailHandlerDistributor.project_short_id(a.project) : "##{a.issue.id}", issue_path(a.issue)) %></div>
             <div class="mh-box-alias"><%= a.email %></div>
           </div>
         <% end %>

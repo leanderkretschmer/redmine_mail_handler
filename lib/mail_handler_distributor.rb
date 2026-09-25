@@ -158,19 +158,27 @@ module MailHandlerDistributor
       nil
     end
 
-    # Kurzname: alles vor dem ersten Bindestrich ("pfp10122 - Anbau" -> "pfp10122").
+    # Kurzname: alles vor dem ersten Bindestrich
+    # ("pfp12345-beschreibung-info" -> "pfp12345", "bewerbungen" -> "bewerbungen").
     def short_name(name)
       name.to_s.split('-', 2).first.to_s.strip.presence || name.to_s.strip
     end
 
+    # Projekt-Kurzkennung fuer Root-Kacheln und Root-Vorschlaege: die
+    # Projektkennung (identifier) bis zum ersten Bindestrich.
+    def project_short_id(project)
+      return nil unless project
+      short_name(project.identifier.presence || project.name)
+    end
+
     # Beschriftung eines Vorschlags / Ziels, abhaengig von der Ansicht:
-    # im Root-Verteiler nur das Projekt (Kurzname), sonst Ticket mit Kurzname.
+    # im Root-Verteiler nur das Projekt (Kurzkennung), sonst Ticket mit Kurzname.
     def target_label(kind, issue)
       return nil unless issue
       return 'Papierkorb' if trash?(issue)
       if kind == :root
         proj = issue.project
-        proj ? short_name(proj.name) : "##{issue.id}"
+        proj ? project_short_id(proj) : "##{issue.id}"
       else
         "##{issue.id} #{short_name(issue.subject)}"
       end
