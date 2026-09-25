@@ -11,7 +11,7 @@ module MailHandlerDistributor
   PREVIEW_LENGTH = 140
 
   Comment = Struct.new(:journal, :indice, :preview, :suggestion, :origin_issue, :moved_at, :expires_at, keyword_init: true)
-  AliasEntry = Struct.new(:email, :issue, :project, keyword_init: true)
+  AliasEntry = Struct.new(:email, :issue, :project, :hide_in_root, keyword_init: true)
   TrackerColumn = Struct.new(:tracker, :issues, keyword_init: true)
 
   class << self
@@ -127,14 +127,22 @@ module MailHandlerDistributor
       MailHandlerService.parse_address_matrix.each do |entry|
         next if entry[:ticket_id] <= 0
         if by_issue.key?(entry[:ticket_id])
-          by_issue[entry[:ticket_id]].email << ", #{entry[:email]}"
+          existing = by_issue[entry[:ticket_id]]
+          existing.email << ", #{entry[:email]}"
+          existing.hide_in_root ||= entry[:hide_in_root]
           next
         end
         issue = Issue.find_by(id: entry[:ticket_id])
         next unless issue
-        by_issue[entry[:ticket_id]] = AliasEntry.new(email: entry[:email].dup, issue: issue, project: issue.project)
+        by_issue[entry[:ticket_id]] = AliasEntry.new(email: entry[:email].dup, issue: issue, project: issue.project, hide_in_root: entry[:hide_in_root])
       end
       by_issue.values.sort_by { |e| [e.project&.name.to_s, e.issue.id] }
+    end
+
+    # Alias-Verteiler, die im Posteingang-Verteiler als Ziel-Kachel erscheinen
+    # (Matrix-Flag "Im Root ausblenden" nicht gesetzt).
+    def root_target_entries
+      alias_entries.reject(&:hide_in_root)
     end
 
     def alias_issue_ids

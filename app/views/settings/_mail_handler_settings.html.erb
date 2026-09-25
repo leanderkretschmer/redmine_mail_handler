@@ -150,7 +150,8 @@
     </p>
     <p>
       <em class="info">
-        <strong>Mark Projekt:</strong> Schnittstelle für externe Plugins. Wenn aktiviert, wird das zum Ticket gehörende Redmine-Projekt als "aktiv für diese Alias-Adresse" veröffentlicht. Andere Plugins können so über die öffentliche API (<code>MailHandlerService.alias_project_mapping</code>) ermitteln, welche Alias-Mail in welchem Projekt aktiv ist. Der Mail-Versand selbst wird durch dieses Häkchen nicht beeinflusst.
+        <strong>Mark Projekt:</strong> Schnittstelle für externe Plugins. Wenn aktiviert, wird das zum Ticket gehörende Redmine-Projekt als "aktiv für diese Alias-Adresse" veröffentlicht. Andere Plugins können so über die öffentliche API (<code>MailHandlerService.alias_project_mapping</code>) ermitteln, welche Alias-Mail in welchem Projekt aktiv ist. Der Mail-Versand selbst wird durch dieses Häkchen nicht beeinflusst.<br>
+        <strong>Im Root ausblenden:</strong> Dieser Alias-Verteiler wird im Posteingang-Verteiler nicht als Ziel-Kachel angezeigt. Mail-Zuordnung, Projekt-Menüpunkt und die Verteiler-Ansicht des Tickets selbst bleiben unverändert.
       </em>
     </p>
 
@@ -160,6 +161,7 @@
           <th>E-Mail Adresse (Alias)</th>
           <th>Ticket-ID</th>
           <th style="text-align: center;">Mark Projekt</th>
+          <th style="text-align: center;">Im Root ausblenden</th>
           <th>Aktion</th>
         </tr>
       </thead>
@@ -555,15 +557,17 @@ function initMailHandlerSettings() {
         var emailInput = row.querySelector('.matrix-email');
         var ticketInput = row.querySelector('.matrix-ticket');
         var markInput = row.querySelector('.matrix-mark-project');
+        var hideInput = row.querySelector('.matrix-hide-root');
         if (emailInput && ticketInput && emailInput.value.trim() !== '') {
           var markFlag = (markInput && markInput.checked) ? '1' : '0';
-          data.push(emailInput.value.trim() + ':' + ticketInput.value.trim() + ':' + markFlag);
+          var hideFlag = (hideInput && hideInput.checked) ? '1' : '0';
+          data.push(emailInput.value.trim() + ':' + ticketInput.value.trim() + ':' + markFlag + ':' + hideFlag);
         }
       });
       hiddenMatrixField.value = data.join('\n');
     }
 
-    function createMatrixRow(email, ticket, markProject) {
+    function createMatrixRow(email, ticket, markProject, hideInRoot) {
       var tr = document.createElement('tr');
 
       var tdEmail = document.createElement('td');
@@ -598,6 +602,16 @@ function initMailHandlerSettings() {
       inputMark.addEventListener('change', updateHiddenMatrixField);
       tdMark.appendChild(inputMark);
 
+      var tdHide = document.createElement('td');
+      tdHide.style.textAlign = 'center';
+      var inputHide = document.createElement('input');
+      inputHide.type = 'checkbox';
+      inputHide.className = 'matrix-hide-root';
+      inputHide.checked = !!hideInRoot;
+      inputHide.title = 'Im Posteingang-Verteiler nicht als Ziel-Kachel anzeigen';
+      inputHide.addEventListener('change', updateHiddenMatrixField);
+      tdHide.appendChild(inputHide);
+
       var tdAction = document.createElement('td');
       var delBtn = document.createElement('button');
       delBtn.type = 'button';
@@ -612,6 +626,7 @@ function initMailHandlerSettings() {
       tr.appendChild(tdEmail);
       tr.appendChild(tdTicket);
       tr.appendChild(tdMark);
+      tr.appendChild(tdHide);
       tr.appendChild(tdAction);
 
       return tr;
@@ -625,19 +640,20 @@ function initMailHandlerSettings() {
         var email = parts[0].trim();
         var ticket = parts[1].trim();
         var mark = parts.length >= 3 && parts[2].trim() === '1';
+        var hide = parts.length >= 4 && parts[3].trim() === '1';
         if (email) {
-          matrixTableBody.appendChild(createMatrixRow(email, ticket, mark));
+          matrixTableBody.appendChild(createMatrixRow(email, ticket, mark, hide));
         }
       }
     });
 
     // Add empty row if empty
     if (matrixTableBody.children.length === 0) {
-      matrixTableBody.appendChild(createMatrixRow('', '', false));
+      matrixTableBody.appendChild(createMatrixRow('', '', false, false));
     }
 
     addMatrixRowBtn.addEventListener('click', function() {
-      matrixTableBody.appendChild(createMatrixRow('', '', false));
+      matrixTableBody.appendChild(createMatrixRow('', '', false, false));
       updateHiddenMatrixField();
     });
     

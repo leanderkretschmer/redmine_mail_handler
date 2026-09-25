@@ -26,7 +26,7 @@ module MailHandlerDistributorIssuesPatch
 
     case @distributor_kind
     when :root
-      @distributor_aliases = MailHandlerDistributor.alias_entries
+      @distributor_aliases = MailHandlerDistributor.root_target_entries
     when :alias
       exclude = [@issue.id, MailHandlerDistributor.root_issue_id, MailHandlerDistributor.trash_issue_id] + MailHandlerDistributor.alias_issue_ids
       @distributor_columns = MailHandlerDistributor.tracker_columns(@issue.project, exclude.uniq)

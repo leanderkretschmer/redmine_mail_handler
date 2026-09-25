@@ -33,18 +33,23 @@ class MailHandlerService
   # ---------------------------------------------------------------------------
 
   # Liefert alle Eintraege der Adress-Matrix als Array von Hashes.
-  #   [{ email: "alias@example.com", ticket_id: 123, mark_project: true }, ...]
+  #   [{ email: "alias@example.com", ticket_id: 123, mark_project: true, hide_in_root: false }, ...]
+  # Zeilenformat: "email:ticket_id[:mark_project[:hide_in_root]]" (Flags 0/1).
+  # hide_in_root: Alias-Verteiler im Posteingang-Verteiler nicht als Ziel-Kachel zeigen.
+  MATRIX_LINE = /^([^:,]+)[:\,]\s*(\d+)(?:[:\,]\s*([01]))?(?:[:\,]\s*([01]))?\s*$/
+
   def self.parse_address_matrix
     settings = Setting.plugin_redmine_mail_handler || {}
     raw = settings['address_matrix'].to_s
     entries = []
     raw.split("\n").each do |line|
       next if line.strip.blank?
-      next unless line.match(/^([^:,]+)[:\,]\s*(\d+)(?:[:\,]\s*([01]))?\s*$/)
+      next unless line.match(MATRIX_LINE)
       entries << {
         email: $1.strip.downcase,
         ticket_id: $2.to_i,
-        mark_project: ($3.to_s.strip == '1')
+        mark_project: ($3.to_s.strip == '1'),
+        hide_in_root: ($4.to_s.strip == '1')
       }
     end
     entries
@@ -1295,13 +1300,13 @@ class MailHandlerService
     matrix_setting = @settings['address_matrix']
     return nil if matrix_setting.blank?
     
-    # Parse matrix text. Format pro Zeile: "email:ticket_id" oder
-    # "email:ticket_id:mark_project_flag" (rueckwaertskompatibel — drittes Feld
-    # ist optional und wird hier nicht ausgewertet, siehe alias_project_mapping).
+    # Parse matrix text. Format pro Zeile: "email:ticket_id[:mark_project[:hide_in_root]]"
+    # (die Flags sind optional und werden hier nicht ausgewertet, siehe
+    # parse_address_matrix / alias_project_mapping).
     mapping = {}
     matrix_setting.split("\n").each do |line|
       next if line.strip.blank?
-      if line.match(/^([^:,]+)[:\,]\s*(\d+)(?:[:\,]\s*[01])?\s*$/)
+      if line.match(MATRIX_LINE)
         email = $1.strip.downcase
         ticket_id = $2.strip.to_i
         mapping[email] = ticket_id

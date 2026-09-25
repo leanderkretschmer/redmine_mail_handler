@@ -169,6 +169,20 @@ RSpec.describe MailHandlerService do
       allow(service).to receive(:add_mail_to_inbox_ticket)
     end
 
+    describe '.parse_address_matrix' do
+      it 'liest optionale Flags mark_project und hide_in_root' do
+        allow(Setting).to receive(:plugin_redmine_mail_handler).and_return(
+          'address_matrix' => "a@firma.de:1\nb@firma.de:2:1\nc@firma.de:3:0:1\nkaputt\n"
+        )
+        entries = described_class.parse_address_matrix
+        expect(entries.map { |e| [e[:email], e[:ticket_id], e[:mark_project], e[:hide_in_root]] }).to eq([
+          ['a@firma.de', 1, false, false],
+          ['b@firma.de', 2, true, false],
+          ['c@firma.de', 3, false, true]
+        ])
+      end
+    end
+
     describe '#system_address?' do
       it 'erkennt IMAP-Konto, Redmine-Absender und Dummy-Domain' do
         service.update_settings(matrix_settings.merge('dummy_mail_enabled' => '1', 'dummy_mail_suffix' => 'dummy.firma.de'))
