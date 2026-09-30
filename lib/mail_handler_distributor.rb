@@ -200,26 +200,21 @@ module MailHandlerDistributor
       !kind(issue).nil?
     end
 
-    # ── Menü / Rolle ────────────────────────────────────────────────────────
-    DEFAULT_ROLE_NAME = 'Ticket_Verteiler'.freeze
+    # ── Menü / Berechtigung ─────────────────────────────────────────────────
+    # Redmine-Berechtigung (siehe init.rb), die im Reiter "Berechtigungen"
+    # einer Rolle vergeben wird. Admins haben sie implizit.
+    PERMISSION = :view_ticket_distributor
 
-    # Name der Rolle, die die Menüpunkte "Ticket-Verteiler" sehen darf.
-    def role_name
-      settings['distributor_role_name'].presence || DEFAULT_ROLE_NAME
-    end
-
-    # Hat der Benutzer die Verteiler-Rolle in diesem Projekt (oder ist Admin)?
+    # Darf der Benutzer den Verteiler-Menüpunkt in diesem Projekt sehen?
     def user_has_role?(user, project)
       return false unless user && project
-      return true if user.admin?
-      user.roles_for_project(project).any? { |r| r.name == role_name }
+      user.allowed_to?(PERMISSION, project)
     end
 
-    # Hat der Benutzer die Verteiler-Rolle in irgendeinem Projekt (oder ist Admin)?
+    # Hat der Benutzer die Berechtigung in irgendeinem Projekt (oder ist Admin)?
     def user_has_role_anywhere?(user)
       return false unless user && user.logged?
-      return true if user.admin?
-      user.memberships.joins(:roles).where(roles: { name: role_name }).exists?
+      user.allowed_to?(PERMISSION, nil, global: true)
     end
 
     # Verteiler-Ticket eines Projekts: Alias-Verteiler (niedrigste ID), sonst

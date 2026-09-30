@@ -162,3 +162,4 @@ de:
   error_blocking_user: "Fehler beim Blockieren des Benutzers: %{error}"
   error_missing_parameters: "Fehlende Parameter."
   error_journal_not_found: "Journal-Eintrag nicht gefunden."
+  permission_view_ticket_distributor: "Ticket-Verteiler anzeigen"

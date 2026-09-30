@@ -161,3 +161,4 @@ en:
   error_blocking_user: "Error blocking user: %{error}"
   error_missing_parameters: "Missing parameters."
   error_journal_not_found: "Journal entry not found."
+  permission_view_ticket_distributor: "View ticket distributor"

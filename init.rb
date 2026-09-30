@@ -55,7 +55,6 @@ Redmine::Plugin.register :redmine_mail_handler do
       'address_matrix' => '',
       'performance_disable_images' => '0',
       'performance_disabled_ticket_ids' => '',
-      'distributor_role_name' => 'Ticket_Verteiler',
       'distributor_tracker_name' => 'Ticket-Verteiler',
       'trash_ticket_id' => '',
       'trash_retention_hours' => '48'
@@ -65,9 +64,14 @@ Redmine::Plugin.register :redmine_mail_handler do
   menu :admin_menu, :mail_handler, { :controller => 'mail_handler_admin', :action => 'index' }, 
        :caption => 'Mail Handler', :html => {:class => 'icon icon-email'}
 
-  # Menüpunkte "Ticket-Verteiler" – nur fuer Benutzer mit der Verteiler-Rolle
-  # (Einstellung distributor_role_name, Standard "Ticket_Verteiler") bzw. Admins.
-  # Top-Menü → Posteingang-Verteiler, Projektmenü → Alias-Verteiler des Projekts.
+  # Berechtigung "Ticket-Verteiler anzeigen": global (kein Projektmodul noetig),
+  # kann im Reiter "Berechtigungen" beliebigen Rollen zugewiesen werden.
+  # Steuert die Menüpunkte unten (Top-Menü → Posteingang-Verteiler,
+  # Projektmenü → Alias-Verteiler des Projekts). Admins sehen sie immer.
+  permission :view_ticket_distributor, { :mail_handler_distributor => [] }, :require => :member
+
+  # Menüpunkte "Ticket-Verteiler" – nur fuer Benutzer mit der Berechtigung
+  # view_ticket_distributor bzw. Admins.
   menu :top_menu, :ticket_distributor, :mail_handler_root_distributor_path,
        :caption => 'Ticket-Verteiler',
        :if => Proc.new { MailHandlerDistributor.show_top_menu? }

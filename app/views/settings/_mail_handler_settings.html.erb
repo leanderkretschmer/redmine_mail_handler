@@ -124,9 +124,7 @@
   <div class="box tabular settings">
     <h3>Verteiler-Ansicht</h3>
     <p>
-      <label for="settings_distributor_role_name">Rolle für Menüpunkt „Ticket-Verteiler“</label>
-      <%= text_field_tag 'settings[distributor_role_name]', @settings['distributor_role_name'].presence || 'Ticket_Verteiler', size: 30 %>
-      <em class="info">Benutzer mit dieser Rolle (und Administratoren) sehen im Hauptmenü den Punkt „Ticket-Verteiler“ zum Posteingang-Ticket und in Projekten mit Alias-Verteiler den Projekt-Menüpunkt zum Alias-Verteiler.</em>
+      <em class="info">Die Menüpunkte „Ticket-Verteiler“ (Hauptmenü → Posteingang-Verteiler, Projektmenü → Alias-Verteiler) sehen Benutzer, deren Rolle unter Administration › Rollen und Rechte die Berechtigung „Ticket-Verteiler anzeigen“ hat, sowie Administratoren.</em>
     </p>
 
     <p>
